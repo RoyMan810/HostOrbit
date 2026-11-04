@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 # Optional interactive TUI functions are sourced by the root installer.
 # Direct CLI mode retains its original text prompts.
+source "$(dirname "${BASH_SOURCE[0]}")/textual_protocol.sh"
 warn() { printf '\nWARNING: %s\n' "$*" >&2; }
 die() { printf '\nERROR: %s\n' "$*" >&2; exit 1; }
 require_root() { [[ "$(id -u)" -eq 0 ]] || die 'Run as root: sudo ./install.sh ...'; }
 confirm() {
+  if [[ "${KVPN_TEXTUAL_IPC:-0}" == 1 ]]; then
+    kvpn_ipc_confirm "$1"
+    return $?
+  fi
   if [[ "${KVPN_TUI:-0}" == 1 ]] && declare -F kvpn_ui_confirm >/dev/null; then
     kvpn_ui_confirm "$1"
     return $?
@@ -19,6 +24,11 @@ confirm() {
 }
 ask_default() {
   local prompt="$1" default="$2" result
+  if [[ "${KVPN_TEXTUAL_IPC:-0}" == 1 ]]; then
+    result=$(kvpn_ipc_request input "$prompt" "$default") || die 'Cancelled or UI disconnected'
+    printf '%s' "${result:-$default}"
+    return
+  fi
   if [[ "${KVPN_TUI:-0}" == 1 ]] && declare -F kvpn_ui_input >/dev/null; then
     prompt=$(kvpn_ui_prompt_ru "$prompt")
     if [[ "$prompt" == 'Выберите расположение сервера' ]]; then

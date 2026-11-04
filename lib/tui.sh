@@ -47,6 +47,10 @@ kvpn_ui_input() {
 
 kvpn_ui_password() {
   local question="$1" result
+  if [[ "${KVPN_TEXTUAL_IPC:-0}" == 1 ]]; then
+    kvpn_ipc_request password "$question" ''
+    return $?
+  fi
   if kvpn_ui_ready; then
     result=$(whiptail --backtitle 'K-VPN Node Deployer' --title 'Секретное значение' \
       --passwordbox "$question\n\nТокен не сохраняется в истории терминала." \
