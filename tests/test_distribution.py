@@ -42,7 +42,7 @@ class Distribution(unittest.TestCase):
         self.assertIn('do not repeat full wizard', script)
         monitor = (ROOT / 'monitor-kit/install.sh').read_text()
         self.assertIn('for attempt in 1 2 3', monitor)
-        self.assertIn('[[ "$actual" == "$expected" ]]', monitor)
+        self.assertIn('python3 lib/verify_host_key.py "$tmp" "$expected"', monitor)
         self.assertIn('monitor_status()', monitor)
         self.assertIn('public-keys) show_public_keys', monitor)
 

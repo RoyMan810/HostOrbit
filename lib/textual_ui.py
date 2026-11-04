@@ -10,6 +10,7 @@ import asyncio
 import base64
 from dataclasses import dataclass
 import os
+import signal
 from pathlib import Path
 import shutil
 import sys
@@ -72,6 +73,53 @@ def decode_prompt(line: str) -> tuple[str, str, str] | None:
     except (ValueError, UnicodeDecodeError):
         return None
     return parts[1], question, default
+
+
+async def bounded_output_lines(reader, maximum: int = 16384):
+    """Yield newline-delimited output without StreamReader's 64 KiB line limit.
+
+    Child programs (especially apt and Docker) may produce extremely long lines
+    or carriage-return progress updates. Never buffer an unbounded line or
+    abandon an installation merely because its output has no newline.
+    """
+    pending = bytearray()
+    truncated = False
+    while chunk := await reader.read(4096):
+        parts = chunk.split(b"\n")
+        for index, piece in enumerate(parts):
+            if not truncated:
+                available = maximum - len(pending)
+                pending.extend(piece[:available])
+                if len(piece) > available:
+                    truncated = True
+            if index < len(parts) - 1:
+                if truncated:
+                    yield bytes(pending) + b" [long output line truncated]"
+                else:
+                    yield bytes(pending)
+                pending.clear()
+                truncated = False
+    if pending or truncated:
+        yield bytes(pending) + (b" [long output line truncated]" if truncated else b"")
+
+
+async def stop_subprocess(proc: asyncio.subprocess.Process) -> None:
+    """Stop an unfinished Bash command and its children if the UI aborts."""
+    if proc.returncode is not None:
+        return
+    # The child runs in a new process group; never signal the UI's group.
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    try:
+        await asyncio.wait_for(proc.wait(), timeout=4)
+    except asyncio.TimeoutError:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        await proc.wait()
 
 
 class AskScreen(ModalScreen[str | None]):
@@ -271,11 +319,18 @@ class KVpnApp(App):
         for name, unit in (("Docker", "docker.service"), ("Таймер мониторинга", "kvpn-monitor-kit.timer"), ("Таймер бэкапа", "kvpn-node-backup.timer")):
             state = "недоступно"
             if shutil.which("systemctl"):
+                proc = None
                 try:
                     proc = await asyncio.create_subprocess_exec("systemctl", "is-active", unit, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
                     output, _ = await asyncio.wait_for(proc.communicate(), timeout=3)
                     state = output.decode(errors="replace").strip() or "неизвестно"
-                except (OSError, asyncio.TimeoutError):
+                except asyncio.TimeoutError:
+                    # A hung systemctl must not survive successive dashboard refreshes.
+                    if proc is not None and proc.returncode is None:
+                        proc.kill()
+                        await proc.wait()
+                    state = "тайм-аут"
+                except OSError:
                     state = "ошибка проверки"
             rows.append((name, state))
         table.clear()
@@ -296,6 +351,7 @@ class KVpnApp(App):
         env.pop("KVPN_TUI", None)
         env["KVPN_TEXTUAL_IPC"] = "1"
         env["DEBIAN_FRONTEND"] = "noninteractive"
+        proc: asyncio.subprocess.Process | None = None
         try:
             proc = await asyncio.create_subprocess_exec(
                 "bash", str(self.root / "install.sh"), *task.argv,
@@ -303,9 +359,10 @@ class KVpnApp(App):
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
                 cwd=str(self.root), env=env,
+                start_new_session=True,
             )
             assert proc.stdout and proc.stdin
-            async for raw in proc.stdout:
+            async for raw in bounded_output_lines(proc.stdout):
                 line = raw.decode("utf-8", "replace").rstrip("\r\n")
                 prompt = decode_prompt(line)
                 if prompt is not None:
@@ -318,17 +375,24 @@ class KVpnApp(App):
                     except (BrokenPipeError, ConnectionResetError):
                         log.write("Поток ввода закрыт преждевременно.")
                 else:
-                    # Strip control chars from untrusted command output; keep whitespace.
+                    # Strip ANSI/control codes from potentially untrusted output.
                     line = "".join(c for c in line if c == "\t" or ord(c) >= 32)
                     if line:
                         log.write(line)
             exit_code = await proc.wait()
             log.write(f"● Завершено: код {exit_code}" if exit_code else "✓ Операция завершилась успешно.")
             self.notify("Готово" if exit_code == 0 else "Ошибка выполнения — см. журнал", severity="information" if exit_code == 0 else "error")
-        except (OSError, ValueError) as exc:
-            log.write(f"Не удалось запустить команду: {exc}")
-            self.notify("Ошибка запуска", severity="error")
+        except asyncio.CancelledError:
+            log.write("⚠ Интерфейс завершился во время операции; проверяйте состояние служб перед повтором.")
+            raise
+        except Exception as exc:
+            log.write(f"Ошибка выполнения команды: {exc}")
+            self.notify("Ошибка выполнения — см. журнал", severity="error")
         finally:
+            if proc is not None:
+                if proc.stdin is not None:
+                    proc.stdin.close()
+                await stop_subprocess(proc)
             self._set_busy(False)
             self.refresh_inventory()
 

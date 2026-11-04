@@ -159,10 +159,17 @@ install_node() {
  local role="$1"
  assert_clean node
  ensure_monitor_dependencies
- local pid panel port target type expected tmp actual target_port
+ local pid panel port target type expected tmp target_port
  ask 'Unique probe ID (e.g. ru1-nl1, ru1-nl2 or nl1-local): ' pid
  valid_id "$pid" || { echo 'Invalid probe ID'; exit 1; }
- [[ ! -e "/etc/kvpn-monitor/probes/$pid.env" ]] || { echo 'Probe ID already exists; refusing overwrite' >&2; exit 1; }
+ # A previous interrupted run may have created keys without an .env file.
+ # Never overwrite an existing private key, public key or known_hosts file.
+ local ext
+ for ext in env key key.pub known_hosts; do
+   [[ ! -e "/etc/kvpn-monitor/probes/$pid.$ext" && ! -L "/etc/kvpn-monitor/probes/$pid.$ext" ]] || {
+     echo "Probe $pid already has a $ext file; refusing overwrite" >&2; exit 1;
+   }
+ done
  ask 'Monitoring panel IP/hostname: ' panel
  [[ "$panel" =~ ^[a-zA-Z0-9.:-]+$ ]] || { echo 'Invalid panel host'; exit 1; }
  ask 'Panel SSH port [22]: ' port
@@ -197,8 +204,8 @@ install_node() {
    echo "Check TCP access and run: ssh-keyscan -T 10 -p $port -t ed25519 $panel" >&2
    exit 1
  }
- actual=$(ssh-keygen -lf "$tmp" | awk '{print $2}' | head -1)
- [[ "$actual" == "$expected" ]] || { echo 'Panel fingerprint mismatch; refusing to install' >&2; exit 1; }
+ # ssh-keyscan may return multiple IP/host records. Every key must be verified.
+ python3 lib/verify_host_key.py "$tmp" "$expected" || exit 1
  install -d -m 700 /etc/kvpn-monitor /etc/kvpn-monitor/probes
  install -d -m 755 /opt/kvpn-monitor
  install -m 700 lib/sender.sh /opt/kvpn-monitor/sender.sh
