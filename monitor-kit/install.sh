@@ -251,7 +251,14 @@ pid,label,stale,fail,recovery=sys.argv[1:]
 if any(x['id']==pid for x in d['probes']):
     raise SystemExit('ERROR: probe ID already registered. No changes made.')
 d['probes'].append({'id':pid,'name':label,'stale_after':int(stale),'fail_threshold':int(fail),'recovery_threshold':int(recovery)})
-p.write_text(json.dumps(d,ensure_ascii=False,indent=2)+'\n')
+tmp=p.with_suffix('.tmp')
+with tmp.open('w') as out:
+    out.write(json.dumps(d,ensure_ascii=False,indent=2)+'\n')
+    out.flush()
+    import os
+    os.fsync(out.fileno())
+os.chmod(tmp,0o600)
+os.replace(tmp,p)
 PY
  local line
  line="from=\"$source\",restrict,command=\"/usr/bin/python3 /opt/kvpn-monitor/receiver.py $pid\" $pub"
