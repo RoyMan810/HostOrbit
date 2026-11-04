@@ -31,7 +31,7 @@ jobs:
         run: |
           bash kvpn-install.sh help
           test "$(bash kvpn-install.sh help | grep -c 'interactive menu')" -ge 1
-          bash kvpn-install.sh monitor legacy-audit
+          sudo bash kvpn-install.sh monitor legacy-audit
       - name: Run unit tests
         run: |
           python3 -m unittest discover -s tests -v
