@@ -126,13 +126,13 @@ class ApprovalScreen(ModalScreen[bool]):
 
     def __init__(self, task: Task) -> None:
         super().__init__()
-        self.task = task
+        self.operation = task
 
     def compose(self) -> ComposeResult:
         with Container(id="dialog"):
             yield Static("◆  ПОДТВЕРЖДЕНИЕ", classes="dialog-head")
-            yield Label(self.task.title, id="dialog-question")
-            yield Static(self.task.warning or "Операция может изменять конфигурацию сервера.", classes="dialog-note")
+            yield Label(self.operation.title, id="dialog-question")
+            yield Static(self.operation.warning or "Операция может изменять конфигурацию сервера.", classes="dialog-note")
             yield Static("Изменения не откатываются автоматически. Запуск только на подходящем сервере.", classes="dialog-note")
             with Horizontal(id="dialog-actions"):
                 yield Button("Вернуться", id="cancel")
