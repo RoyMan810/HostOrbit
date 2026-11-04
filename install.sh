@@ -27,6 +27,7 @@ K-VPN Node Deployer — новый сервер / отдельные компо�
   sudo ./install.sh monitor ru          monitoring agent on RU
   sudo ./install.sh monitor foreign     monitoring agent on foreign node
   sudo ./install.sh monitor register    register agent on monitoring panel
+  sudo ./install.sh monitor public-keys show only agent public keys
   sudo ./install.sh monitor test-telegram sends a test alert from panel
   sudo ./install.sh status              read-only health summary
   sudo ./install.sh diagnostics         write redacted diagnostic text file
@@ -428,9 +429,9 @@ install_node() {
   # Minimal Ubuntu images may omit Python, curl, the editor or networking tools.
   # nano is optional and NOT a prerequisite: we never invoke an editor.
   install_packages python3 ca-certificates curl openssh-client iproute2 coreutils tar gzip util-linux libc-bin
+  port_unused "$nodeport" || die 'Node API port already has a listener; refusing to deploy.'
   optional_swap
   install_docker
-  port_unused "$nodeport" || die 'Node API port already has a listener; refusing to deploy.'
   # Compose validated in a temporary directory. No changes to the active node until validation succeeds.
   local staging
   staging=$(mktemp -d /root/.kvpn-node-staging.XXXXXX)
@@ -438,6 +439,10 @@ install_node() {
   cp -- "$source_file" "$staging/docker-compose.yml"
   chmod 600 "$staging/docker-compose.yml"
   validate_compose "$staging" "$nodeport"
+  # Pull before writing active node files or changing UFW. Bad tags and registry
+  # failures then leave the existing firewall and configuration untouched.
+  echo 'Pulling Node image before changing node/firewall settings...'
+  (cd "$staging" && docker compose pull) || die 'Image pull failed. No node files or firewall changes were made.'
   if [[ "$mode" == full ]]; then
     setup_firewall "$panel_ip" "$nodeport" "$vpnport" "$vpn_source" "$sshport" "$acme"
   else
@@ -451,7 +456,11 @@ install_node() {
   chmod 600 "$STATE_DIR/node.env"
   echo 'Шаг 3/3: запускаем контейнер Remnawave Node...'
   echo 'Starting Remnawave Node container...'
-  (cd "$NODE_DIR" && docker compose pull && docker compose up -d)
+  if ! (cd "$NODE_DIR" && docker compose up -d); then
+    warn 'Container startup failed. Configuration is preserved at /opt/remnanode.'
+    warn 'Inspect: cd /opt/remnanode && docker compose ps && docker compose logs --tail=50'
+    die 'Review Docker logs; do not repeat full wizard over existing node files.'
+  fi
   (cd "$NODE_DIR" && docker compose ps)
   echo
   echo 'NEXT (in panel): finish creating node, choose correct Config Profile, configure Xray inbounds/outbounds.'
@@ -630,8 +639,8 @@ diagnostics() {
     if command -v ufw >/dev/null; then ufw status || true; fi
     echo '--- KVPN systemd timers ---'
     systemctl list-timers --all --no-pager | grep -E 'kvpn-|NEXT' || true
-    echo '--- systemd probe services ---'
-    systemctl is-active kvpn-node-backup.timer kvpn-monitor-kit-probe.timer 2>/dev/null || true
+    echo '--- monitoring timers (including instance names) ---'
+    systemctl list-timers 'kvpn-monitor-kit*' --all --no-pager 2>/dev/null || true
   } > "$out"
   chmod 600 "$out"
   echo "Diagnostics saved: $out (review before sharing; IPs may be visible)"

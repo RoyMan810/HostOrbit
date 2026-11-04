@@ -19,6 +19,9 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+      - name: Check standalone installer matches sources
+        run: |
+          python3 tools/build_bundle.py --check
       - name: Check Bash syntax
         shell: bash
         run: |
@@ -26,7 +29,7 @@ jobs:
           bash -n monitor-kit/install.sh monitor-kit/lib/sender.sh
       - name: Check Python syntax
         run: |
-          python3 -m py_compile monitor-kit/lib/monitor.py monitor-kit/lib/receiver.py monitor-kit/lib/register.py
+          python3 -m py_compile monitor-kit/lib/monitor.py monitor-kit/lib/receiver.py monitor-kit/lib/register.py tools/build_bundle.py
       - name: Exercise the single-file installer (read-only)
         run: |
           bash kvpn-install.sh help
@@ -35,4 +38,3 @@ jobs:
         run: |
           python3 -m unittest discover -s tests -v
           python3 -m unittest discover -s monitor-kit/tests -v
-          python3 -m unittest discover -s tests -p "test_tui.py" -v
