@@ -1,0 +1,8 @@
+This archive does not include secrets, TLS private keys, real node configs, Bot Token,
+or SSH private keys. Never share a Remnawave panel-generated docker-compose.yml,
+/opt/remnanode/docker-compose.yml, /etc/kvpn-monitor/token, SSH keys, or a
+node-backup archive publicly. Keep root-only permissions (600/700).
+
+Panel management API port should be reachable only from Panel's public IP.
+Foreign VPN inbounds should generally allow only RU egress IPs if used in cascade.
+Never assume an open TCP port proves the VPN protocol itself is healthy.

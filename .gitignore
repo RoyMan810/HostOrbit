@@ -1,0 +1,27 @@
+# Never commit operational secrets or local configurations
+.env
+*.env
+*.key
+*.pem
+*.p12
+*.pfx
+*.crt
+*.tar.gz
+*.sha256
+*.bak
+*.bak.*
+server-backups/
+backup-archives/
+ssh_host_*
+known_hosts
+id_*
+config.json
+state.json
+latest.status
+node.env
+probe.env
+telegram.env
+docker-compose.yml
+__pycache__/
+*.py[cod]
+.DS_Store
