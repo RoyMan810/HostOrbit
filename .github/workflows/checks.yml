@@ -29,7 +29,7 @@ jobs:
           bash -n monitor-kit/install.sh monitor-kit/lib/sender.sh
       - name: Check Python syntax
         run: |
-          python3 -m py_compile monitor-kit/lib/monitor.py monitor-kit/lib/receiver.py monitor-kit/lib/register.py lib/textual_ui.py tools/build_bundle.py
+          python3 -m py_compile monitor-kit/lib/monitor.py monitor-kit/lib/receiver.py monitor-kit/lib/register.py monitor-kit/lib/verify_host_key.py lib/textual_ui.py tools/build_bundle.py
       - name: Exercise the single-file installer (read-only)
         run: |
           bash kvpn-install.sh help

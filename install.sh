@@ -703,8 +703,13 @@ menu() {
   require_debian
   require_root
   if [[ "${KVPN_FORCE_LEGACY_TUI:-0}" != 1 ]]; then
-    if kvpn_textual_launch; then return 0; fi
-    warn 'Textual не запустился — пробуем резервное меню whiptail.'
+    local textual_result=0
+    kvpn_textual_launch || textual_result=$?
+    if (( textual_result == 0 )); then return 0; fi
+    if (( textual_result == 99 )); then
+      die 'Textual аварийно завершился; автоматический переход к другому меню отключён. Проверьте состояние сервера.'
+    fi
+    warn 'Textual недоступен — пробуем резервное меню whiptail.'
   fi
   if kvpn_ui_bootstrap; then
     export KVPN_TUI=1 KVPN_ROOT="$ROOT_DIR"

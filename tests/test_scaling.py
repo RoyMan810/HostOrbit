@@ -41,7 +41,7 @@ cat "$LOG"
         self.assertIn('kvpn-monitor-kit-probe@.service',text)
         self.assertIn('kvpn-monitor-kit-probe@.timer',text)
         self.assertIn('/etc/kvpn-monitor/probes/$pid.key',text)
-        self.assertIn('Probe ID already exists',text)
+        self.assertIn('refusing overwrite',text)
         self.assertIn('Repeat monitor ru / monitor foreign',text)
 
     def test_no_dangerous_existing_node_firewall_reset(self):

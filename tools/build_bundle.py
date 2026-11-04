@@ -19,7 +19,7 @@ RUNTIME = (
     'lib/textual_protocol.sh', 'lib/textual_launcher.sh', 'lib/textual_ui.py',
     'monitor-kit/install.sh',
     'monitor-kit/lib/monitor.py', 'monitor-kit/lib/receiver.py',
-    'monitor-kit/lib/register.py', 'monitor-kit/lib/sender.sh',
+    'monitor-kit/lib/register.py', 'monitor-kit/lib/verify_host_key.py', 'monitor-kit/lib/sender.sh',
 )
 BOOTSTRAP = r'''#!/usr/bin/env bash
 # K-VPN Node Deployer — self-extracting installer (built from tools/build_bundle.py).

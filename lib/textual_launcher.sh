@@ -51,5 +51,10 @@ kvpn_textual_launch() {
     kvpn_textual_offer_install || return 1
     interpreter=$(kvpn_textual_python) || return 1
   }
-  "$interpreter" "$ROOT_DIR/lib/textual_ui.py"
+  local result=0
+  "$interpreter" "$ROOT_DIR/lib/textual_ui.py" || result=$?
+  if (( result != 0 )); then
+    echo "Textual terminated with code $result. Inspect the node state before retrying." >&2
+    return 99
+  fi
 }
