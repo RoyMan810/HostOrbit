@@ -11,7 +11,13 @@ usage() {
   cat <<'EOF'
 K-VPN Node Deployer — new server only
 
-  sudo ./install.sh wizard              guided new Remnawave Node + firewall + backup
+  sudo ./install.sh                     interactive menu (choose individual tasks)
+  sudo ./install.sh menu                same interactive menu
+  sudo ./install.sh node                install ONLY Remnawave Node (requires prepared UFW)
+  sudo ./install.sh firewall            configure ONLY UFW rules (new VPS)
+  sudo ./install.sh firewall-add-ru     add RU source to an installed foreign node
+  sudo ./install.sh docker              install ONLY Docker + Compose
+  sudo ./install.sh wizard              full guided installation (new VPS)
   sudo ./install.sh preflight           read-only environment checks
   sudo ./install.sh decoy               optional local HTTPS REALITY target (9444)
   sudo ./install.sh backup              backup service on a prepared node
@@ -28,10 +34,19 @@ Xray inbounds/outbounds and subscriptions are managed in Remnawave Panel.
 EOF
 }
 
+supported_distribution() {
+  # Interim Ubuntu releases 24.10/25.x are EOL in November 2026.
+  # These are the currently supported Ubuntu LTS/interim releases in Docker docs.
+  case "$1:$2" in
+    ubuntu:24.04|ubuntu:26.04|ubuntu:26.10|debian:12|debian:13) return 0;;
+    *) return 1;;
+  esac
+}
 require_debian() {
-  [[ -f /etc/os-release ]] || die 'Only Debian/Ubuntu are supported'
+  [[ -f /etc/os-release ]] || die 'Only supported Ubuntu/Debian versions are allowed'
   . /etc/os-release
-  case "$ID" in ubuntu|debian) ;; *) die "Unsupported distribution: $ID";; esac
+  supported_distribution "${ID:-}" "${VERSION_ID:-}" || \
+    die "Unsupported or EOL OS: ${ID:-unknown} ${VERSION_ID:-unknown}. Use Ubuntu 24.04/26.04/26.10 or Debian 12/13."
   command -v systemctl >/dev/null || die 'systemd is required'
   command -v apt-get >/dev/null || die 'apt-get is required'
 }
@@ -51,7 +66,7 @@ preflight() {
     echo 'Docker: not installed'
   fi
   if command -v ufw >/dev/null; then
-    ufw status | head -8
+    ufw status | head -8 || true
   else
     echo 'UFW: not installed'
   fi
@@ -59,12 +74,21 @@ preflight() {
   if command -v ss >/dev/null; then
     ss -H -lnt 2>/dev/null | awk '$4 ~ /:(22|80|443|2222|8443|9444|10000)$/ {print $4}' | sort -u
   fi
-  if [[ -f "$NODE_DIR/docker-compose.yml" ]]; then
-    echo "EXISTING NODE DETECTED: $NODE_DIR/docker-compose.yml"
+  if [[ -e "$NODE_DIR" ]]; then
+    echo "EXISTING NODE DIRECTORY: $NODE_DIR (wizard will refuse installation)"
   fi
   if [[ -e /etc/systemd/system/kvpn-probe.timer || -e /root/kvpn-monitor/check.py ]]; then
     echo 'EXISTING LEGACY MONITOR DETECTED: do not install monitor kit over it.'
   fi
+  echo 'Utilities (missing ones can be installed before provisioning; nano is optional):'
+  local util
+  for util in python3 curl nano tar gzip base64 ssh-keygen ssh-keyscan timeout ss; do
+    if command -v "$util" >/dev/null 2>&1; then
+      printf '  %-13s OK\n' "$util"
+    else
+      printf '  %-13s MISSING\n' "$util"
+    fi
+  done
   echo 'Preflight is read-only.'
 }
 
@@ -90,27 +114,51 @@ optional_swap() {
 
 install_packages() {
   local packages=("$@")
+  (( ${#packages[@]} > 0 )) || return 0
   printf 'Installing packages: %s\n' "${packages[*]}"
   apt-get update -qq
   DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${packages[@]}"
 }
 
 install_docker() {
-  if command -v docker >/dev/null && docker compose version >/dev/null 2>&1; then
+  if command -v docker >/dev/null 2>&1; then
+    docker compose version >/dev/null 2>&1 || \
+      die 'Docker exists without Compose plugin. Fix manually; will not replace existing Docker packages.'
     echo 'Docker + Compose already present.'
   else
-    echo 'The official Docker installer https://get.docker.com will be downloaded over HTTPS.'
-    echo 'It is a third-party root installer; use a fresh VPS and review Docker security implications.'
-    confirm 'Download and execute the official Docker installation script?' || die 'Docker installation declined'
-    install_packages curl ca-certificates
-    local installer
-    installer=$(mktemp)
-    trap 'rm -f "$installer"' RETURN
-    curl --fail --location --silent --show-error --proto '=https' --tlsv1.2 --connect-timeout 10 --max-time 75 https://get.docker.com -o "$installer"
-    [[ -s "$installer" ]] || die 'Docker installer download empty'
-    bash "$installer"
-    rm -f "$installer"
-    trap - RETURN
+    echo 'Docker Engine will be installed via the official Docker APT repository.'
+    confirm 'Configure Docker APT repository and install Docker Engine + Compose?' || die 'Docker installation declined'
+    install_packages ca-certificates curl
+    . /etc/os-release
+    local distro="$ID" codename="${UBUNTU_CODENAME:-${VERSION_CODENAME:-}}" arch key_tmp
+    [[ "$codename" =~ ^[a-z0-9]+$ ]] || die 'Invalid or missing OS codename'
+    arch=$(dpkg --print-architecture)
+    [[ "$arch" =~ ^[a-z0-9]+$ ]] || die 'Invalid CPU architecture'
+    [[ ! -e /etc/apt/sources.list.d/docker.sources ]] || \
+      die 'Docker APT repository already configured. Inspect existing Docker setup manually.'
+    [[ ! -e /etc/apt/keyrings/docker.asc ]] || \
+      die 'Docker signing key already exists. Inspect existing Docker setup manually.'
+    install -d -m 755 /etc/apt/keyrings
+    key_tmp=$(mktemp /etc/apt/keyrings/.docker.asc.XXXXXX)
+    if ! curl -fsSL --proto '=https' --tlsv1.2 --connect-timeout 10 --max-time 60 \
+      "https://download.docker.com/linux/$distro/gpg" -o "$key_tmp"; then
+      rm -f -- "$key_tmp"
+      die 'Failed to download Docker repository signing key'
+    fi
+    [[ -s "$key_tmp" ]] || { rm -f -- "$key_tmp"; die 'Docker signing key is empty'; }
+    chmod 644 "$key_tmp"
+    mv -- "$key_tmp" /etc/apt/keyrings/docker.asc
+    cat > /etc/apt/sources.list.d/docker.sources <<EOF
+Types: deb
+URIs: https://download.docker.com/linux/$distro
+Suites: $codename
+Components: stable
+Architectures: $arch
+Signed-By: /etc/apt/keyrings/docker.asc
+EOF
+    apt-get update -qq || die 'Docker repository unavailable for this OS/architecture'
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
   fi
   systemctl enable --now docker
   docker compose version >/dev/null || die 'Docker Compose plugin not found'
@@ -118,16 +166,13 @@ install_docker() {
 
 port_unused() {
   local port="$1"
-  if command -v ss >/dev/null; then
-    ! ss -H -lnt | awk '{print $4}' | grep -Eq ":${port}$"
-  else
-    return 0
-  fi
+  command -v ss >/dev/null 2>&1 || die 'ss is required for port checks (install iproute2)'
+  ! ss -H -lnt | awk '{print $4}' | grep -Eq ":${port}$"
 }
 
 setup_firewall() {
   local panel_ip="$1" nodeport="$2" vpnport="$3" vpn_source="$4" sshport="$5" allow_http="$6"
-  install_packages ufw
+  install_packages ufw iproute2
   echo
   echo 'Planned UFW rules:'
   echo " - SSH port $sshport/tcp: kept as-is if UFW active; opened publicly only when enabling fresh UFW"
@@ -140,9 +185,13 @@ setup_firewall() {
   if [[ "$ufw_active" == yes ]] && ufw status verbose | grep -Eq '^Default: allow \(incoming\)'; then
     die 'UFW is active with default ALLOW incoming. Change firewall policy manually before provisioning.'
   fi
+  # Refuse an existing allow-all rule even if a separate specific Node API rule exists.
+  if [[ "$ufw_active" == yes ]] && ufw status | grep -Eq '^Anywhere( \(v6\))?[[:space:]]+ALLOW([[:space:]]+IN)?[[:space:]]+Anywhere'; then
+    die 'UFW has a global ALLOW Anywhere rule; Node API would be exposed.'
+  fi
   # Refuse to install on top of a preexisting globally exposed Node API.
-  if [[ "$ufw_active" == yes ]] && ufw status | grep -Eq "^${nodeport}(/tcp)?[[:space:]]+ALLOW[[:space:]]+Anywhere"; then
-    die 'Node API port already allowed from Anywhere in UFW; fix manually first.'
+  if [[ "$ufw_active" == yes ]] && ufw status | grep -Eq "^${nodeport}(/tcp)?( \(v6\))?[[:space:]]+ALLOW([[:space:]]+IN)?[[:space:]]+Anywhere"; then
+    die 'Node API port already allowed from Anywhere in UFW (IPv4 or IPv6); fix manually first.'
   fi
   if [[ "$ufw_active" == no ]]; then
     echo 'UFW is currently inactive. Enabling it changes the host firewall.'
@@ -150,16 +199,31 @@ setup_firewall() {
   else
     confirm 'Apply the listed additional UFW rules?' || die 'Firewall rules not approved'
   fi
+  # Do not enable an inactive firewall with a mistyped SSH port.
+  if [[ "$ufw_active" == no ]]; then
+    port_unused "$sshport" && die "SSH port $sshport has no TCP listener; refusing to enable UFW"
+    if [[ -n "${SSH_CONNECTION:-}" ]]; then
+      local remote_ip remote_port local_ip actual_ssh_port
+      read -r remote_ip remote_port local_ip actual_ssh_port <<< "$SSH_CONNECTION"
+      [[ "$actual_ssh_port" == "$sshport" ]] || \
+        die "Entered SSH port $sshport differs from current SSH session port $actual_ssh_port"
+    fi
+  fi
   # Never widen an EXISTING SSH allowlist on an active host firewall.
   if [[ "$ufw_active" == no ]]; then
     ufw allow "$sshport/tcp" comment 'KVPN keep SSH' >/dev/null
   fi
   ufw allow from "$panel_ip" to any port "$nodeport" proto tcp comment 'KVPN panel only' >/dev/null
-  if [[ "$vpn_source" == '0.0.0.0/0' ]]; then
-    ufw allow "$vpnport/tcp" comment 'KVPN public inbound' >/dev/null
-  else
-    ufw allow from "$vpn_source" to any port "$vpnport" proto tcp comment 'KVPN approved transport source' >/dev/null
-  fi
+  local source
+  local -a sources
+  IFS=, read -r -a sources <<< "$vpn_source"
+  for source in "${sources[@]}"; do
+    if [[ "$source" == '0.0.0.0/0' ]]; then
+      ufw allow "$vpnport/tcp" comment 'KVPN public inbound' >/dev/null
+    else
+      ufw allow from "$source" to any port "$vpnport" proto tcp comment 'KVPN approved transport source' >/dev/null
+    fi
+  done
   if [[ "$allow_http" == yes ]]; then
     ufw allow 80/tcp comment 'KVPN ACME HTTP-01 renewal' >/dev/null
   fi
@@ -168,6 +232,101 @@ setup_firewall() {
     ufw --force enable >/dev/null
   fi
   ufw status numbered
+}
+
+# Node-only installation never adjusts UFW. Verify that the management API
+# is already restricted locally before starting an Internet-facing container.
+assert_node_api_protected() {
+  local panel_ip="$1" nodeport="$2" rules
+  command -v ufw >/dev/null 2>&1 || die 'Node-only: UFW is missing. Configure firewall first (menu: UFW).'
+  ufw status verbose | grep -Eqi '^Status: active' || die 'Node-only: UFW is inactive. Configure UFW first.'
+  ufw status verbose | grep -Eqi '^Default: deny \(incoming\)' || \
+    die 'Node-only: UFW inbound policy must be deny.'
+  rules=$(ufw status)
+  if grep -Eq '^Anywhere( \(v6\))?[[:space:]]+ALLOW([[:space:]]+IN)?[[:space:]]+Anywhere' <<< "$rules"; then
+    die 'Node-only: an allow-all UFW rule exposes the API; fix it first.'
+  fi
+  if grep -Eq "^${nodeport}(/tcp)?( \(v6\))?[[:space:]]+ALLOW([[:space:]]+IN)?[[:space:]]+Anywhere" <<< "$rules"; then
+    die 'Node-only: Node API allows Anywhere; restrict it first.'
+  fi
+  grep -Eq "^${nodeport}(/tcp)?[[:space:]]+ALLOW([[:space:]]+IN)?[[:space:]]+${panel_ip//./\.}([[:space:]]|$)" <<< "$rules" || \
+    die "Node-only: no UFW ALLOW rule for panel $panel_ip -> TCP $nodeport. Configure UFW first."
+  echo 'Verified active UFW default deny and restricted Node API allow rule.'
+}
+
+# Independent firewall configuration: no Docker, Node or monitoring changes.
+configure_firewall_only() {
+  require_debian
+  [[ ! -e "$NODE_DIR" && ! -L "$NODE_DIR" ]] ||     die 'Existing node detected. Separate UFW setup is only for a NEW VPS; do not alter production rules.'
+  preflight
+  local panel_ip nodeport vpnport vpn_source sshport acme role
+  echo 'This operation configures ONLY UFW. Existing node, Docker and monitoring are not installed.'
+  confirm 'Proceed to collect UFW settings?' || die 'Cancelled'
+  role=$(ask_default 'Role (ru / foreign)' 'foreign')
+  [[ "$role" == ru || "$role" == foreign ]] || die 'Role must be ru or foreign'
+  panel_ip=$(ask_default 'Remnawave Panel public IPv4' '')
+  valid_ipv4 "$panel_ip" || die 'Invalid Panel IPv4'
+  nodeport=$(ask_default 'Node API port from panel compose' '2222')
+  valid_port "$nodeport" || die 'Invalid Node API port'
+  if [[ "$role" == foreign ]]; then
+    vpnport=$(ask_default 'Xray TCP inbound port' '8443')
+    vpn_source=$(ask_default 'Allowed RU IPs/CIDRs (comma-separated, e.g. 2 RU nodes)' '')
+  else
+    vpnport=$(ask_default 'Public TCP inbound port' '443')
+    vpn_source=$(ask_default 'Allowed client source' '0.0.0.0/0')
+  fi
+  valid_port "$vpnport" || die 'Invalid inbound port'
+  valid_ipv4_sources "$vpn_source" || die 'Invalid source IPv4/CIDR list'
+  [[ "$role" != foreign || ",$vpn_source," != *,0.0.0.0/0,* ]] || \
+    die 'Foreign node must not expose transport to all IPv4 sources'
+  sshport=$(ask_default 'Current SSH port' '22')
+  valid_port "$sshport" || die 'Invalid SSH port'
+  [[ "$nodeport" != "$vpnport" && "$nodeport" != "$sshport" && "$vpnport" != "$sshport" ]] || \
+    die 'SSH, Node API and VPN transport ports must be distinct'
+  [[ "$nodeport" != 80 && "$nodeport" != 443 && "$nodeport" != 9444 ]] || \
+    die 'Node API must not use the public HTTP/HTTPS or decoy ports'
+  acme=$(ask_default 'Allow public 80/tcp for ACME? (yes/no)' 'no')
+  [[ "$acme" == yes || "$acme" == no ]] || die 'Answer yes or no'
+  if [[ "$acme" == yes ]]; then
+    [[ "$vpnport" != 80 && "$vpnport" != 9444 ]] || die 'ACME reserves ports 80 and 9444'
+  fi
+  setup_firewall "$panel_ip" "$nodeport" "$vpnport" "$vpn_source" "$sshport" "$acme"
+  echo 'UFW configured. No Docker containers or node services were changed.'
+}
+
+# Expand allowed source IPs when a NEW Russian node is introduced.
+# This is the only firewall action allowed on an existing installer-managed
+# foreign node; it adds a single rule and never touches Docker or VPN profiles.
+add_ru_firewall_source() {
+  require_debian
+  [[ -f "$STATE_DIR/node.env" ]] || die 'No installer-managed Node config. Configure manually.'
+  source "$STATE_DIR/node.env"
+  [[ "${ROLE:-}" == foreign ]] || die 'This action only applies to foreign nodes.'
+  [[ -n "${VPN_PORT:-}" ]] && valid_port "$VPN_PORT" || die 'Invalid VPN port in saved settings'
+  command -v ufw >/dev/null 2>&1 || die 'UFW not installed'
+  ufw status | grep -qi '^Status: active' || die 'UFW is inactive; refusing rule change'
+  local source_ip
+  source_ip=$(ask_default 'New RU source IPv4/CIDR' '')
+  valid_ip_or_cidr "$source_ip" || die 'Invalid RU IPv4/CIDR'
+  local -a current_ips
+  IFS=, read -r -a current_ips <<< "${VPN_SOURCE:-}"
+  local existing
+  for existing in "${current_ips[@]}"; do
+    [[ "$existing" != "$source_ip" ]] || die 'This source is already configured'
+  done
+  if [[ "${VPN_SOURCE:-}" == '0.0.0.0/0' ]]; then
+    die 'VPN port is already public; do not add specific RU rules to a public inbound'
+  fi
+  echo "Planned UFW addition: allow TCP $VPN_PORT from $source_ip"
+  confirm 'Add ONLY this UFW rule?' || die 'Cancelled'
+  ufw allow from "$source_ip" to any port "$VPN_PORT" proto tcp comment 'KVPN additional RU source'
+  local tmp
+  tmp=$(mktemp "$STATE_DIR/.node.env.XXXXXX")
+  grep -v '^VPN_SOURCE=' "$STATE_DIR/node.env" > "$tmp"
+  printf 'VPN_SOURCE=%q\n' "${VPN_SOURCE:+$VPN_SOURCE,}$source_ip" >> "$tmp"
+  chmod 600 "$tmp"
+  mv -- "$tmp" "$STATE_DIR/node.env"
+  echo "Source added. Also update the relevant routing/configuration in Remnawave Panel."
 }
 
 validate_compose() {
@@ -204,11 +363,19 @@ PYCODE
 }
 
 install_node() {
+  local mode="${1:-full}"
+  [[ "$mode" == full || "$mode" == node_only ]] || die 'Unknown node installation mode'
   require_debian
   [[ -e /etc/ssh/ssh_host_ed25519_key.pub ]] || warn 'No Ed25519 host key found; confirm SSH access.'
-  [[ ! -e "$NODE_DIR/docker-compose.yml" ]] || die 'Existing /opt/remnanode/docker-compose.yml found: WILL NOT overwrite it.'
+  [[ ! -e "$NODE_DIR" && ! -L "$NODE_DIR" ]] || \
+    die 'Existing /opt/remnanode directory detected: refusing to install over existing files.'
   [[ ! -e "$STATE_DIR/node.env" ]] || die 'This node already managed by the installer; refusing duplicate installation.'
-  echo 'This step is for a FRESH VPS; will install Docker and configure UFW.'
+  if [[ "$mode" == full ]]; then
+    echo 'Full wizard: Docker, Remnawave Node, UFW and optional components.'
+  else
+    echo 'Node-only: install Docker and Remnawave Node; DO NOT change UFW, nginx, backup or monitoring.'
+    echo 'Before installation, configure UFW with the separate firewall menu item.'
+  fi
   preflight
   local role panel_ip nodeport vpnport vpn_source sshport acme source_file
   role=$(ask_default 'Server role (ru / foreign)' 'foreign')
@@ -219,13 +386,15 @@ install_node() {
   valid_port "$nodeport" || die 'Invalid node API port'
   if [[ "$role" == foreign ]]; then
     vpnport=$(ask_default 'Xray TCP inbound port (configured LATER in Panel)' '8443')
-    vpn_source=$(ask_default 'Allowed RU source IPv4 for Xray inbound (required)' '')
+    vpn_source=$(ask_default 'RU IP addresses/CIDRs allowed for Xray (comma-separated)' '')
   else
     vpnport=$(ask_default 'Public TCP inbound port (configured LATER in Panel)' '443')
     vpn_source=$(ask_default 'Allowed client source (0.0.0.0/0 for public)' '0.0.0.0/0')
   fi
   valid_port "$vpnport" || die 'Invalid transport port'
-  valid_ip_or_cidr "$vpn_source" || die 'Invalid source IP/CIDR'
+  valid_ipv4_sources "$vpn_source" || die 'Invalid source IPv4/CIDR list'
+  [[ "$role" != foreign || ",$vpn_source," != *,0.0.0.0/0,* ]] || \
+    die 'Foreign node must not expose transport to all IPv4 sources'
   [[ "$vpnport" != "$nodeport" ]] || die 'Node API port must differ from VPN traffic port'
   [[ "$nodeport" != 80 && "$nodeport" != 443 && "$nodeport" != 9444 ]] || \
     die 'Do not use public HTTP/HTTPS/decoy ports for the private Node management API'
@@ -248,8 +417,16 @@ install_node() {
     warn 'Compose file includes a secret; making it root-readable only (chmod 600)'
     chmod 600 "$source_file"
   fi
-  confirm 'Proceed with Docker install and firewall changes on this fresh server?' || die 'Cancelled'
-  install_packages python3 ca-certificates curl openssh-client iproute2
+  if [[ "$mode" == full ]]; then
+    confirm 'Proceed with Docker installation and firewall changes on this NEW VPS?' || die 'Cancelled'
+  else
+    # Fail BEFORE installation/modifications if the required firewall guard is absent.
+    assert_node_api_protected "$panel_ip" "$nodeport"
+    confirm 'Install ONLY Remnawave Node and Docker (leave firewall untouched)?' || die 'Cancelled'
+  fi
+  # Minimal Ubuntu images may omit Python, curl, the editor or networking tools.
+  # nano is optional and NOT a prerequisite: we never invoke an editor.
+  install_packages python3 ca-certificates curl openssh-client iproute2 coreutils tar gzip util-linux libc-bin
   optional_swap
   install_docker
   port_unused "$nodeport" || die 'Node API port already has a listener; refusing to deploy.'
@@ -260,7 +437,12 @@ install_node() {
   cp -- "$source_file" "$staging/docker-compose.yml"
   chmod 600 "$staging/docker-compose.yml"
   validate_compose "$staging" "$nodeport"
-  setup_firewall "$panel_ip" "$nodeport" "$vpnport" "$vpn_source" "$sshport" "$acme"
+  if [[ "$mode" == full ]]; then
+    setup_firewall "$panel_ip" "$nodeport" "$vpnport" "$vpn_source" "$sshport" "$acme"
+  else
+    # Recheck just before Docker starts; no firewall changes are made here.
+    assert_node_api_protected "$panel_ip" "$nodeport"
+  fi
   install -d -m 700 "$NODE_DIR" "$STATE_DIR"
   install -m 600 "$staging/docker-compose.yml" "$NODE_DIR/docker-compose.yml"
   printf 'ROLE=%q\nPANEL_IP=%q\nNODE_API_PORT=%q\nVPN_PORT=%q\nVPN_SOURCE=%q\nSSH_PORT=%q\n' \
@@ -274,12 +456,16 @@ install_node() {
   echo "Node API: $nodeport TCP (restricted to $panel_ip by UFW)"
   echo "VPN TCP port: $vpnport (source $vpn_source)"
   echo 'Note: Node is not a working VPN endpoint until the Panel delivers a valid Xray configuration.'
-  if confirm 'Install a daily root-only configuration backup now?'; then install_backup; fi
-  if [[ "$acme" == yes ]]; then
-    if confirm 'Configure local HTTPS REALITY decoy now? (requires working DNS and public port 80)'; then install_decoy; fi
-  fi
-  if confirm 'Also install the optional monitoring agent? (requires NEW monitor-kit hub, not legacy panel)'; then
-    (cd "$ROOT_DIR/monitor-kit" && ./install.sh "$role")
+  if [[ "$mode" == full ]]; then
+    if confirm 'Install a daily root-only configuration backup now?'; then install_backup; fi
+    if [[ "$acme" == yes ]]; then
+      if confirm 'Configure local HTTPS REALITY decoy now? (requires working DNS and public port 80)'; then install_decoy; fi
+    fi
+    if confirm 'Also install the optional monitoring agent? (requires NEW monitor-kit hub, not legacy panel)'; then
+      (cd "$ROOT_DIR/monitor-kit" && ./install.sh "$role")
+    fi
+  else
+    echo 'Node-only complete. Firewall/backup/nginx/monitoring were not modified.'
   fi
   rm -rf "$staging"
   trap - EXIT
@@ -289,7 +475,8 @@ install_backup() {
   require_debian
   [[ -d "$NODE_DIR" ]] || die 'Node directory not found; provision node first'
   local script=/usr/local/sbin/kvpn-node-backup.sh
-  if [[ -e "$script" || -e /etc/systemd/system/kvpn-node-backup.timer ]]; then
+  if [[ -e "$script" || -e /etc/systemd/system/kvpn-node-backup.timer || \
+        -e /etc/systemd/system/kvpn-node-backup.service ]]; then
     die 'An existing K-VPN node backup script/timer exists; refusing to overwrite it.'
   fi
   install -d -m 700 /root/server-backups
@@ -326,7 +513,9 @@ install_decoy() {
   [[ -f "$STATE_DIR/node.env" ]] || die 'Provision the node first (wizard).'
   source "$STATE_DIR/node.env"
   [[ ! -e /etc/nginx/sites-enabled/kvpn-reality-decoy ]] || die 'K-VPN decoy already installed; refusing to overwrite.'
-  local domain email ip public_ip
+  # Dedicated mode can be run independently: do not assume curl or ss is installed.
+  install_packages ca-certificates curl iproute2 libc-bin
+  local domain email public_ip
   domain=$(ask_default 'Hostname for REALITY target (DNS A points to this server)' '')
   [[ "$domain" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ && "$domain" == *.* ]] || die 'Invalid FQDN'
   email=$(ask_default 'Email for Let’s Encrypt registration' '')
@@ -426,9 +615,13 @@ diagnostics() {
     uname -a
     cat /etc/os-release
     echo '--- system resources ---'
-    uptime; free -h; df -h /
+    command -v uptime >/dev/null && uptime || true
+    command -v free >/dev/null && free -h || true
+    command -v df >/dev/null && df -h / || true
     echo '--- selected ports ---'
-    ss -lnt | grep -E ':(22|80|443|2222|8443|9444|10000)( |$)' || true
+    if command -v ss >/dev/null; then
+      ss -lnt | grep -E ':(22|80|443|2222|8443|9444|10000)( |$)' || true
+    fi
     echo '--- docker status (no environment or compose) ---'
     if command -v docker >/dev/null; then docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}' || true; fi
     echo '--- firewall ---'
@@ -442,18 +635,73 @@ diagnostics() {
   echo "Diagnostics saved: $out (review before sharing; IPs may be visible)"
 }
 
+# Menu is the DEFAULT interactive entry point. Every action is independent;
+# only the full wizard installs multiple components in one run.
+menu() {
+  require_debian
+  require_root
+  [[ -r /dev/tty ]] || die 'Interactive terminal required for menu'
+  local choice role
+  while true; do
+    cat <<'MENU'
+
+=========================================
+          K-VPN Node Deployer
+=========================================
+ 1) Install Remnawave Node ONLY (UFW must be ready)
+ 2) Configure UFW ONLY (new VPS)
+ 3) Install Docker + Compose ONLY
+ 4) Full installation wizard (NEW VPS)
+ 5) Setup local HTTPS REALITY target
+ 6) Setup daily backups
+ 7) Install monitoring PANEL (NEW panel only)
+ 8) Install RU monitoring agent
+ 9) Install FOREIGN monitoring agent
+10) Register probe on monitoring panel
+11) Server status
+12) Read-only preflight
+13) Save diagnostics
+14) Add RU IP to foreign node UFW (existing installer-managed node)
+ 0) Exit
+MENU
+    choice=$(ask_default 'Choose an action' '0')
+    case "$choice" in
+      1) install_node node_only;;
+      2) configure_firewall_only;;
+      3) require_debian; install_docker;;
+      4) install_node full;;
+      5) install_decoy;;
+      6) install_backup;;
+      7) (cd "$ROOT_DIR/monitor-kit" && ./install.sh panel);;
+      8) (cd "$ROOT_DIR/monitor-kit" && ./install.sh ru);;
+      9) (cd "$ROOT_DIR/monitor-kit" && ./install.sh foreign);;
+      10) (cd "$ROOT_DIR/monitor-kit" && ./install.sh register);;
+      11) status;;
+      12) preflight;;
+      13) diagnostics;;
+      14) add_ru_firewall_source;;
+      0) return 0;;
+      *) warn 'Unknown menu item';;
+    esac
+  done
+}
+
 main() {
-  local cmd="${1:-help}"
+  local cmd="${1:-menu}"
   case "$cmd" in
     help|-h|--help) usage;;
+    menu) menu;;
     preflight) preflight;;
-    wizard) require_root; install_node;;
+    node) require_root; install_node node_only;;
+    firewall) require_root; configure_firewall_only;;
+    firewall-add-ru) require_root; add_ru_firewall_source;;
+    docker) require_root; require_debian; install_docker;;
+    wizard) require_root; install_node full;;
     decoy) require_root; install_decoy;;
     backup) require_root; install_backup;;
     monitor)
       require_root
       [[ -n "${2:-}" ]] || die 'Specify panel|ru|foreign|register|status'
-      # The bundled monitor-kit has its own clean-server protections.
       (cd "$ROOT_DIR/monitor-kit" && ./install.sh "$2")
       ;;
     status) status;;

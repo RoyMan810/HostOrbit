@@ -3,7 +3,26 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 [ "$(id -u)" -eq 0 ] || { echo 'Run as root' >&2; exit 1; }
 command -v systemctl >/dev/null || { echo 'systemd required' >&2; exit 1; }
-command -v python3 >/dev/null || { echo 'python3 required' >&2; exit 1; }
+
+ensure_monitor_dependencies() {
+ local cmd missing=()
+ for cmd in python3 ssh ssh-keygen ssh-keyscan timeout useradd passwd; do
+   command -v "$cmd" >/dev/null 2>&1 || missing+=("$cmd")
+ done
+ if [[ ! -s /etc/ssl/certs/ca-certificates.crt ]]; then
+   missing+=(ca-certificates)
+ fi
+ if (( ${#missing[@]} > 0 )); then
+   echo "Missing monitoring utilities: ${missing[*]}"
+   command -v apt-get >/dev/null 2>&1 || { echo 'apt-get required to install dependencies' >&2; exit 1; }
+   apt-get update -qq
+   DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+     python3 openssh-client passwd coreutils ca-certificates
+ fi
+ for cmd in python3 ssh ssh-keygen ssh-keyscan timeout useradd passwd; do
+   command -v "$cmd" >/dev/null 2>&1 || { echo "Required utility unavailable: $cmd" >&2; exit 1; }
+ done
+}
 
 usage() {
  cat <<EOF
@@ -28,26 +47,27 @@ except ValueError:
     sys.exit(1)
 PYIP
 }
-valid_port() { [[ "$1" =~ ^[0-9]+$ ]] && (( 10#$1 >= 1 && 10#$1 <= 65535 )); }
+valid_port() { [[ "${1:-}" =~ ^[0-9]{1,5}$ ]] && (( 10#$1 >= 1 && 10#$1 <= 65535 )); }
 
 assert_clean() {
  local role="$1"
- if [[ -e /etc/kvpn-monitor || -e /opt/kvpn-monitor || -e /var/lib/kvpn-monitor ]]; then
-   echo 'ERROR: K-VPN Monitor kit already installed; aborting to avoid overwrite.' >&2; exit 1
- fi
  if [[ "$role" == panel ]]; then
-   if [[ -e /root/kvpn-monitor/check.py || -e /etc/systemd/system/kvpn-monitor.timer || -e /usr/local/libexec/kvpn-probe-receive ]]; then
+   if [[ -e /etc/kvpn-monitor || -e /opt/kvpn-monitor || -e /var/lib/kvpn-monitor ||          -e /root/kvpn-monitor/check.py || -e /etc/systemd/system/kvpn-monitor.timer ||          -e /usr/local/libexec/kvpn-probe-receive ]]; then
      echo 'ERROR: existing panel monitor detected. This kit does not overwrite/migrate it.' >&2; exit 1
    fi
  else
-   if [[ -e /etc/systemd/system/kvpn-probe.timer || -e /usr/local/sbin/kvpn-probe-send.sh ]]; then
-     echo 'ERROR: existing RU probe detected. This kit does not overwrite/migrate it.' >&2; exit 1
+   if [[ -e /etc/systemd/system/kvpn-probe.timer || -e /usr/local/sbin/kvpn-probe-send.sh ||          -e /etc/kvpn-monitor/probe.env || -e /etc/systemd/system/kvpn-monitor-kit-probe.timer ||          -e /etc/kvpn-monitor/config.json ]]; then
+     echo 'ERROR: old or panel monitor detected. This kit does not overwrite/migrate it.' >&2; exit 1
+   fi
+   if [[ -e /etc/kvpn-monitor && ! -d /etc/kvpn-monitor/probes ]]; then
+     echo 'ERROR: unrecognized monitor configuration; refusing to modify.' >&2; exit 1
    fi
  fi
 }
 
 install_panel() {
  assert_clean panel
+ ensure_monitor_dependencies
  echo 'Installing PANEL role. Does not modify Remnawave/Docker/sshd configuration.'
  local chat thread token
  ask 'Telegram group chat_id (e.g. -100...): ' chat
@@ -111,11 +131,13 @@ EOF
 install_node() {
  local role="$1"
  assert_clean node
- local pid panel port target type expected host_fingerprint
- ask 'Unique probe ID (e.g. ru-to-nl or nl-02-local): ' pid
+ ensure_monitor_dependencies
+ local pid panel port target type expected tmp actual target_port
+ ask 'Unique probe ID (e.g. ru1-nl1, ru1-nl2 or nl1-local): ' pid
  valid_id "$pid" || { echo 'Invalid probe ID'; exit 1; }
- ask 'Panel IP/hostname: ' panel
- [[ "$panel" =~ ^[a-zA-Z0-9.:-]+$ ]] || { echo 'Invalid host'; exit 1; }
+ [[ ! -e "/etc/kvpn-monitor/probes/$pid.env" ]] || { echo 'Probe ID already exists; refusing overwrite' >&2; exit 1; }
+ ask 'Monitoring panel IP/hostname: ' panel
+ [[ "$panel" =~ ^[a-zA-Z0-9.:-]+$ ]] || { echo 'Invalid panel host'; exit 1; }
  ask 'Panel SSH port [22]: ' port
  port="${port:-22}"
  valid_port "$port" || { echo 'Invalid SSH port'; exit 1; }
@@ -127,28 +149,25 @@ install_node() {
    type=local_tcp
    target=127.0.0.1
  fi
- local target_port
  ask 'TCP port to probe [8443]: ' target_port
  target_port="${target_port:-8443}"
  valid_port "$target_port" || { echo 'Invalid target port'; exit 1; }
- echo 'IMPORTANT: on PANEL run: ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub'
- ask 'Paste trusted panel SSH ED25519 SHA256 fingerprint: ' expected
+ echo 'On the panel check: ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub'
+ ask 'Paste verified monitoring panel ED25519 SHA256 fingerprint: ' expected
  [[ "$expected" =~ ^SHA256:[A-Za-z0-9+/=]+$ ]] || { echo 'Expected SHA256 fingerprint'; exit 1; }
- local tmp keyfound actual
  tmp=$(mktemp)
  trap 'rm -f "${tmp:-}"' EXIT
  ssh-keyscan -T 8 -p "$port" -t ed25519 "$panel" 2>/dev/null > "$tmp" || true
- [[ -s "$tmp" ]] || { echo 'Could not fetch panel SSH Ed25519 host key'; exit 1; }
+ [[ -s "$tmp" ]] || { echo 'Could not fetch panel SSH Ed25519 key'; exit 1; }
  actual=$(ssh-keygen -lf "$tmp" | awk '{print $2}' | head -1)
- [[ "$actual" == "$expected" ]] || { echo 'Panel SSH host fingerprint mismatch; refusing to install' >&2; exit 1; }
- install -d -m 700 /etc/kvpn-monitor
- install -m 600 "$tmp" /etc/kvpn-monitor/known_hosts
+ [[ "$actual" == "$expected" ]] || { echo 'Panel fingerprint mismatch; refusing to install' >&2; exit 1; }
+ install -d -m 700 /etc/kvpn-monitor /etc/kvpn-monitor/probes
  install -d -m 755 /opt/kvpn-monitor
  install -m 700 lib/sender.sh /opt/kvpn-monitor/sender.sh
- ssh-keygen -q -t ed25519 -f /etc/kvpn-monitor/monitor_key -N '' -C "kvpn-monitor-$pid"
- chmod 600 /etc/kvpn-monitor/monitor_key
- chmod 644 /etc/kvpn-monitor/monitor_key.pub
- # Environment file: all values validated, write as shell-escaped strings.
+ install -m 600 "$tmp" "/etc/kvpn-monitor/probes/$pid.known_hosts"
+ ssh-keygen -q -t ed25519 -f "/etc/kvpn-monitor/probes/$pid.key" -N '' -C "kvpn-monitor-$pid"
+ chmod 600 "/etc/kvpn-monitor/probes/$pid.key"
+ chmod 644 "/etc/kvpn-monitor/probes/$pid.key.pub"
  {
    printf 'PROBE_ID=%q\n' "$pid"
    printf 'PANEL_HOST=%q\n' "$panel"
@@ -156,45 +175,52 @@ install_node() {
    printf 'CHECK_TYPE=%q\n' "$type"
    printf 'TARGET_HOST=%q\n' "$target"
    printf 'TARGET_PORT=%q\n' "$target_port"
- } > /etc/kvpn-monitor/probe.env
- chmod 600 /etc/kvpn-monitor/probe.env
- cat > /etc/systemd/system/kvpn-monitor-kit-probe.service <<'EOF'
+ } > "/etc/kvpn-monitor/probes/$pid.env"
+ chmod 600 "/etc/kvpn-monitor/probes/$pid.env"
+ if [[ ! -e /etc/systemd/system/kvpn-monitor-kit-probe@.service ]]; then
+   cat > /etc/systemd/system/kvpn-monitor-kit-probe@.service <<'EOF'
 [Unit]
-Description=K-VPN Monitor Kit - send probe status
+Description=K-VPN Monitor Kit probe %i
 Wants=network-online.target
 After=network-online.target
 [Service]
 Type=oneshot
 User=root
-ExecStart=/opt/kvpn-monitor/sender.sh
+ExecStart=/opt/kvpn-monitor/sender.sh %i
 TimeoutStartSec=35
 NoNewPrivileges=yes
 EOF
- cat > /etc/systemd/system/kvpn-monitor-kit-probe.timer <<'EOF'
+ fi
+ if [[ ! -e /etc/systemd/system/kvpn-monitor-kit-probe@.timer ]]; then
+   cat > /etc/systemd/system/kvpn-monitor-kit-probe@.timer <<'EOF'
 [Unit]
-Description=K-VPN Monitor Kit - probe every 5 minutes
+Description=K-VPN Monitor Kit probe timer %i
 [Timer]
 OnBootSec=1min
 OnUnitInactiveSec=5min
 AccuracySec=10s
-Unit=kvpn-monitor-kit-probe.service
+Unit=kvpn-monitor-kit-probe@%i.service
 [Install]
 WantedBy=timers.target
 EOF
+ fi
  systemctl daemon-reload
  echo
- echo 'NODE INSTALLED, TIMER NOT STARTED YET.'
- echo 'On panel, use ./install.sh register and paste the following PUBLIC key:'
- cat /etc/kvpn-monitor/monitor_key.pub
+ echo 'MONITOR PROBE CONFIGURED. Timer is NOT started yet.'
+ echo 'On monitoring panel register this probe ID and PUBLIC key:'
+ cat "/etc/kvpn-monitor/probes/$pid.key.pub"
  echo "Probe ID: $pid"
- echo "Node source public IP: (determine on the node, e.g. curl -4 --noproxy '*' https://api.ipify.org)"
- echo 'After registering on panel, on this node run:'
- echo '  systemctl enable --now kvpn-monitor-kit-probe.timer'
- echo '  systemctl start kvpn-monitor-kit-probe.service'
+ echo 'Ensure the public source IPv4 used by this node is registered on the panel.'
+ echo 'After registering the key on monitoring panel, start on this node:'
+ echo "  systemctl enable --now 'kvpn-monitor-kit-probe@$pid.timer'"
+ echo "  systemctl start 'kvpn-monitor-kit-probe@$pid.service'"
+ echo 'Repeat monitor ru / monitor foreign with another unique ID to add another target.'
+ rm -f "$tmp"; trap - EXIT
 }
 
 register() {
  [[ -f /etc/kvpn-monitor/config.json && -f /opt/kvpn-monitor/receiver.py ]] || { echo 'Panel kit is not installed'; exit 1; }
+ ensure_monitor_dependencies
  local pid label pub source stale fail recovery
  ask 'Probe ID (must match node): ' pid
  valid_id "$pid" || { echo 'Invalid ID'; exit 1; }
@@ -202,6 +228,14 @@ register() {
  [[ -n "$label" && ${#label} -le 100 ]] || { echo 'Invalid label'; exit 1; }
  ask 'Paste node PUBLIC ssh-ed25519 key (one line): ' pub
  [[ "$pub" =~ ^ssh-ed25519\ [A-Za-z0-9+/=]+(\ .*)?$ ]] || { echo 'Invalid Ed25519 public key'; exit 1; }
+ local keytest
+ keytest=$(mktemp)
+ printf '%s\n' "$pub" > "$keytest"
+ if ! ssh-keygen -lf "$keytest" -E sha256 >/dev/null 2>&1; then
+   rm -f "$keytest"
+   echo 'SSH key is malformed' >&2; exit 1
+ fi
+ rm -f "$keytest"
  ask 'Source IP of this node (required for SSH key restriction): ' source
  valid_ip "$source" || { echo 'Invalid IP'; exit 1; }
  ask 'Stale threshold seconds [720]: ' stale; stale="${stale:-720}"

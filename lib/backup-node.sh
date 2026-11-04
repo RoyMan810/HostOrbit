@@ -14,7 +14,9 @@ tmp="$file.partial.$$"
 trap 'rm -f "$tmp"' EXIT
 tar -C / --warning=no-file-changed -czf "$tmp" "${items[@]}"
 chmod 600 "$tmp"
-mv -f "$tmp" "$file"
+# Link atomically: unlike mv -n, this fails if a same-second archive exists.
+ln -- "$tmp" "$file"
+rm -f -- "$tmp"
 (cd "$base" && sha256sum "$(basename "$file")" > "$(basename "$file").sha256")
 chmod 600 "$file.sha256"
 find "$base" -maxdepth 1 -type f \( -name 'kvpn-node-*.tar.gz' -o -name 'kvpn-node-*.tar.gz.sha256' \) -mtime +14 -delete
