@@ -2,6 +2,7 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 source "../lib/tui.sh"
+source "../lib/textual_protocol.sh"
 [ "$(id -u)" -eq 0 ] || { echo 'Run as root' >&2; exit 1; }
 command -v systemctl >/dev/null || { echo 'systemd required' >&2; exit 1; }
 
@@ -41,6 +42,11 @@ EOF
 }
 ask() {
   local prompt="$1" var="$2" answer
+  if [[ "${KVPN_TEXTUAL_IPC:-0}" == 1 ]]; then
+    answer=$(kvpn_ipc_request input "$prompt" '') || { echo 'Отменено или интерфейс отключился' >&2; exit 1; }
+    printf -v "$var" '%s' "$answer"
+    return
+  fi
   if kvpn_ui_ready; then
     prompt=$(kvpn_ui_prompt_ru "$prompt")
     answer=$(kvpn_ui_input "$prompt" '') || { echo 'Отменено пользователем' >&2; exit 1; }

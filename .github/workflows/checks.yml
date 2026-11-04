@@ -25,16 +25,22 @@ jobs:
       - name: Check Bash syntax
         shell: bash
         run: |
-          bash -n install.sh kvpn-install.sh lib/common.sh lib/tui.sh lib/backup-node.sh
+          bash -n install.sh kvpn-install.sh lib/common.sh lib/tui.sh lib/backup-node.sh lib/textual_protocol.sh lib/textual_launcher.sh
           bash -n monitor-kit/install.sh monitor-kit/lib/sender.sh
       - name: Check Python syntax
         run: |
-          python3 -m py_compile monitor-kit/lib/monitor.py monitor-kit/lib/receiver.py monitor-kit/lib/register.py tools/build_bundle.py
+          python3 -m py_compile monitor-kit/lib/monitor.py monitor-kit/lib/receiver.py monitor-kit/lib/register.py lib/textual_ui.py tools/build_bundle.py
       - name: Exercise the single-file installer (read-only)
         run: |
           bash kvpn-install.sh help
           test "$(bash kvpn-install.sh help | grep -c 'interactive menu')" -ge 1
+      - name: Install Textual for headless UI smoke tests
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y python3-venv
+          python3 -m venv .ci-textual-venv
+          .ci-textual-venv/bin/python -m pip install --disable-pip-version-check --quiet 'textual==8.2.8'
       - name: Run unit tests
         run: |
-          python3 -m unittest discover -s tests -v
+          .ci-textual-venv/bin/python -m unittest discover -s tests -v
           python3 -m unittest discover -s monitor-kit/tests -v

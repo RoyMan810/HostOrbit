@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 RUNTIME = (
     'install.sh',
     'lib/common.sh', 'lib/tui.sh', 'lib/backup-node.sh',
+    'lib/textual_protocol.sh', 'lib/textual_launcher.sh', 'lib/textual_ui.py',
     'monitor-kit/install.sh',
     'monitor-kit/lib/monitor.py', 'monitor-kit/lib/receiver.py',
     'monitor-kit/lib/register.py', 'monitor-kit/lib/sender.sh',

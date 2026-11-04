@@ -6,15 +6,17 @@ ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 STATE_DIR=/etc/kvpn-node-deployer
 NODE_DIR=/opt/remnanode
 source "$ROOT_DIR/lib/tui.sh"
+source "$ROOT_DIR/lib/textual_launcher.sh"
 source "$ROOT_DIR/lib/common.sh"
 
 usage() {
   cat <<'EOF'
 K-VPN Node Deployer — новый сервер / отдельные компоненты
 
-  sudo ./install.sh                     interactive menu (choose individual tasks)
-  sudo ./install.sh tui                 full-screen interface (arrow keys, forms)
+  sudo ./install.sh                     interactive menu (Textual first; legacy fallback)
+  sudo ./install.sh tui                 Textual dashboard (Python venv; opt-in install)
   sudo ./install.sh menu                same interactive menu
+  sudo ./install.sh text-menu           plain numbered menu, no UI dependencies
   sudo ./install.sh node                install ONLY Remnawave Node (requires prepared UFW)
   sudo ./install.sh firewall            configure ONLY UFW rules (new VPS)
   sudo ./install.sh firewall-add-ru     add RU source to an installed foreign node
@@ -646,8 +648,8 @@ diagnostics() {
   echo "Diagnostics saved: $out (review before sharing; IPs may be visible)"
 }
 
-# Default is a real full-screen TUI. Text menu is the fallback when whiptail
-# cannot be installed (for example, offline minimal systems).
+# Textual dashboard is preferred. The old whiptail/text menu remains available
+# on offline or minimal systems, and direct CLI remains unchanged.
 text_menu() {
   require_debian
   require_root
@@ -700,6 +702,10 @@ MENU
 menu() {
   require_debian
   require_root
+  if [[ "${KVPN_FORCE_LEGACY_TUI:-0}" != 1 ]]; then
+    if kvpn_textual_launch; then return 0; fi
+    warn 'Textual не запустился — пробуем резервное меню whiptail.'
+  fi
   if kvpn_ui_bootstrap; then
     export KVPN_TUI=1 KVPN_ROOT="$ROOT_DIR"
     kvpn_ui_main
@@ -714,6 +720,7 @@ main() {
   case "$cmd" in
     help|-h|--help) usage;;
     menu|tui) menu;;
+    text-menu) require_root; text_menu;;
     preflight) preflight;;
     node) require_root; install_node node_only;;
     firewall) require_root; configure_firewall_only;;
