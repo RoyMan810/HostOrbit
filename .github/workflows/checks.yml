@@ -1,0 +1,37 @@
+name: Installer checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke-tests:
+    name: Smoke tests / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-26.04]
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Check Bash syntax
+        shell: bash
+        run: |
+          bash -n install.sh kvpn-install.sh lib/common.sh lib/backup-node.sh
+          bash -n monitor-kit/install.sh monitor-kit/lib/sender.sh
+      - name: Check Python syntax
+        run: |
+          python3 -m py_compile monitor-kit/lib/monitor.py monitor-kit/lib/receiver.py
+      - name: Exercise the single-file installer (read-only)
+        run: |
+          bash kvpn-install.sh help
+          test "$(bash kvpn-install.sh help | grep -c 'interactive menu')" -ge 1
+      - name: Run unit tests
+        run: |
+          python3 -m unittest discover -s tests -v
+          python3 -m unittest discover -s monitor-kit/tests -v
