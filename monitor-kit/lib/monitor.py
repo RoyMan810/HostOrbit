@@ -98,8 +98,14 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', default=DEFAULT_CONFIG)
     parser.add_argument('--dry-run', action='store_true')
+    parser.add_argument('--test-telegram', action='store_true', help='Send an explicit test message; do not change monitor states')
     args = parser.parse_args()
     config = json.loads(pathlib.Path(args.config).read_text())
+    if args.test_telegram:
+        token = pathlib.Path(config['token_file']).read_text().strip()
+        send_telegram(token, config['chat_id'], config['thread_id'], '🧪 K-VPN Monitor: тестовое уведомление. Настройки Telegram работают.')
+        print('Telegram test message delivered')
+        return
     root = pathlib.Path(config.get('state_dir', '/var/lib/kvpn-monitor'))
     root.mkdir(parents=True, exist_ok=True)
     lock_path = root / '.monitor.lock'

@@ -8,7 +8,7 @@ case "$CHECK_TYPE" in
     if timeout 8 bash -c 'exec 3<>/dev/tcp/"$1"/"$2"' _ "$TARGET_HOST" "$TARGET_PORT" 2>/dev/null; then STATUS=OK; else STATUS=FAIL; fi
     ;;
   local_tcp)
-    if timeout 8 bash -c 'exec 3<>/dev/tcp/127.0.0.1/"$1"' _ "$TARGET_PORT" 2>/dev/null; then STATUS=OK; else STATUS=FAIL; fi
+    if timeout 8 bash -c 'exec 3<>/dev/tcp/"$1"/"$2"' _ "$TARGET_HOST" "$TARGET_PORT" 2>/dev/null; then STATUS=OK; else STATUS=FAIL; fi
     ;;
   *) echo 'Invalid CHECK_TYPE' >&2; exit 2;;
 esac

@@ -26,11 +26,12 @@ jobs:
           bash -n monitor-kit/install.sh monitor-kit/lib/sender.sh
       - name: Check Python syntax
         run: |
-          python3 -m py_compile monitor-kit/lib/monitor.py monitor-kit/lib/receiver.py
+          python3 -m py_compile monitor-kit/lib/monitor.py monitor-kit/lib/receiver.py monitor-kit/lib/register.py
       - name: Exercise the single-file installer (read-only)
         run: |
           bash kvpn-install.sh help
           test "$(bash kvpn-install.sh help | grep -c 'interactive menu')" -ge 1
+          bash kvpn-install.sh monitor legacy-audit
       - name: Run unit tests
         run: |
           python3 -m unittest discover -s tests -v

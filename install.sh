@@ -21,10 +21,12 @@ K-VPN Node Deployer — new server only
   sudo ./install.sh preflight           read-only environment checks
   sudo ./install.sh decoy               optional local HTTPS REALITY target (9444)
   sudo ./install.sh backup              backup service on a prepared node
-  sudo ./install.sh monitor panel       monitoring hub on a NEW panel server
-  sudo ./install.sh monitor ru          monitoring agent on a NEW RU node
-  sudo ./install.sh monitor foreign     monitoring agent on a NEW foreign node
-  sudo ./install.sh monitor register    register agent on NEW monitoring panel
+  sudo ./install.sh monitor panel       monitoring hub after legacy cleanup / on new panel
+  sudo ./install.sh monitor ru          monitoring agent on RU (after legacy cleanup)
+  sudo ./install.sh monitor foreign     monitoring agent on foreign node
+  sudo ./install.sh monitor register    register agent on monitoring panel
+  sudo ./install.sh monitor legacy-audit read-only check before manual migration
+  sudo ./install.sh monitor test-telegram sends a test alert from panel
   sudo ./install.sh status              read-only health summary
   sudo ./install.sh diagnostics         write redacted diagnostic text file
   sudo ./install.sh help
@@ -658,15 +660,17 @@ menu() {
  5) Настроить HTTPS для REALITY
  6) Настроить ежедневные резервные копии
 
- 7) Установить мониторинг на НОВОЙ панели
+ 7) Установить мониторинг на панели (после удаления старого)
  8) Добавить проверку с RU-ноды
  9) Добавить проверку с Foreign-ноды
-10) Зарегистрировать проверку на НОВОЙ панели
+10) Зарегистрировать проверку на панели
 
 11) Показать состояние сервисов
 12) Проверить систему (без изменений)
 13) Сохранить диагностику
 14) Разрешить ещё один RU IP на Foreign-ноде
+15) Найти остатки старого мониторинга (без изменений)
+16) Проверить отправку Telegram (мониторинговая панель)
 
  0) Выход
 --------------------------------------------
@@ -674,8 +678,9 @@ menu() {
  • Пункты 1 и 2 работают ОТДЕЛЬНО друг от друга.
  • Для пункта 1 UFW уже должен быть настроен.
  • Пункт 4 предназначен только для ЧИСТОГО VPS.
- • Новые проверки нельзя добавлять в старую
-   панель мониторинга без отдельной миграции.
+ • Перед сменой мониторинга сделайте резервную копию
+   и удалите ТОЛЬКО старые службы вручную.
+ • Установка мониторинга не переустанавливает Xray.
 MENU
     choice=$(ask_default 'Номер пункта меню' '0')
     case "$choice" in
@@ -693,6 +698,8 @@ MENU
       12) preflight;;
       13) diagnostics;;
       14) add_ru_firewall_source;;
+      15) (cd "$ROOT_DIR/monitor-kit" && ./install.sh legacy-audit);;
+      16) (cd "$ROOT_DIR/monitor-kit" && ./install.sh test-telegram);;
       0) return 0;;
       *) warn 'Неизвестный пункт меню';;
     esac
@@ -714,7 +721,7 @@ main() {
     backup) require_root; install_backup;;
     monitor)
       require_root
-      [[ -n "${2:-}" ]] || die 'Specify panel|ru|foreign|register|status'
+      [[ -n "${2:-}" ]] || die 'Specify panel|ru|foreign|register|status|legacy-audit|test-telegram'
       (cd "$ROOT_DIR/monitor-kit" && ./install.sh "$2")
       ;;
     status) status;;
