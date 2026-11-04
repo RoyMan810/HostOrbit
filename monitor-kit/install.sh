@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
+source "../lib/tui.sh"
 [ "$(id -u)" -eq 0 ] || { echo 'Run as root' >&2; exit 1; }
 command -v systemctl >/dev/null || { echo 'systemd required' >&2; exit 1; }
 
@@ -32,53 +33,21 @@ Usage:
   sudo ./install.sh foreign
   sudo ./install.sh register    # on panel, after node install
   sudo ./install.sh status
-  sudo ./install.sh legacy-audit  # READ-ONLY check of legacy files
-  sudo ./install.sh test-telegram # panel only: explicit test message
+  sudo ./install.sh test-telegram  # panel only: explicit test message
 
-This kit does NOT remove legacy monitoring; manual migration is documented in docs/MONITOR-MIGRATION.md.
+Existing monitoring is never overwritten automatically.
 EOF
 }
-legacy_audit() {
- echo 'K-VPN legacy monitoring audit (read-only; NO files changed)'
- local found=0 path
- for path in \
-   /etc/systemd/system/kvpn-probe.timer \
-   /etc/systemd/system/kvpn-probe.service \
-   /usr/local/sbin/kvpn-probe-send.sh \
-   /root/.ssh/kvpn_monitor_push \
-   /root/.ssh/kvpn_monitor_push.pub \
-   /etc/systemd/system/kvpn-monitor.timer \
-   /etc/systemd/system/kvpn-monitor.service \
-   /root/kvpn-monitor/check.py \
-   /root/kvpn-monitor/telegram.env \
-   /root/kvpn-monitor/state.json \
-   /usr/local/libexec/kvpn-probe-receive \
-   /var/lib/kvpn-probe/latest.status; do
-   if [[ -e "$path" || -L "$path" ]]; then
-     printf 'LEGACY: %s\n' "$path"
-     found=1
-   fi
- done
- if [[ -f /home/kvpn-probe/.ssh/authorized_keys ]] &&
-    grep -Fq '/usr/local/libexec/kvpn-probe-receive' /home/kvpn-probe/.ssh/authorized_keys; then
-   echo 'LEGACY: /home/kvpn-probe/.ssh/authorized_keys contains legacy forced-command entry'
-   found=1
- fi
- if [[ -e /etc/kvpn-monitor/config.json ]]; then
-   echo 'NEW: /etc/kvpn-monitor/config.json (new panel monitor)'
- fi
- if [[ -d /etc/kvpn-monitor/probes ]]; then
-   echo 'NEW: /etc/kvpn-monitor/probes (new node agents)'
- fi
- if [[ "$found" -eq 0 ]]; then
-   echo 'No known legacy monitor artifacts detected (not proof of complete removal).'
- else
-   echo 'Legacy artifacts detected. Back up first, then remove ONLY legacy monitoring manually.'
- fi
- echo 'See docs/MONITOR-MIGRATION.md before changing production systems.'
+ask() {
+  local prompt="$1" var="$2" answer
+  if kvpn_ui_ready; then
+    prompt=$(kvpn_ui_prompt_ru "$prompt")
+    answer=$(kvpn_ui_input "$prompt" '') || { echo 'Отменено пользователем' >&2; exit 1; }
+    printf -v "$var" '%s' "$answer"
+  else
+    read -rp "$prompt" "$var" < /dev/tty
+  fi
 }
-
-ask() { local prompt="$1" var="$2"; read -rp "$prompt" "$var" < /dev/tty; }
 valid_id() { [[ "$1" =~ ^[a-z0-9][a-z0-9_-]{0,39}$ ]]; }
 valid_ip() {
   python3 - "$1" <<'PYIP'
@@ -99,7 +68,7 @@ assert_clean() {
    fi
    if [[ -f /home/kvpn-probe/.ssh/authorized_keys ]] &&
       grep -Fq '/usr/local/libexec/kvpn-probe-receive' /home/kvpn-probe/.ssh/authorized_keys; then
-     echo 'ERROR: legacy probe SSH key still registered. Back up and remove only that legacy key line first.' >&2; exit 1
+     echo 'ERROR: an incompatible SSH probe key is already present. Refusing to overwrite it.' >&2; exit 1
    fi
  else
    if [[ -e /etc/systemd/system/kvpn-probe.timer || -e /usr/local/sbin/kvpn-probe-send.sh ||          -e /etc/kvpn-monitor/probe.env || -e /etc/systemd/system/kvpn-monitor-kit-probe.timer ||          -e /etc/kvpn-monitor/config.json ]]; then
@@ -119,7 +88,7 @@ install_panel() {
  ask 'Telegram group chat_id (e.g. -100...): ' chat
  ask 'Telegram topic message_thread_id: ' thread
  [[ "$chat" =~ ^-?[0-9]+$ && "$thread" =~ ^[0-9]+$ ]] || { echo 'Invalid Telegram identifiers'; exit 1; }
- read -rsp 'Paste NEW bot token (hidden): ' token < /dev/tty; echo
+ token=$(kvpn_ui_password 'Введите токен Telegram-бота (скрыто)') || { echo 'Отменено' >&2; exit 1; }
  [[ "$token" =~ ^[0-9]+:[A-Za-z0-9_-]+$ ]] || { echo 'Invalid token format'; exit 1; }
  [[ -s /etc/ssh/ssh_host_ed25519_key.pub ]] || {
    echo 'Panel SSH Ed25519 host key missing. Configure sshd host key before installing monitoring.' >&2
@@ -303,7 +272,6 @@ case "${1:-}" in
  ru) install_node ru;;
  foreign) install_node foreign;;
  register) register;;
- legacy-audit) legacy_audit;;
  test-telegram) [[ -s /etc/kvpn-monitor/config.json ]] || { echo 'Panel kit is not installed'; exit 1; }; python3 /opt/kvpn-monitor/monitor.py --test-telegram;;
  status) systemctl list-timers 'kvpn-monitor-kit*' --all --no-pager; [[ -f /etc/kvpn-monitor/config.json ]] && python3 -m json.tool /etc/kvpn-monitor/config.json || :;;
  *) usage; exit 1;;

@@ -22,7 +22,7 @@ jobs:
       - name: Check Bash syntax
         shell: bash
         run: |
-          bash -n install.sh kvpn-install.sh lib/common.sh lib/backup-node.sh
+          bash -n install.sh kvpn-install.sh lib/common.sh lib/tui.sh lib/backup-node.sh
           bash -n monitor-kit/install.sh monitor-kit/lib/sender.sh
       - name: Check Python syntax
         run: |
@@ -31,8 +31,8 @@ jobs:
         run: |
           bash kvpn-install.sh help
           test "$(bash kvpn-install.sh help | grep -c 'interactive menu')" -ge 1
-          sudo bash kvpn-install.sh monitor legacy-audit
       - name: Run unit tests
         run: |
           python3 -m unittest discover -s tests -v
           python3 -m unittest discover -s monitor-kit/tests -v
+          python3 -m unittest discover -s tests -p "test_tui.py" -v

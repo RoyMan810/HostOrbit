@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
+# Optional interactive TUI functions are sourced by the root installer.
+# Direct CLI mode retains its original text prompts.
 warn() { printf '\nWARNING: %s\n' "$*" >&2; }
 die() { printf '\nERROR: %s\n' "$*" >&2; exit 1; }
 require_root() { [[ "$(id -u)" -eq 0 ]] || die 'Run as root: sudo ./install.sh ...'; }
 confirm() {
+  if [[ "${KVPN_TUI:-0}" == 1 ]] && declare -F kvpn_ui_confirm >/dev/null; then
+    kvpn_ui_confirm "$1"
+    return $?
+  fi
   local answer
   if [[ -r /dev/tty ]]; then
     read -r -p "$1 [yes/no] " answer < /dev/tty
@@ -13,6 +19,18 @@ confirm() {
 }
 ask_default() {
   local prompt="$1" default="$2" result
+  if [[ "${KVPN_TUI:-0}" == 1 ]] && declare -F kvpn_ui_input >/dev/null; then
+    prompt=$(kvpn_ui_prompt_ru "$prompt")
+    if [[ "$prompt" == 'Выберите расположение сервера' ]]; then
+      kvpn_ui_choice_role || die 'Отменено пользователем'
+    elif [[ "$prompt" == 'Открыть порт 80 для сертификата Let'\''s Encrypt?' ||
+            "$prompt" == 'Понадобится HTTPS-сайт для REALITY через Let'\''s Encrypt?' ]]; then
+      kvpn_ui_yes_no "$prompt" "$default"
+    else
+      kvpn_ui_input "$prompt" "$default" || die 'Отменено пользователем'
+    fi
+    return
+  fi
   [[ -r /dev/tty ]] || die 'Interactive terminal required for wizard'
   if [[ -n "$default" ]]; then
     read -r -p "$prompt [$default]: " result < /dev/tty || die 'Could not read input'

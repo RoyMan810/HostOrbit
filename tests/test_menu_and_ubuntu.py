@@ -96,7 +96,7 @@ assert_node_api_protected 127.0.0.1 2222
         self.assertIn('nano is optional', text)
         self.assertIn('install_node node_only', text)
         self.assertIn('configure_firewall_only', text)
-        self.assertIn('menu) menu', text)
+        self.assertIn('menu|tui) menu', text)
 
 if __name__ == '__main__':
     unittest.main()

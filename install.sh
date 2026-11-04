@@ -5,13 +5,15 @@ umask 077
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 STATE_DIR=/etc/kvpn-node-deployer
 NODE_DIR=/opt/remnanode
+source "$ROOT_DIR/lib/tui.sh"
 source "$ROOT_DIR/lib/common.sh"
 
 usage() {
   cat <<'EOF'
-K-VPN Node Deployer — new server only
+K-VPN Node Deployer — новый сервер / отдельные компоненты
 
   sudo ./install.sh                     interactive menu (choose individual tasks)
+  sudo ./install.sh tui                 full-screen interface (arrow keys, forms)
   sudo ./install.sh menu                same interactive menu
   sudo ./install.sh node                install ONLY Remnawave Node (requires prepared UFW)
   sudo ./install.sh firewall            configure ONLY UFW rules (new VPS)
@@ -21,11 +23,10 @@ K-VPN Node Deployer — new server only
   sudo ./install.sh preflight           read-only environment checks
   sudo ./install.sh decoy               optional local HTTPS REALITY target (9444)
   sudo ./install.sh backup              backup service on a prepared node
-  sudo ./install.sh monitor panel       monitoring hub after legacy cleanup / on new panel
-  sudo ./install.sh monitor ru          monitoring agent on RU (after legacy cleanup)
+  sudo ./install.sh monitor panel       monitoring hub (new installation)
+  sudo ./install.sh monitor ru          monitoring agent on RU
   sudo ./install.sh monitor foreign     monitoring agent on foreign node
   sudo ./install.sh monitor register    register agent on monitoring panel
-  sudo ./install.sh monitor legacy-audit read-only check before manual migration
   sudo ./install.sh monitor test-telegram sends a test alert from panel
   sudo ./install.sh status              read-only health summary
   sudo ./install.sh diagnostics         write redacted diagnostic text file
@@ -78,9 +79,6 @@ preflight() {
   fi
   if [[ -e "$NODE_DIR" ]]; then
     echo "EXISTING NODE DIRECTORY: $NODE_DIR (wizard will refuse installation)"
-  fi
-  if [[ -e /etc/systemd/system/kvpn-probe.timer || -e /root/kvpn-monitor/check.py ]]; then
-    echo 'EXISTING LEGACY MONITOR DETECTED: do not install monitor kit over it.'
   fi
   echo 'Utilities (missing ones can be installed before provisioning; nano is optional):'
   local util
@@ -465,7 +463,7 @@ install_node() {
     if [[ "$acme" == yes ]]; then
       if confirm 'Configure local HTTPS REALITY decoy now? (requires working DNS and public port 80)'; then install_decoy; fi
     fi
-    if confirm 'Also install the optional monitoring agent? (requires NEW monitor-kit hub, not legacy panel)'; then
+    if confirm 'Also install the optional monitoring agent? (requires configured K-VPN monitoring hub)'; then
       (cd "$ROOT_DIR/monitor-kit" && ./install.sh "$role")
     fi
   else
@@ -639,9 +637,9 @@ diagnostics() {
   echo "Diagnostics saved: $out (review before sharing; IPs may be visible)"
 }
 
-# Menu is the DEFAULT interactive entry point. Every action is independent;
-# only the full wizard installs multiple components in one run.
-menu() {
+# Default is a real full-screen TUI. Text menu is the fallback when whiptail
+# cannot be installed (for example, offline minimal systems).
+text_menu() {
   require_debian
   require_root
   [[ -r /dev/tty ]] || die 'Interactive terminal required for menu'
@@ -649,68 +647,64 @@ menu() {
   while true; do
     cat <<'MENU'
 
-============================================
-       K-VPN — управление новой нодой
-============================================
- 1) Установить ТОЛЬКО Remnawave Node
- 2) Настроить ТОЛЬКО UFW (фаервол)
- 3) Установить ТОЛЬКО Docker + Compose
- 4) Полная установка новой ноды (мастер)
-
- 5) Настроить HTTPS для REALITY
- 6) Настроить ежедневные резервные копии
-
- 7) Установить мониторинг на панели (после удаления старого)
- 8) Добавить проверку с RU-ноды
- 9) Добавить проверку с Foreign-ноды
-10) Зарегистрировать проверку на панели
-
-11) Показать состояние сервисов
-12) Проверить систему (без изменений)
-13) Сохранить диагностику
-14) Разрешить ещё один RU IP на Foreign-ноде
-15) Найти остатки старого мониторинга (без изменений)
-16) Проверить отправку Telegram (мониторинговая панель)
-
+K-VPN Node Deployer — текстовое резервное меню
+ 1) Установить только Remnawave Node
+ 2) Настроить UFW только на новом VPS
+ 3) Установить Docker + Compose
+ 4) Полная установка ноды (новый VPS)
+ 5) HTTPS для REALITY
+ 6) Резервное копирование
+ 7) Мониторинг на панели
+ 8) Мониторинг RU
+ 9) Мониторинг Foreign
+10) Регистрация проверки на панели
+11) Состояние сервисов
+12) Предварительная проверка
+13) Диагностика
+14) Добавить RU IP в UFW Foreign
+15) Проверить Telegram
  0) Выход
---------------------------------------------
-Информация:
- • Пункты 1 и 2 работают ОТДЕЛЬНО друг от друга.
- • Для пункта 1 UFW уже должен быть настроен.
- • Пункт 4 предназначен только для ЧИСТОГО VPS.
- • Перед сменой мониторинга сделайте резервную копию
-   и удалите ТОЛЬКО старые службы вручную.
- • Установка мониторинга не переустанавливает Xray.
 MENU
-    choice=$(ask_default 'Номер пункта меню' '0')
+    choice=$(ask_default 'Выберите номер' '0')
     case "$choice" in
-      1) install_node node_only;;
-      2) configure_firewall_only;;
-      3) require_debian; install_docker;;
-      4) install_node full;;
-      5) install_decoy;;
-      6) install_backup;;
+      1) (install_node node_only);;
+      2) (configure_firewall_only);;
+      3) (require_debian; install_docker);;
+      4) (install_node full);;
+      5) (install_decoy);;
+      6) (install_backup);;
       7) (cd "$ROOT_DIR/monitor-kit" && ./install.sh panel);;
       8) (cd "$ROOT_DIR/monitor-kit" && ./install.sh ru);;
       9) (cd "$ROOT_DIR/monitor-kit" && ./install.sh foreign);;
       10) (cd "$ROOT_DIR/monitor-kit" && ./install.sh register);;
       11) status;;
       12) preflight;;
-      13) diagnostics;;
-      14) add_ru_firewall_source;;
-      15) (cd "$ROOT_DIR/monitor-kit" && ./install.sh legacy-audit);;
-      16) (cd "$ROOT_DIR/monitor-kit" && ./install.sh test-telegram);;
+      13) (diagnostics);;
+      14) (add_ru_firewall_source);;
+      15) (cd "$ROOT_DIR/monitor-kit" && ./install.sh test-telegram);;
       0) return 0;;
       *) warn 'Неизвестный пункт меню';;
     esac
   done
 }
 
+menu() {
+  require_debian
+  require_root
+  if kvpn_ui_bootstrap; then
+    export KVPN_TUI=1 KVPN_ROOT="$ROOT_DIR"
+    kvpn_ui_main
+  else
+    warn 'whiptail недоступен — используется текстовое меню.'
+    text_menu
+  fi
+}
+
 main() {
   local cmd="${1:-menu}"
   case "$cmd" in
     help|-h|--help) usage;;
-    menu) menu;;
+    menu|tui) menu;;
     preflight) preflight;;
     node) require_root; install_node node_only;;
     firewall) require_root; configure_firewall_only;;
@@ -721,7 +715,7 @@ main() {
     backup) require_root; install_backup;;
     monitor)
       require_root
-      [[ -n "${2:-}" ]] || die 'Specify panel|ru|foreign|register|status|legacy-audit|test-telegram'
+      [[ -n "${2:-}" ]] || die 'Specify panel|ru|foreign|register|status|test-telegram'
       (cd "$ROOT_DIR/monitor-kit" && ./install.sh "$2")
       ;;
     status) status;;
