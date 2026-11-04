@@ -33,6 +33,7 @@ Usage:
   sudo ./install.sh foreign
   sudo ./install.sh register    # on panel, after node install
   sudo ./install.sh status
+  sudo ./install.sh public-keys   # display agent PUBLIC keys only
   sudo ./install.sh test-telegram  # panel only: explicit test message
 
 Existing monitoring is never overwritten automatically.
@@ -177,8 +178,19 @@ install_node() {
  [[ "$expected" =~ ^SHA256:[A-Za-z0-9+/=]+$ ]] || { echo 'Expected SHA256 fingerprint'; exit 1; }
  tmp=$(mktemp)
  trap 'rm -f "${tmp:-}"' EXIT
- ssh-keyscan -T 8 -p "$port" -t ed25519 "$panel" 2>/dev/null > "$tmp" || true
- [[ -s "$tmp" ]] || { echo 'Could not fetch panel SSH Ed25519 key'; exit 1; }
+ # SSH key exchange can be transiently slow even when TCP/22 is reachable.
+ # Retry ONLY retrieval; never accept an unchecked or mismatched host key.
+ local attempt
+ for attempt in 1 2 3; do
+   ssh-keyscan -T 10 -p "$port" -t ed25519 "$panel" 2>/dev/null > "$tmp" || true
+   [[ -s "$tmp" ]] && break
+   if (( attempt < 3 )); then sleep 2; fi
+ done
+ [[ -s "$tmp" ]] || {
+   echo 'Could not fetch panel SSH Ed25519 key after 3 attempts.' >&2
+   echo "Check TCP access and run: ssh-keyscan -T 10 -p $port -t ed25519 $panel" >&2
+   exit 1
+ }
  actual=$(ssh-keygen -lf "$tmp" | awk '{print $2}' | head -1)
  [[ "$actual" == "$expected" ]] || { echo 'Panel fingerprint mismatch; refusing to install' >&2; exit 1; }
  install -d -m 700 /etc/kvpn-monitor /etc/kvpn-monitor/probes
@@ -267,12 +279,60 @@ register() {
  echo "Registered $pid. Now enable and start the timer on the NODE."
 }
 
+show_public_keys() {
+ local directory=/etc/kvpn-monitor/probes key found=0
+ [[ -d "$directory" ]] || { echo 'No agent probe directory on this host.'; return 0; }
+ for key in "$directory"/*.key.pub; do
+   [[ -f "$key" ]] || continue
+   found=1
+   printf '\n--- %s ---\n' "${key##*/}"
+   cat -- "$key"
+ done
+ (( found == 1 )) || echo 'No public keys found.'
+}
+
+monitor_status() {
+ echo '=== K-VPN Monitor timers ==='
+ systemctl list-timers 'kvpn-monitor-kit*' --all --no-pager || true
+ if [[ -f /etc/kvpn-monitor/config.json ]]; then
+   echo '=== Monitoring panel: registered probes and last state ==='
+   python3 - <<'PY'
+import json
+from pathlib import Path
+config = json.loads(Path('/etc/kvpn-monitor/config.json').read_text())
+try:
+    states = json.loads(Path('/var/lib/kvpn-monitor/state.json').read_text())
+except (FileNotFoundError, ValueError):
+    states = {}
+for probe in config.get('probes', []):
+    entry = states.get(probe['id'], {})
+    print(f"{probe['id']}: {entry.get('state', 'INIT')} | "
+          f"last_timestamp={entry.get('last_timestamp', 'none')} | "
+          f"{probe.get('name', '')}")
+if not config.get('probes'):
+    print('No probes registered yet.')
+PY
+ elif [[ -d /etc/kvpn-monitor/probes ]]; then
+   echo '=== Agent probe instances ==='
+   local envfile id
+   for envfile in /etc/kvpn-monitor/probes/*.env; do
+     [[ -f "$envfile" ]] || continue
+     id="${envfile##*/}"; id="${id%.env}"
+     printf '%s: timer=' "$id"
+     systemctl is-active "kvpn-monitor-kit-probe@$id.timer" || true
+   done
+ else
+   echo 'Monitor kit is not configured on this host.'
+ fi
+}
+
 case "${1:-}" in
  panel) install_panel;;
  ru) install_node ru;;
  foreign) install_node foreign;;
  register) register;;
  test-telegram) [[ -s /etc/kvpn-monitor/config.json ]] || { echo 'Panel kit is not installed'; exit 1; }; python3 /opt/kvpn-monitor/monitor.py --test-telegram;;
- status) systemctl list-timers 'kvpn-monitor-kit*' --all --no-pager; [[ -f /etc/kvpn-monitor/config.json ]] && python3 -m json.tool /etc/kvpn-monitor/config.json || :;;
+ status) monitor_status;;
+ public-keys) show_public_keys;;
  *) usage; exit 1;;
 esac

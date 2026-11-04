@@ -138,7 +138,7 @@ kvpn_ui_prompt_ru() {
 kvpn_ui_select() {
   local title="$1" prompt="$2"; shift 2
   whiptail --backtitle 'K-VPN Node Deployer' --title "$title" \
-    --menu "$prompt" "${KVPN_UI_H:-22}" "${KVPN_UI_W:-76}" 12 "$@" 3>&1 1>&2 2>&3
+    --menu "$prompt" "${KVPN_UI_H:-22}" "${KVPN_UI_W:-76}" "$(( ${KVPN_UI_H:-22} - 8 ))" "$@" 3>&1 1>&2 2>&3
 }
 
 kvpn_ui_bootstrap() {
@@ -205,6 +205,7 @@ kvpn_ui_monitor_menu() {
       foreign 'Создать локальную проверку Foreign-ноды' \
       register 'Зарегистрировать SSH-ключ проверки на панели' \
       status 'Показать таймеры и проверки' \
+      pubkeys 'Показать публичные SSH-ключи агентов' \
       telegram 'Отправить тестовое Telegram-сообщение' \
       back 'Назад') || return 0
     case "$item" in
@@ -213,6 +214,7 @@ kvpn_ui_monitor_menu() {
       foreign) kvpn_ui_run_action 'Foreign-проверка' monitor foreign;;
       register) kvpn_ui_run_action 'Регистрация SSH-ключа' monitor register;;
       status) kvpn_ui_readonly 'Состояние мониторинга' monitor status;;
+      pubkeys) kvpn_ui_readonly 'Публичные ключи агентов' monitor public-keys;;
       telegram) kvpn_ui_run_action 'Проверка Telegram' monitor test-telegram;;
       back) return 0;;
     esac

@@ -1,9 +1,25 @@
-# Security policy
+# Безопасность K-VPN Node Deployer
 
-This repository contains an installer that can change UFW rules and run packages with root privileges. Review it and use a disposable test VPS first. Do not deploy directly on an existing production host.
+Установщик может выполняться от **root**, добавлять APT-репозитории, устанавливать Docker/сервисы, менять UFW и открывать сетевые порты. **Читайте исходники** и сначала тестируйте на отдельном VPS. Команды `wizard`, `node`, первый `firewall`, `decoy` не предназначены для развертывания поверх production.
 
-**Never submit real secrets in issues, PRs, or commits:** Telegram bot tokens, Remnawave node `SECRET_KEY`, REALITY keys, SSH private keys, real `docker-compose.yml`, IP addresses identifying a private deployment, or backup archives.
+## Какие данные являются секретами
 
-If a secret was accidentally published, revoke or rotate it. Deleting it in a later commit does not remove it from Git history.
+**Не публикуйте** Telegram Bot Token, Remnawave `SECRET_KEY`, приватные REALITY и SSH-ключи, `docker-compose.yml` из Remnawave Panel, файлы `/etc/kvpn-monitor/token` и `*.key`, содержимое `/etc/kvpn-node-deployer/node.env` без проверки, резервные архивы и рабочие логи с токенами. Публичный SSH-ключ `*.key.pub` предназначен для регистрации на панели; приватный `*.key` никогда не передаётся.
 
-For security reports, contact the repository owner privately through an appropriate channel rather than opening a public issue containing sensitive details.
+Мониторинг хранит токен Telegram в root-only файле `/etc/kvpn-monitor/token`, отчёты в `/var/lib/kvpn-monitor`. Резервные копии содержат **SSH private keys и токены**: архивы под `/root/server-backups` защищены правами root-only, но их надо **шифровать перед передачей во внешнее хранилище**. Автоматическое offsite-копирование не реализовано.
+
+Если секрет случайно раскрыт, **отзовите/перевыпустите** его. Удаление в следующем коммите не убирает секрет из Git history.
+
+## SSH, UFW и Node API
+
+- **Node API** в схеме установщика доступен только с IPv4 Remnawave Panel. Проверяйте облачный firewall и IPv6 отдельно.
+- На Foreign входящий TCP-порт Xray ограничивается RU-источниками; на RU можно разрешить публичный источник, если именно так устроена архитектура.
+- Если UFW уже активен, установщик не расширяет существующее SSH-правило. Держите консоль провайдера доступной до теста SSH.
+- Мониторинг привязывает **публичный SSH-ключ** к одному Probe ID и Source IP, использует SSH `restrict` и `command=...`, проверяет доверенный fingerprint хоста; не отключайте `StrictHostKeyChecking`.
+- Docker `ports:` других контейнеров могут обходить UFW. Проверка касается **только данной Node** с `network_mode: host`, не полного хоста.
+
+## Ограничения и отчёты
+
+TCP-мониторинг — не end-to-end тест VPN. GitHub Actions покрывает статические/модульные сценарии, но не заменяет тест новой VM/VPS с настоящими UFW, Docker, Certbot, Remnawave и подключениями.
+
+О проблемах безопасности сообщайте владельцу репозитория по **непубличному** каналу. Не публикуйте воспроизводящие секреты в issues или PR.
