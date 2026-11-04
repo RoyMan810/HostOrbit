@@ -408,6 +408,7 @@ install_node() {
     [[ "$vpnport" != 80 && "$vpnport" != 9444 ]] || die 'ACME HTTP port 80 and local decoy port 9444 must be reserved'
   fi
   echo
+  echo 'Шаг 1/3: подготовьте в Remnawave Panel конфигурацию НОВОЙ ноды.'
   echo 'In Remnawave Panel: Nodes -> Management -> + -> Copy docker-compose.yml.'
   echo 'Save the EXACT file on this new host, e.g. /root/new-remnanode-compose.yml (mode 600).'
   echo 'Do not share its contents: it contains a secret.'
@@ -448,6 +449,7 @@ install_node() {
   printf 'ROLE=%q\nPANEL_IP=%q\nNODE_API_PORT=%q\nVPN_PORT=%q\nVPN_SOURCE=%q\nSSH_PORT=%q\n' \
     "$role" "$panel_ip" "$nodeport" "$vpnport" "$vpn_source" "$sshport" > "$STATE_DIR/node.env"
   chmod 600 "$STATE_DIR/node.env"
+  echo 'Шаг 3/3: запускаем контейнер Remnawave Node...'
   echo 'Starting Remnawave Node container...'
   (cd "$NODE_DIR" && docker compose pull && docker compose up -d)
   (cd "$NODE_DIR" && docker compose ps)
@@ -641,30 +643,41 @@ menu() {
   require_debian
   require_root
   [[ -r /dev/tty ]] || die 'Interactive terminal required for menu'
-  local choice role
+  local choice
   while true; do
     cat <<'MENU'
 
-=========================================
-          K-VPN Node Deployer
-=========================================
- 1) Install Remnawave Node ONLY (UFW must be ready)
- 2) Configure UFW ONLY (new VPS)
- 3) Install Docker + Compose ONLY
- 4) Full installation wizard (NEW VPS)
- 5) Setup local HTTPS REALITY target
- 6) Setup daily backups
- 7) Install monitoring PANEL (NEW panel only)
- 8) Install RU monitoring agent
- 9) Install FOREIGN monitoring agent
-10) Register probe on monitoring panel
-11) Server status
-12) Read-only preflight
-13) Save diagnostics
-14) Add RU IP to foreign node UFW (existing installer-managed node)
- 0) Exit
+============================================
+       K-VPN — управление новой нодой
+============================================
+ 1) Установить ТОЛЬКО Remnawave Node
+ 2) Настроить ТОЛЬКО UFW (фаервол)
+ 3) Установить ТОЛЬКО Docker + Compose
+ 4) Полная установка новой ноды (мастер)
+
+ 5) Настроить HTTPS для REALITY
+ 6) Настроить ежедневные резервные копии
+
+ 7) Установить мониторинг на НОВОЙ панели
+ 8) Добавить проверку с RU-ноды
+ 9) Добавить проверку с Foreign-ноды
+10) Зарегистрировать проверку на НОВОЙ панели
+
+11) Показать состояние сервисов
+12) Проверить систему (без изменений)
+13) Сохранить диагностику
+14) Разрешить ещё один RU IP на Foreign-ноде
+
+ 0) Выход
+--------------------------------------------
+Информация:
+ • Пункты 1 и 2 работают ОТДЕЛЬНО друг от друга.
+ • Для пункта 1 UFW уже должен быть настроен.
+ • Пункт 4 предназначен только для ЧИСТОГО VPS.
+ • Новые проверки нельзя добавлять в старую
+   панель мониторинга без отдельной миграции.
 MENU
-    choice=$(ask_default 'Choose an action' '0')
+    choice=$(ask_default 'Номер пункта меню' '0')
     case "$choice" in
       1) install_node node_only;;
       2) configure_firewall_only;;
@@ -681,7 +694,7 @@ MENU
       13) diagnostics;;
       14) add_ru_firewall_source;;
       0) return 0;;
-      *) warn 'Unknown menu item';;
+      *) warn 'Неизвестный пункт меню';;
     esac
   done
 }
