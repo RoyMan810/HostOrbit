@@ -31,7 +31,10 @@ _FILES = ("ciphertext.age", "envelope.json", "signature")
 
 
 def command(*args):
-    return subprocess.run(args, check=True, capture_output=True, text=True, timeout=15).stdout
+    result = subprocess.run(args, capture_output=True, text=True, timeout=15)
+    if result.returncode:
+        raise RuntimeError(f"{Path(args[0]).name} failed ({result.stderr.strip()})")
+    return result.stdout
 
 
 def age_key(path):
@@ -160,7 +163,7 @@ class SftpPublicationTests(unittest.TestCase):
         os.chown(self.store, user.pw_uid, user.pw_gid)
 
         for key in ("host", "client"):
-            command("/usr/bin/ssh-keygen", "-q", "-t", "ed25519", "-N", "", self.root / key)
+            command("/usr/bin/ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", self.root / key)
         authorized = self.root / "authorized_keys"
         authorized.write_text("restrict " + (self.root / "client.pub").read_text(), encoding="ascii")
         authorized.chmod(0o644)
@@ -191,11 +194,17 @@ class SftpPublicationTests(unittest.TestCase):
 
     @contextmanager
     def endpoint(self, **kwargs):
-        with listen(self.config, self.root / "sshd.log", **kwargs) as port:
-            host_key = (self.root / "host.pub").read_text(encoding="ascii").split()[:2]
-            known_hosts = self.root / "known_hosts"
-            known_hosts.write_text(f"[127.0.0.1]:{port} {' '.join(host_key)}\n", encoding="ascii")
-            yield SftpPublication(self.account, port, self.root / "client", known_hosts)
+        log = self.root / "sshd.log"
+        try:
+            with listen(self.config, log, **kwargs) as port:
+                host_key = (self.root / "host.pub").read_text(encoding="ascii").split()[:2]
+                known_hosts = self.root / "known_hosts"
+                known_hosts.write_text(f"[127.0.0.1]:{port} {' '.join(host_key)}\n", encoding="ascii")
+                yield SftpPublication(self.account, port, self.root / "client", known_hosts)
+        except Exception:
+            if log.exists():
+                print(log.read_text(encoding="utf-8", errors="replace"), file=sys.stderr)
+            raise
 
     def run_backup(self, endpoint):
         return self.lab.run(self.recipient, self.signer, endpoint.publish)
