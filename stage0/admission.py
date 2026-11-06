@@ -4,10 +4,20 @@ from collections.abc import Collection, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import StrEnum
+import json
 from pathlib import Path
 import secrets
+from typing import TYPE_CHECKING
 
 from .journal import connect_journal, reserve_journal
+
+if TYPE_CHECKING:
+    from .recovery import RecoveryTarget
+
+
+class ControllerMode(StrEnum):
+    ACTIVE = "ACTIVE"
+    READ_ONLY_RECOVERY = "READ_ONLY_RECOVERY"
 
 
 class GateState(StrEnum):
@@ -92,6 +102,22 @@ CREATE TABLE quarantine (
 PRAGMA user_version = 1;
 """
 
+_RECOVERY_SCHEMA = """
+CREATE TABLE recovery (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    binding TEXT NOT NULL,
+    owner_verify_key BLOB NOT NULL,
+    attestation BLOB,
+    signature BLOB,
+    CHECK ((attestation IS NULL) = (signature IS NULL))
+);
+CREATE TABLE recovery_scope (
+    host TEXT PRIMARY KEY NOT NULL REFERENCES hosts(id),
+    quarantined INTEGER NOT NULL CHECK (quarantined IN (0, 1))
+);
+PRAGMA user_version = 2;
+"""
+
 
 class HostGate:
     """Open a lab journal. Only create() can initialize a new fixture."""
@@ -100,14 +126,23 @@ class HostGate:
         self._path = path.absolute()
 
     @classmethod
-    def create(cls, path: Path, topology: Mapping[str, Collection[str] | None]) -> "HostGate":
-        """Persist fixed host dependencies. None marks an incomplete host inventory."""
+    def create(
+        cls, path: Path, topology: Mapping[str, Collection[str] | None],
+        *, recovery: "RecoveryTarget | None" = None,
+    ) -> "HostGate":
+        """Create a fresh fixture journal. A restore supplies an independently anchored target."""
         if any(isinstance(resources, (str, bytes)) for resources in topology.values()):
             raise ValueError("Each host needs a collection of resource IDs")
         gate = cls(path)
         reserve_journal(gate._path)
         with gate._connect(initialize=True) as db:
-            db.executescript("BEGIN IMMEDIATE;\n" + _SCHEMA)
+            schema = _SCHEMA if recovery is None else _SCHEMA + _RECOVERY_SCHEMA
+            db.executescript("BEGIN IMMEDIATE;\n" + schema)
+            if recovery is not None:
+                db.execute(
+                    "INSERT INTO recovery VALUES (1, ?, ?, NULL, NULL)",
+                    (json.dumps(recovery.binding()), recovery.owner_verify_key),
+                )
             db.executemany(
                 "INSERT INTO hosts VALUES (?, ?)",
                 ((host, resources is not None) for host, resources in topology.items()),
@@ -124,7 +159,7 @@ class HostGate:
         return gate
 
     def _connect(self, *, initialize=False):
-        return connect_journal(self._path, initialize=initialize)
+        return connect_journal(self._path, initialize=initialize, versions=(1, 2))
 
     @contextmanager
     def _write(self):
@@ -141,9 +176,84 @@ class HostGate:
         return row
 
     @staticmethod
-    def _require_no_incidents(db):
+    def _recovery(db):
+        if db.execute("PRAGMA user_version").fetchone()[0] == 1:
+            return None
+        row = db.execute(
+            "SELECT binding, owner_verify_key, attestation IS NOT NULL AS activated FROM recovery WHERE id = 1"
+        ).fetchone()
+        if row is None:
+            raise RuntimeError("Missing recovery target")
+        return row
+
+    def _require_active(self, db) -> bool:
+        recovery = self._recovery(db)
+        if recovery is not None and not recovery["activated"]:
+            raise Denied("READ_ONLY_RECOVERY")
+        return recovery is not None
+
+    def _require_no_incidents(self, db):
         if db.execute("SELECT 1 FROM incidents LIMIT 1").fetchone():
             raise Denied("OPEN_INCIDENT")
+        if self._recovery(db) is not None and db.execute(
+            "SELECT 1 FROM recovery_scope WHERE quarantined = 1 LIMIT 1"
+        ).fetchone():
+            raise Denied("RECOVERY_QUARANTINE")
+
+    @staticmethod
+    def _dependency_closure(db, hosts: set[str]) -> frozenset[str]:
+        if not hosts:
+            return frozenset()
+        if db.execute("SELECT 1 FROM hosts WHERE dependencies_known = 0").fetchone():
+            raise Denied("DEPENDENCIES_UNPROVEN")
+        placeholders = ",".join("?" for _ in hosts)
+        rows = db.execute(
+            f"""WITH RECURSIVE affected(host) AS (
+                    SELECT id FROM hosts WHERE id IN ({placeholders})
+                    UNION
+                    SELECT peer.host FROM affected
+                    JOIN dependencies AS own ON own.host = affected.host
+                    JOIN dependencies AS peer ON peer.resource = own.resource
+                ) SELECT host FROM affected""",
+            tuple(hosts),
+        )
+        return frozenset(row["host"] for row in rows)
+
+    def controller_mode(self) -> ControllerMode:
+        with self._connect() as db:
+            recovery = self._recovery(db)
+            if recovery is not None and not recovery["activated"]:
+                return ControllerMode.READ_ONLY_RECOVERY
+            return ControllerMode.ACTIVE
+
+    def activate_recovery(
+        self, attestation: bytes, signature: bytes, *, owner_confirmation: str,
+    ) -> frozenset[str]:
+        """Local fixture activation. Store evidence and permitted scope in one commit."""
+        from .recovery import verify_activation
+
+        with self._write() as db:
+            recovery = self._recovery(db)
+            if recovery is None or recovery["activated"]:
+                raise Denied("RECOVERY_NOT_PENDING")
+            if self._gate(db)["state"] != GateState.NORMAL:
+                raise Denied("GATE_CLOSED")
+            hosts = {row["id"] for row in db.execute("SELECT id FROM hosts")}
+            seeds = verify_activation(
+                attestation, signature, owner_confirmation=owner_confirmation,
+                owner_verify_key=recovery["owner_verify_key"],
+                expected_binding=json.loads(recovery["binding"]), expected_hosts=hosts,
+            )
+            quarantined = self._dependency_closure(db, seeds)
+            safe = frozenset(hosts - quarantined)
+            if not safe:
+                raise Denied("NO_SAFE_RECOVERY_TARGETS")
+            db.executemany(
+                "INSERT INTO recovery_scope VALUES (?, ?)",
+                ((host, host in quarantined) for host in hosts),
+            )
+            db.execute("UPDATE recovery SET attestation = ?, signature = ? WHERE id = 1", (attestation, signature))
+            return safe
 
     @staticmethod
     def _hold(db):
@@ -171,6 +281,7 @@ class HostGate:
         if not operation_id.strip():
             raise ValueError("An operation ID is required")
         with self._write() as db:
+            restored = self._require_active(db)
             gate = self._gate(db)
             if gate["state"] != GateState.NORMAL:
                 raise Denied("GATE_CLOSED")
@@ -179,6 +290,10 @@ class HostGate:
             if db.execute("SELECT 1 FROM incidents WHERE decision_ref IS NULL").fetchone():
                 raise Denied("OPEN_INCIDENT")
             if db.execute("SELECT 1 FROM quarantine WHERE host = ?", (host,)).fetchone():
+                raise Denied("QUARANTINED")
+            if restored and db.execute(
+                "SELECT 1 FROM recovery_scope WHERE host = ? AND quarantined = 0", (host,)
+            ).fetchone() is None:
                 raise Denied("QUARANTINED")
             if db.execute(
                 "SELECT 1 FROM attempts WHERE operation_id = ?", (operation_id,)
@@ -232,41 +347,29 @@ class HostGate:
             raise ValueError("An Owner decision reference is required")
         with self._write() as db:
             incident = db.execute(
-                "SELECT decision_ref FROM incidents WHERE operation_id = ?", (operation_id,)
+                """SELECT i.decision_ref, a.host FROM incidents i
+                   JOIN attempts a USING (operation_id) WHERE i.operation_id = ?""", (operation_id,)
             ).fetchone()
             if incident is None:
                 raise Denied("NO_OPEN_INCIDENT")
             if incident["decision_ref"] is not None:
                 raise Denied("QUARANTINE_ALREADY_RECORDED")
-            if db.execute("SELECT 1 FROM hosts WHERE dependencies_known = 0").fetchone():
-                raise Denied("DEPENDENCIES_UNPROVEN")
-            db.execute(
-                """WITH RECURSIVE affected(host) AS (
-                       SELECT host FROM attempts WHERE operation_id = ?
-                       UNION
-                       SELECT peer.host FROM affected
-                       JOIN dependencies AS own ON own.host = affected.host
-                       JOIN dependencies AS peer ON peer.resource = own.resource
-                   )
-                   INSERT INTO quarantine SELECT ?, host FROM affected""",
-                (operation_id, operation_id),
+            affected = self._dependency_closure(db, {incident["host"]})
+            db.executemany(
+                "INSERT INTO quarantine VALUES (?, ?)", ((operation_id, host) for host in affected),
             )
             db.execute(
                 "UPDATE incidents SET decision_ref = ? WHERE operation_id = ?",
                 (decision_ref, operation_id),
             )
-            return frozenset(
-                row["host"]
-                for row in db.execute(
-                    "SELECT host FROM quarantine WHERE operation_id = ?", (operation_id,)
-                )
-            )
+            return affected
 
     def request_update(self, kind: UpdateKind) -> UpdateTicket:
         """Commit QUIESCING before returning a ticket. An active remote attempt may drain."""
         if not isinstance(kind, UpdateKind):
             raise ValueError("Unknown update kind")
         with self._write() as db:
+            self._require_active(db)
             gate = self._gate(db)
             if gate["state"] != GateState.NORMAL:
                 raise Denied("GATE_CLOSED")

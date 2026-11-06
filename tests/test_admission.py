@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 from dataclasses import replace
+import hashlib
 import multiprocessing
 import os
 from pathlib import Path
@@ -9,7 +10,10 @@ import tempfile
 import time
 import unittest
 
-from stage0.admission import Denied, FixtureObservation, GateState, HostGate, Outcome, UpdateKind
+from nacl.signing import SigningKey
+
+from stage0.admission import ControllerMode, Denied, FixtureObservation, GateState, HostGate, Outcome, UpdateKind
+from stage0.recovery import RecoveryTarget, Rejected, activation_attestation
 
 
 TOPOLOGY = {
@@ -73,6 +77,11 @@ def crash_at(path, phase):
 
 def crash_before_quarantine_commit(path):
     CrashBeforeCommitGate(path).record_quarantine("restart", decision_ref="fixture-decision")
+    raise AssertionError("COMMIT hook did not kill the process")
+
+
+def crash_before_activation_commit(path, evidence, signature, confirmation):
+    CrashBeforeCommitGate(path).activate_recovery(evidence, signature, owner_confirmation=confirmation)
     raise AssertionError("COMMIT hook did not kill the process")
 
 
@@ -271,6 +280,146 @@ class AdmissionTests(unittest.TestCase):
         self.assertFalse(missing.exists())
         with self.assertRaises(FileExistsError):
             HostGate.create(self.path, TOPOLOGY)
+
+
+class RecoveryAdmissionTests(unittest.TestCase):
+    def setUp(self):
+        self.directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.path = self.directory / "restore.sqlite3"
+        self.owner = SigningKey.generate()
+        self.target = RecoveryTarget("old", "a" * 64, "new", "b" * 64, bytes(self.owner.verify_key))
+        self.topology = {**TOPOLOGY, "offline": ()}
+        self.gate = HostGate.create(self.path, self.topology, recovery=self.target)
+        now = int(time.time())
+        self.isolation = {
+            "method": "power_off", "console": "host console", "operator": "owner",
+            "autostart_blocked": True, "worker_isolated": True,
+            "observations": [
+                {"source": "power status", "at_utc": now - 12, "isolated": True},
+                {"source": "console status", "at_utc": now - 1, "isolated": True},
+            ],
+        }
+        self.checks = dict.fromkeys(
+            ("database_integrity", "vault_integrity", "permissions_verified", "old_automation_disabled"), True,
+        )
+        self.reports = {
+            host: {
+                "evidence": f"fixture transcript for {host}", "reachable": True,
+                "credentials_rotated": True, "old_key_denied": True, "new_key_verified": True,
+                "old_key_sha256": "c" * 64, "new_key_sha256": "d" * 64,
+                "direct_stopped": True, "delegated_terminal": True, "postconditions_verified": True,
+            }
+            for host in self.topology
+        }
+        self.reports["offline"] = {"evidence": "console unavailable", "reachable": False}
+
+    def signed(self, *, target=None, isolation=None, checks=None, reports=None, signer=None):
+        evidence = activation_attestation(
+            target or self.target,
+            isolation=self.isolation if isolation is None else isolation,
+            checks=self.checks if checks is None else checks,
+            hosts=self.reports if reports is None else reports,
+        )
+        return evidence, (signer or self.owner).sign(evidence).signature, hashlib.sha256(evidence).hexdigest()
+
+    def activate(self, gate=None, **changes):
+        evidence, signature, confirmation = self.signed(**changes)
+        return (gate or self.gate).activate_recovery(evidence, signature, owner_confirmation=confirmation)
+
+    def assert_read_only(self):
+        reopened = HostGate(self.path)
+        self.assertEqual(reopened.controller_mode(), ControllerMode.READ_ONLY_RECOVERY)
+        with self.assertRaisesRegex(Denied, "^READ_ONLY_RECOVERY$"):
+            reopened.admit_remote("independent", "ordinary-restart")
+        for kind in UpdateKind:
+            with self.assertRaisesRegex(Denied, "^READ_ONLY_RECOVERY$"):
+                reopened.request_update(kind)
+
+    def test_recovery_stays_read_only_after_reboot(self):
+        original = HostGate.create(self.directory / "old.sqlite3", self.topology)
+        self.assertEqual(original.controller_mode(), ControllerMode.ACTIVE)
+        original.admit_remote("independent", "old-restart")
+        self.assert_read_only()
+        self.assertEqual(self.gate.recover_after_restart(), GateState.NORMAL)
+        self.assert_read_only()
+
+    def test_activation_persists_allowed_scope_and_quarantines_pending_effects(self):
+        self.reports["a"]["delegated_terminal"] = False
+        self.assertEqual(self.activate(), {"independent"})
+        reopened = HostGate(self.path)
+        self.assertEqual(reopened.controller_mode(), ControllerMode.ACTIVE)
+        for host in ("a", "b", "c", "offline"):
+            with self.subTest(host=host), self.assertRaisesRegex(Denied, "^QUARANTINED$"):
+                reopened.admit_remote(host, f"restart-{host}")
+        permit = reopened.admit_remote("independent", "ordinary-restart")
+        self.assertEqual(reopened.report_remote(permit, VERIFIED), Outcome.SUCCEEDED)
+        for kind in UpdateKind:
+            with self.assertRaisesRegex(Denied, "^RECOVERY_QUARANTINE$"):
+                reopened.request_update(kind)
+        with self.assertRaisesRegex(Denied, "^RECOVERY_NOT_PENDING$"):
+            self.activate(gate=reopened)
+
+    def test_activation_requires_the_local_confirmation_signature_and_binding(self):
+        evidence, signature, _ = self.signed()
+        with self.assertRaisesRegex(Rejected, "^ACTIVATION_CONFIRMATION_REQUIRED$"):
+            self.gate.activate_recovery(evidence, signature, owner_confirmation="0" * 64)
+        with self.assertRaisesRegex(Rejected, "^ACTIVATION_SIGNATURE$"):
+            self.activate(signer=SigningKey.generate())
+        for field in ("old_controller_id", "old_host_key_sha256", "recovery_controller_id", "backup_manifest_sha256"):
+            with self.subTest(field=field), self.assertRaisesRegex(Rejected, "^WRONG_ACTIVATION_BINDING$"):
+                self.activate(target=replace(self.target, **{field: "e" * 64}))
+        self.assert_read_only()
+
+    def test_signed_timeout_or_incomplete_observations_do_not_allow_activation(self):
+        for change in ({"method": "ssh_timeout"}, {"autostart_blocked": False}, {"worker_isolated": False}):
+            with self.subTest(change=change), self.assertRaisesRegex(Rejected, "^ISOLATION_EVIDENCE_REQUIRED$"):
+                self.activate(isolation={**self.isolation, **change})
+        first, second = self.isolation["observations"]
+        for observations in ([first], [first, {**second, "source": first["source"]}],
+                             [first, {**second, "at_utc": first["at_utc"] + 9}]):
+            with self.subTest(observations=observations), self.assertRaisesRegex(Rejected, "^ISOLATION_OBSERVATIONS_REQUIRED$"):
+                self.activate(isolation={**self.isolation, "observations": observations})
+        self.assert_read_only()
+
+    def test_integrity_inventory_and_rotation_are_required(self):
+        with self.assertRaisesRegex(Rejected, "^RECOVERY_CHECKS_REQUIRED$"):
+            self.activate(checks={**self.checks, "vault_integrity": False})
+        with self.assertRaisesRegex(Rejected, "^RECOVERY_INVENTORY_MISMATCH$"):
+            self.activate(reports={host: report for host, report in self.reports.items() if host != "offline"})
+        for change in ({"old_key_denied": False}, {"new_key_verified": False}, {"new_key_sha256": "c" * 64}):
+            reports = {**self.reports, "a": {**self.reports["a"], **change}}
+            with self.subTest(change=change), self.assertRaisesRegex(Rejected, "^CREDENTIAL_ROTATION_REQUIRED$"):
+                self.activate(reports=reports)
+        self.assert_read_only()
+
+    def test_incomplete_dependencies_prevent_scoped_activation(self):
+        self.path = self.directory / "incomplete.sqlite3"
+        self.gate = HostGate.create(self.path, {**self.topology, "a": None}, recovery=self.target)
+        with self.assertRaisesRegex(Denied, "^DEPENDENCIES_UNPROVEN$"):
+            self.activate()
+        self.assert_read_only()
+
+    def test_activation_requires_a_safe_target_and_allows_update_after_full_verification(self):
+        unavailable = dict.fromkeys(self.topology, {"evidence": "console unavailable", "reachable": False})
+        with self.assertRaisesRegex(Denied, "^NO_SAFE_RECOVERY_TARGETS$"):
+            self.activate(reports=unavailable)
+        self.assert_read_only()
+        self.reports["offline"] = {**self.reports["a"], "evidence": "offline host is now reachable and verified"}
+        self.assertEqual(self.activate(), set(self.topology))
+        ticket = self.gate.request_update(UpdateKind.APPLICATION)
+        self.gate.enter_maintenance(ticket)
+        self.assertEqual(self.gate.state(), GateState.MAINTENANCE)
+
+    def test_sigkill_before_activation_commit_keeps_recovery_read_only(self):
+        process = multiprocessing.get_context("spawn").Process(
+            target=crash_before_activation_commit, args=(self.path, *self.signed()),
+        )
+        process.start()
+        self.addCleanup(AdmissionTests.stop_process, process)
+        process.join(WAIT)
+        self.assertEqual(process.exitcode, -signal.SIGKILL)
+        self.assert_read_only()
+        self.assertEqual(self.activate(), {"a", "b", "c", "independent"})
 
 
 if __name__ == "__main__":
