@@ -15,6 +15,13 @@ REQUEST = b'{"operation":"restart-fixture","target":"stage0-fixture","version":1
 DOCKER_HOST = "unix:///var/run/docker.sock"
 
 
+def local_docker_socket(address):
+    if not re.fullmatch(r"unix:///[A-Za-z0-9_./-]+\.sock", address):
+        return False
+    path = Path(address.removeprefix("unix://"))
+    return ".." not in path.parts and path.is_socket()
+
+
 def restart_fixture(state_dir: Path) -> int:
     if os.geteuid() != 0 or len(sys.argv) != 1:
         return 65
@@ -25,10 +32,12 @@ def restart_fixture(state_dir: Path) -> int:
         return 65
 
     spec = json.loads((state_dir / "spec.json").read_text(encoding="ascii"))
-    container, unit = spec["container"], spec["unit"]
+    container, unit, daemon = spec["container"], spec["unit"], spec["docker_host"]
     if not re.fullmatch(r"[0-9a-f]{64}", container):
         return 65
     if not re.fullmatch(r"hostorbit-stage0-restart-[0-9a-f]{16}\.service", unit):
+        return 65
+    if not local_docker_socket(daemon):
         return 65
     try:
         with (state_dir / "receipt").open("x", encoding="ascii") as receipt:
@@ -47,7 +56,7 @@ def restart_fixture(state_dir: Path) -> int:
     os.execv(systemd_run, [
         systemd_run, "--quiet", "--wait", f"--unit={unit}", "--property=Type=exec",
         "--property=KillMode=control-group", "--property=RuntimeMaxSec=40s",
-        "--property=TimeoutStopSec=4s", "--", "/usr/bin/docker", "--host", DOCKER_HOST,
+        "--property=TimeoutStopSec=4s", "--", "/usr/bin/docker", "--host", daemon,
         "container", "restart", "--timeout", "25", container,
     ])
 
