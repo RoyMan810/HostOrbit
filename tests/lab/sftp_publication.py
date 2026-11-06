@@ -3,6 +3,7 @@
 import base64
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing, contextmanager
+from dataclasses import dataclass
 import json
 import os
 from pathlib import Path
@@ -23,7 +24,7 @@ from nacl.secret import Aead
 from nacl.signing import SigningKey
 
 from stage0.journal import connect_journal
-from stage0.recovery import SignedBackup, accept_bundle, issue_request, prepare_bundle
+from stage0.recovery import Rejected, SignedBackup, accept_bundle, issue_request, prepare_bundle
 from stage0.snapshot import BackupDenied, BackupLab, Phase, Work, secret_context
 
 
@@ -49,12 +50,12 @@ class SftpFailure(RuntimeError):
 
 
 class SftpPublication:
-    def __init__(self, account, port, identity, known_hosts):
+    def __init__(self, account, port, identity, known_hosts, *, host="127.0.0.1"):
         self.command = [
             "/usr/bin/sftp", "-F", "/dev/null", "-b", "-", "-P", str(port), "-i", str(identity),
             "-o", "BatchMode=yes", "-o", "IdentitiesOnly=yes", "-o", "ConnectTimeout=6",
             "-o", "StrictHostKeyChecking=yes", "-o", f"UserKnownHostsFile={known_hosts}",
-            "-o", "GlobalKnownHostsFile=/dev/null", f"{account}@127.0.0.1",
+            "-o", "GlobalKnownHostsFile=/dev/null", f"{account}@{host}",
         ]
 
     def _batch(self, phase, commands, *, cwd=None):
@@ -144,44 +145,89 @@ def listen(config, log, *, limit=None, before_session=None):
                 task.result(timeout=25)
 
 
-class SftpPublicationTests(unittest.TestCase):
-    def setUp(self):
-        self.root = Path(self.enterContext(TemporaryDirectory(prefix="hostorbit-sftp-", dir="/run")))
-        self.root.chmod(0o711)
-        self.account = f"ho-sftp-{secrets.token_hex(4)}"
-        # Ubuntu's shadow entry '*' disables password login and allows public-key auth without PAM.
-        command(
-            "/usr/sbin/useradd", "--system", "--user-group", "--home-dir", "/store",
-            "--no-create-home", "--shell", "/bin/sh", "--password", "*", self.account,
-        )
-        self.addCleanup(command, "/usr/sbin/userdel", self.account)
-        user = pwd.getpwnam(self.account)
-        jail = self.root / "jail"
+@dataclass(frozen=True)
+class SftpReceiver:
+    account: str
+    store: Path
+    config: Path
+    authorized: Path
+    host_key: str
+
+    def authorize(self, public_key, *, read_only=False):
+        kind, key, *_ = public_key.split()
+        if kind != "ssh-ed25519" or not re.fullmatch(r"[A-Za-z0-9+/]+={0,2}", key):
+            raise ValueError("Expected a fixture Ed25519 public key")
+        options = "-R -d /store" if read_only else "-d /store"
+        self.authorized.write_text(f'restrict,command="internal-sftp {options}" {kind} {key}\n', encoding="ascii")
+
+
+@contextmanager
+def sftp_receiver(root):
+    root.chmod(0o711)
+    account = f"ho-sftp-{secrets.token_hex(4)}"
+    # Ubuntu's shadow entry '*' disables password login and allows public-key auth without PAM.
+    command(
+        "/usr/sbin/useradd", "--system", "--user-group", "--home-dir", "/store",
+        "--no-create-home", "--shell", "/bin/sh", "--password", "*", account,
+    )
+    try:
+        user = pwd.getpwnam(account)
+        jail = root / "jail"
         jail.mkdir(mode=0o755)
         jail.chmod(0o755)
-        self.store = jail / "store"
-        self.store.mkdir(mode=0o700)
-        os.chown(self.store, user.pw_uid, user.pw_gid)
-
-        for key in ("host", "client"):
-            command("/usr/bin/ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", self.root / key)
-        authorized = self.root / "authorized_keys"
-        authorized.write_text("restrict " + (self.root / "client.pub").read_text(), encoding="ascii")
+        store = jail / "store"
+        store.mkdir(mode=0o700)
+        os.chown(store, user.pw_uid, user.pw_gid)
+        command("/usr/bin/ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", root / "host")
+        host_key = " ".join((root / "host.pub").read_text(encoding="ascii").split()[:2])
+        authorized = root / "authorized_keys"
+        authorized.touch()
         authorized.chmod(0o644)
-        self.config = self.root / "sshd_config"
-        self.config.write_text(
-            f"HostKey {self.root / 'host'}\n"
+        config = root / "sshd_config"
+        config.write_text(
+            f"HostKey {root / 'host'}\n"
             f"AuthorizedKeysFile {authorized}\n"
-            f"AllowUsers {self.account}\n"
+            f"AllowUsers {account}\n"
             f"ChrootDirectory {jail}\n"
             "UsePAM no\nPermitRootLogin no\nPermitTTY no\nPermitUserRC no\n"
             "PasswordAuthentication no\nKbdInteractiveAuthentication no\n"
             "AuthenticationMethods publickey\nPubkeyAuthentication yes\nDisableForwarding yes\n"
-            "Subsystem sftp internal-sftp\nForceCommand internal-sftp -d /store\n",
+            "Subsystem sftp internal-sftp\n",
             encoding="ascii",
         )
         Path("/run/sshd").mkdir(mode=0o755, exist_ok=True)
-        command("/usr/sbin/sshd", "-t", "-f", self.config)
+        command("/usr/sbin/sshd", "-t", "-f", config)
+        yield SftpReceiver(account, store, config, authorized, host_key)
+    finally:
+        command("/usr/sbin/userdel", account)
+
+
+def restored_values(restored):
+    vault = json.loads(restored.deks)
+    keys = {int(version): base64.b64decode(key, validate=True) for version, key in vault["keys"].items()}
+    if any(len(key) != Aead.KEY_SIZE for key in keys.values()):
+        raise Rejected("PORTABLE_DEK_REQUIRED")
+    with closing(sqlite3.connect(":memory:")) as db:
+        db.deserialize(restored.database)
+        if db.execute("PRAGMA integrity_check").fetchall() != [("ok",)]:
+            raise Rejected("RESTORED_SQLITE_INTEGRITY")
+        rows = db.execute("SELECT name, version, ciphertext FROM secret_refs").fetchall()
+    if keys.keys() != {version for _, version, _ in rows}:
+        raise Rejected("RESTORED_KEY_VERSIONS")
+    values = {}
+    for name, version, ref in rows:
+        encrypted = base64.b64decode(vault["ciphertexts"][ref], validate=True)
+        values[name] = Aead(keys[version]).decrypt(encrypted, secret_context(name, version))
+    return values, sorted(keys)
+
+
+class SftpPublicationTests(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(self.enterContext(TemporaryDirectory(prefix="hostorbit-sftp-", dir="/run")))
+        self.receiver = self.enterContext(sftp_receiver(self.root))
+        self.store = self.receiver.store
+        command("/usr/bin/ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", self.root / "client")
+        self.receiver.authorize((self.root / "client.pub").read_text(encoding="ascii"))
 
         self.controller = self.root / "controller"
         self.controller.mkdir(mode=0o700)
@@ -197,11 +243,10 @@ class SftpPublicationTests(unittest.TestCase):
     def endpoint(self, **kwargs):
         log = self.root / "sshd.log"
         try:
-            with listen(self.config, log, **kwargs) as port:
-                host_key = (self.root / "host.pub").read_text(encoding="ascii").split()[:2]
+            with listen(self.receiver.config, log, **kwargs) as port:
                 known_hosts = self.root / "known_hosts"
-                known_hosts.write_text(f"[127.0.0.1]:{port} {' '.join(host_key)}\n", encoding="ascii")
-                yield SftpPublication(self.account, port, self.root / "client", known_hosts)
+                known_hosts.write_text(f"[127.0.0.1]:{port} {self.receiver.host_key}\n", encoding="ascii")
+                yield SftpPublication(self.receiver.account, port, self.root / "client", known_hosts)
         except Exception:
             if log.exists():
                 print(log.read_text(encoding="utf-8", errors="replace"), file=sys.stderr)
@@ -239,17 +284,8 @@ class SftpPublicationTests(unittest.TestCase):
         )
         bundle, review = prepare_bundle(backup, self.signer.verify_key, self.owner, request)
         restored = accept_bundle(ledger, target, bundle, owner_digest=review.bundle_sha256)
-        vault = json.loads(restored.deks)
-        with closing(sqlite3.connect(":memory:")) as db:
-            db.deserialize(restored.database)
-            self.assertEqual(db.execute("PRAGMA integrity_check").fetchall(), [("ok",)])
-            rows = db.execute("SELECT name, version, ciphertext FROM secret_refs").fetchall()
-        self.assertEqual(len(vault["keys"]), 2)
-        values = {}
-        for name, version, ref in rows:
-            key = base64.b64decode(vault["keys"][str(version)])
-            encrypted = base64.b64decode(vault["ciphertexts"][ref])
-            values[name] = Aead(key).decrypt(encrypted, secret_context(name, version))
+        values, versions = restored_values(restored)
+        self.assertEqual(versions, [1, 2])
         self.assertEqual(values, self.values)
 
     def test_sftp_disconnection_leaves_staging_and_business_admission_open(self):
