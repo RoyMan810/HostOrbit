@@ -4,6 +4,7 @@ import base64
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing, contextmanager
 from dataclasses import dataclass
+import errno
 import json
 import os
 from pathlib import Path
@@ -319,6 +320,33 @@ class SftpPublicationTests(unittest.TestCase):
             with self.assertRaisesRegex(BackupDenied, "^SFTP_READBACK_MISMATCH$"):
                 self.run_backup(endpoint)
         self.assert_failed_without_publication()
+
+    def test_sftp_enospc_fails_publication_and_allows_retry(self):
+        owner = self.store.stat()
+        command(
+            "/usr/bin/mount", "-t", "tmpfs", "-o",
+            f"size=64k,mode=0700,uid={owner.st_uid},gid={owner.st_gid},nodev,nosuid,noexec",
+            "tmpfs", self.store,
+        )
+        self.addCleanup(command, "/usr/bin/umount", self.store)
+        filler = self.store / "filler"
+        try:
+            with filler.open("wb", buffering=0) as space:
+                self.assertEqual(space.write(bytes(64 * 1024)), 64 * 1024)
+                with self.assertRaises(OSError) as exhausted:
+                    space.write(b"x")
+                self.assertEqual(exhausted.exception.errno, errno.ENOSPC)
+            with self.endpoint() as endpoint, self.assertRaises(SftpFailure) as failure:
+                self.run_backup(endpoint)
+            self.assertEqual(failure.exception.phase, "upload")
+        finally:
+            filler.unlink(missing_ok=True)
+
+        self.assert_failed_without_publication()
+        with self.endpoint() as endpoint:
+            backup_id = self.run_backup(endpoint)
+            self.assertTrue((self.store / backup_id).is_dir())
+            endpoint.fetch(backup_id)
 
 
 if __name__ == "__main__":
