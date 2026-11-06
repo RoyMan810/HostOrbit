@@ -35,3 +35,14 @@ jobs:
           tar --no-same-owner -xzf age.tar.gz -- age/age age/age-keygen
           echo "$age_dir/age" >> "$GITHUB_PATH"
       - run: python -m unittest discover -s tests -v
+
+  broker-containers:
+    name: Broker peer credentials / Docker
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Verify Worker, Backend and stranger access
+        run: bash tests/lab/broker-containers.sh
