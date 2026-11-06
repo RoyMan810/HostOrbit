@@ -376,7 +376,8 @@ class RecoveryAdmissionTests(unittest.TestCase):
                 self.activate(isolation={**self.isolation, **change})
         first, second = self.isolation["observations"]
         for observations in ([first], [first, {**second, "source": first["source"]}],
-                             [first, {**second, "at_utc": first["at_utc"] + 9}]):
+                             [first, {**second, "at_utc": first["at_utc"] + 9}],
+                             [first, {**second, "at_utc": int(time.time()) + 60}]):
             with self.subTest(observations=observations), self.assertRaisesRegex(Rejected, "^ISOLATION_OBSERVATIONS_REQUIRED$"):
                 self.activate(isolation={**self.isolation, "observations": observations})
         self.assert_read_only()

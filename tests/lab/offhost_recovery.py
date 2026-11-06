@@ -17,6 +17,7 @@ import subprocess
 import sys
 from tempfile import TemporaryDirectory
 import time
+import traceback
 
 from nacl.secret import Aead
 from nacl.signing import SigningKey, VerifyKey
@@ -46,7 +47,10 @@ def receive(stream):
     line = stream.readline(_LIMIT + 1)
     if not line.endswith(b"\n") or len(line) > _LIMIT:
         raise RuntimeError("Missing or oversized fixture message")
-    return json.loads(line)
+    message = json.loads(line)
+    if "guest_error" in message:
+        raise RuntimeError(f"Guest fixture failed ({message['guest_error']})")
+    return message
 
 
 def send(stream, message):
@@ -125,57 +129,56 @@ def recover_guest(stream, root, endpoint, archives):
             send(stream, {"rejected": "PORTABLE_DEK_REQUIRED"})
 
 
-def guest():
+def guest(stream):
     root = Path("/var/lib/hostorbit-offhost")
     root.mkdir(mode=0o700)
     ssh_identity = root / "sftp-client"
     command("/usr/bin/ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", ssh_identity)
-    with open(_DEVICE, "r+b", buffering=0) as port, BufferedRWPair(port, port) as stream:
-        send(stream, {"ready": True})
-        boot = receive(stream)
-        role = boot["role"]
-        signer = SigningKey.generate() if role == "source" else None
-        greeting = {
-            "boot_id": Path("/proc/sys/kernel/random/boot_id").read_text().strip(),
-            "sftp_key": ssh_identity.with_suffix(".pub").read_text(encoding="ascii"),
-            "signing_key": b64(bytes(signer.verify_key)) if signer is not None else None,
-        }
-        managed_identity = root / "managed-client"
-        if boot["managed"] and role == "source":
-            host_key = Path("/etc/ssh/ssh_host_ed25519_key.pub").read_text(encoding="ascii")
-            greeting["old_host_key_sha256"] = fencing.key_fingerprint(host_key)
-        elif boot["managed"]:
-            command("/usr/bin/ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", managed_identity)
-            greeting["managed_key"] = managed_identity.with_suffix(".pub").read_text(encoding="ascii")
-        send(stream, greeting)
-        config = receive(stream)
-        known_hosts = root / "known_hosts"
-        known_hosts.write_text(f"[{_SFTP_HOST}]:{_SFTP_PORT} {config['host_key']}\n", encoding="ascii")
-        endpoint = SftpPublication(config["account"], _SFTP_PORT, ssh_identity, known_hosts, host=_SFTP_HOST)
-        if role == "source":
-            if boot["managed"]:
-                managed_identity.write_bytes(decode(config["old_managed_identity"]))
-                pinned = fencing.guest_known_hosts(root, config["managed_host_key"])
-                send(stream, {"old_invocation": fencing.source_restart(root, managed_identity, pinned)})
-            send(stream, publish_source(root, endpoint, signer, config["recipient"]))
-        elif role == "recovery":
-            recover_guest(stream, root, endpoint, config["archives"])
-            if boot["managed"]:
-                pinned = fencing.guest_known_hosts(root, config["managed_host_key"])
-                target = receive(stream)["binding"]
-                target["owner_verify_key"] = decode(target["owner_verify_key"])
-                gate = fencing.recovery_gate(root, managed_identity, pinned, target)
-                send(stream, {"blocked": "READ_ONLY_RECOVERY", "unreachable": True})
-                proof = receive(stream)
-                safe = gate.activate_recovery(
-                    decode(proof["record"]), decode(proof["signature"]), owner_confirmation=receive(stream)["digest"],
-                )
-                if safe != {"managed"}:
-                    raise RuntimeError("Unexpected activation scope")
-                fencing.expect_denial("QUARANTINED", fencing.restart, gate, managed_identity, pinned, "unavailable")
-                send(stream, {"new_invocation": fencing.restart(gate, managed_identity, pinned)})
-        else:
-            raise ValueError("Unknown fixture guest role")
+    send(stream, {"ready": True})
+    boot = receive(stream)
+    role = boot["role"]
+    signer = SigningKey.generate() if role == "source" else None
+    greeting = {
+        "boot_id": Path("/proc/sys/kernel/random/boot_id").read_text().strip(),
+        "sftp_key": ssh_identity.with_suffix(".pub").read_text(encoding="ascii"),
+        "signing_key": b64(bytes(signer.verify_key)) if signer is not None else None,
+    }
+    managed_identity = root / "managed-client"
+    if boot["managed"] and role == "source":
+        host_key = Path("/etc/ssh/ssh_host_ed25519_key.pub").read_text(encoding="ascii")
+        greeting["old_host_key_sha256"] = fencing.key_fingerprint(host_key)
+    elif boot["managed"]:
+        command("/usr/bin/ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", managed_identity)
+        greeting["managed_key"] = managed_identity.with_suffix(".pub").read_text(encoding="ascii")
+    send(stream, greeting)
+    config = receive(stream)
+    known_hosts = root / "known_hosts"
+    known_hosts.write_text(f"[{_SFTP_HOST}]:{_SFTP_PORT} {config['host_key']}\n", encoding="ascii")
+    endpoint = SftpPublication(config["account"], _SFTP_PORT, ssh_identity, known_hosts, host=_SFTP_HOST)
+    if role == "source":
+        if boot["managed"]:
+            managed_identity.write_bytes(decode(config["old_managed_identity"]))
+            pinned = fencing.guest_known_hosts(root, config["managed_host_key"])
+            send(stream, {"old_invocation": fencing.source_restart(root, managed_identity, pinned)})
+        send(stream, publish_source(root, endpoint, signer, config["recipient"]))
+    elif role == "recovery":
+        recover_guest(stream, root, endpoint, config["archives"])
+        if boot["managed"]:
+            pinned = fencing.guest_known_hosts(root, config["managed_host_key"])
+            target = receive(stream)["binding"]
+            target["owner_verify_key"] = decode(target["owner_verify_key"])
+            gate = fencing.recovery_gate(root, managed_identity, pinned, target)
+            send(stream, {"blocked": "READ_ONLY_RECOVERY", "unreachable": True})
+            proof = receive(stream)
+            digest = receive(stream)["digest"]
+            fencing.wait_for_observation_time(proof["observed_at"])
+            safe = gate.activate_recovery(decode(proof["record"]), decode(proof["signature"]), owner_confirmation=digest)
+            if safe != {"managed"}:
+                raise RuntimeError("Unexpected activation scope")
+            fencing.expect_denial("QUARANTINED", fencing.restart, gate, managed_identity, pinned, "unavailable")
+            send(stream, {"new_invocation": fencing.restart(gate, managed_identity, pinned)})
+    else:
+        raise ValueError("Unknown fixture guest role")
 
 
 def offline_owner(identity):
@@ -354,8 +357,10 @@ def experiment(work, console, image, dependencies, age_dir, managed):
                 if fencing.invocation(managed.unit) != old_invocation or (work / "source.qcow2").exists():
                     raise RuntimeError("Read-only recovery changed the service or the source disk reappeared")
                 print("The fresh VM had a valid key but the read-only gate prevented a restart.", flush=True)
-                record, signature, digest = fencing.attestation(binding, attester, managed, target["managed_key"], off_at)
-                send(stream, {"record": b64(record), "signature": b64(signature)})
+                record, signature, digest, observed_at = fencing.attestation(
+                    binding, attester, managed, target["managed_key"], off_at,
+                )
+                send(stream, {"record": b64(record), "signature": b64(signature), "observed_at": observed_at})
                 send(stream, {"digest": digest})
                 restarted = receive(stream)["new_invocation"]
                 if restarted == old_invocation or restarted != fencing.invocation(managed.unit):
@@ -367,7 +372,14 @@ def experiment(work, console, image, dependencies, age_dir, managed):
 def main():
     os.umask(0o077)
     if sys.argv[1:] == ["--guest"]:
-        guest()
+        with open(_DEVICE, "r+b", buffering=0) as port, BufferedRWPair(port, port) as stream:
+            try:
+                guest(stream)
+            except Exception as error:
+                traceback.print_exc()
+                reason = str(error) if isinstance(error, Rejected) else type(error).__name__
+                send(stream, {"guest_error": reason})
+                raise SystemExit(1) from None
         return
     if sys.argv[1:2] == ["--offline-owner"] and len(sys.argv) == 3:
         offline_owner(Path(sys.argv[2]))
