@@ -323,16 +323,17 @@ class SftpPublicationTests(unittest.TestCase):
 
     def test_sftp_enospc_fails_publication_and_allows_retry(self):
         owner = self.store.stat()
+        capacity = 4 * 1024 * 1024
         command(
             "/usr/bin/mount", "-t", "tmpfs", "-o",
-            f"size=64k,mode=0700,uid={owner.st_uid},gid={owner.st_gid},nodev,nosuid,noexec",
+            f"size={capacity},mode=0700,uid={owner.st_uid},gid={owner.st_gid},nodev,nosuid,noexec",
             "tmpfs", self.store,
         )
         self.addCleanup(command, "/usr/bin/umount", self.store)
         filler = self.store / "filler"
         try:
             with filler.open("wb", buffering=0) as space:
-                self.assertEqual(space.write(bytes(64 * 1024)), 64 * 1024)
+                self.assertEqual(space.write(bytes(capacity)), capacity)
                 with self.assertRaises(OSError) as exhausted:
                     space.write(b"x")
                 self.assertEqual(exhausted.exception.errno, errno.ENOSPC)
