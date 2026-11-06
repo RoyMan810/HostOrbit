@@ -17,6 +17,7 @@ import subprocess
 import sys
 from tempfile import TemporaryDirectory
 from threading import Event
+import time
 import unittest
 
 from nacl.secret import Aead
@@ -35,6 +36,29 @@ def command(*args):
     if result.returncode:
         raise RuntimeError(f"{Path(args[0]).name} failed ({result.stderr.strip()})")
     return result.stdout
+
+
+def remove_account(account):
+    delete = ["/usr/sbin/userdel", account]
+    result = subprocess.run(delete, capture_output=True, text=True, timeout=5)
+    if result.returncode == 8:  # The fixture user still owns processes.
+        uid = pwd.getpwnam(account).pw_uid
+        if uid == 0 or not re.fullmatch(r"ho-sftp-[0-9a-f]{8}", account):
+            raise RuntimeError(f"Refusing to terminate a non-fixture user: {account}")
+        # PAM can keep a user session alive after the SFTP client disconnects.
+        subprocess.run(["/usr/bin/loginctl", "terminate-user", str(uid)], capture_output=True, timeout=5)
+        killed = subprocess.run(
+            ["/usr/bin/pkill", "--signal", "KILL", "--uid", str(uid)],
+            capture_output=True, text=True, timeout=5,
+        )
+        if killed.returncode not in (0, 1):
+            raise RuntimeError(f"pkill failed ({killed.stderr.strip()})")
+        deadline = time.monotonic() + 5
+        while result.returncode == 8 and time.monotonic() < deadline:
+            time.sleep(0.1)
+            result = subprocess.run(delete, capture_output=True, text=True, timeout=5)
+    if result.returncode:
+        raise RuntimeError(f"userdel failed ({result.stderr.strip()})")
 
 
 def age_key(path):
@@ -153,7 +177,7 @@ class SftpPublicationTests(unittest.TestCase):
             "/usr/sbin/useradd", "--system", "--user-group", "--home-dir", "/store",
             "--no-create-home", "--shell", "/bin/sh", self.account,
         )
-        self.addCleanup(command, "/usr/sbin/userdel", self.account)
+        self.addCleanup(remove_account, self.account)
         user = pwd.getpwnam(self.account)
         jail = self.root / "jail"
         jail.mkdir(mode=0o755)
