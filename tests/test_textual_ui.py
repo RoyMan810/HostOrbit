@@ -11,12 +11,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'lib'))
 class UIAppTests(unittest.IsolatedAsyncioTestCase):
     async def test_dashboard_navigation_and_cancel(self):
         from textual.widgets import ListView, Static
-        from textual_ui import KVpnApp, TASKS, decode_prompt
+        from textual_ui import KVpnApp, TASKS, decode_prompt, APP_VERSION
         import base64
         app = KVpnApp()
         async with app.run_test() as pilot:
             await pilot.pause()
             self.assertIn('Проверка VPS', str(app.query_one('#title', Static).render()))
+            self.assertIn(f'v{APP_VERSION}', str(app.query_one('#brand', Static).render()))
             app.query_one('#nav', ListView).index = next(i for i, t in enumerate(TASKS) if t.key == 'wizard')
             await pilot.pause()
             self.assertEqual(app.selected.key, 'wizard')

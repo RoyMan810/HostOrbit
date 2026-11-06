@@ -22,6 +22,7 @@ class Distribution(unittest.TestCase):
         with tarfile.open(fileobj=io.BytesIO(__import__('gzip').decompress(base64.b64decode(payload))), mode='r:') as t:
             names = t.getnames()
             self.assertIn('kvpn-node-deployer/install.sh', names)
+            self.assertIn('kvpn-node-deployer/VERSION', names)
             self.assertNotIn('kvpn-node-deployer/kvpn-install.sh', names,
                              'Standalone installer must not recursively embed another installer')
             self.assertFalse(any('/docs/' in name or '/tests/' in name for name in names))
@@ -35,6 +36,15 @@ class Distribution(unittest.TestCase):
         result = subprocess.run(['bash', str(WRAPPER), 'help'], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('monitor public-keys', result.stdout)
+
+    def test_cli_version_matches_single_source(self):
+        version = (ROOT / 'VERSION').read_text(encoding='utf-8').strip()
+        expected = f'K-VPN Node Deployer v{version}\n'
+        for installer in ('install.sh', 'kvpn-install.sh'):
+            with self.subTest(installer=installer):
+                result = subprocess.run(['bash', str(ROOT / installer), '--version'], capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout, expected)
 
     def test_installation_is_fail_closed_and_diagnostic(self):
         script = (ROOT / 'install.sh').read_text()
