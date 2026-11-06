@@ -49,6 +49,12 @@ def launch_local_restart(container):
     )
 
 
+def kill_client(client):
+    client.kill()
+    if client.wait(timeout=5) != -signal.SIGKILL:
+        raise RuntimeError("Restart client exited before SIGKILL")
+
+
 def exercise(root, image, *, launch_restart=launch_local_restart, stop_remote=None):
     volume = root / "volume"
     volume.mkdir()
@@ -74,11 +80,10 @@ def exercise(root, image, *, launch_restart=launch_local_restart, stop_remote=No
         permit = gate.admit_remote("docker-host", "fixture-restart")
         client = launch_restart(container)
         wait_for((volume / "stop-received").exists, "daemon to send SIGTERM")
-        client.kill()
-        if client.wait(timeout=5) != -signal.SIGKILL:
-            raise RuntimeError("Restart client exited before SIGKILL")
-        if stop_remote is not None:
-            stop_remote(container)
+        if stop_remote is None:
+            kill_client(client)
+        else:
+            stop_remote(client, container)
         if state(container)["StartedAt"] != initial:
             raise RuntimeError("Container restarted before the direct effect was stopped")
         print(f"Daemon accepted the restart, then the client was killed (StartedAt {initial}).")

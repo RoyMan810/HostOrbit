@@ -10,28 +10,28 @@ import signal
 import subprocess
 from tempfile import TemporaryDirectory, TemporaryFile
 
-from docker_late_effect import docker, exercise, wait_for
+from docker_late_effect import docker, exercise, kill_client, wait_for
 from ssh_restart_fixture import COMMAND, DOCKER_HOST, REQUEST
 
 
 def systemctl(*args, check=True):
-    return subprocess.run(
-        ["/usr/bin/systemctl", *args], check=check, timeout=6, text=True,
+    result = subprocess.run(
+        ["/usr/bin/systemctl", *args], timeout=6, text=True,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-    ).stdout
+    )
+    if check and result.returncode:
+        raise RuntimeError(f"systemctl {args[0]} failed ({result.returncode}): {result.stderr.strip()}")
+    return result.stdout
 
 
 def unit_state(unit):
-    output = systemctl(
-        "show", "-p", "ActiveState", "-p", "MainPID", "-p", "ControlGroup",
-        "-p", "ExecMainStatus", unit,
-    )
+    output = systemctl("show", "-p", "ActiveState", "-p", "MainPID", "-p", "ControlGroup", unit)
     return dict(line.split("=", 1) for line in output.splitlines())
 
 
-def empty_cgroup(procs):
+def empty_cgroup(group):
     try:
-        return not procs.read_text(encoding="ascii").strip()
+        return "populated 0" in (group / "cgroup.events").read_text(encoding="ascii").splitlines()
     except FileNotFoundError:
         return True
 
@@ -59,33 +59,29 @@ def experiment(lab, port, helper_dir, authorized_keys, image):
             request.seek(0)
             return subprocess.Popen(ssh, stdin=request, stdout=subprocess.DEVNULL)
 
-    def stop_remote(container):
+    def stop_remote(client, container):
         receipt = (state_dir / "receipt").read_text(encoding="ascii")
         if receipt != f"{container} {unit}\n":
             raise RuntimeError("Unexpected typed helper receipt")
         running = unit_state(unit)
         cgroup = running["ControlGroup"]
-        if running["ActiveState"] != "active" or running["MainPID"] == "0" or not cgroup.endswith("/" + unit):
+        if running["ActiveState"] != "active" or running["MainPID"] == "0" or cgroup != f"/system.slice/{unit}":
             raise RuntimeError("Docker client was not running inside the expected transient unit")
-        procs = Path("/sys/fs/cgroup") / cgroup.lstrip("/") / "cgroup.procs"
-        if running["MainPID"] not in procs.read_text(encoding="ascii").split():
+        group = Path("/sys/fs/cgroup") / cgroup.lstrip("/")
+        if running["MainPID"] not in (group / "cgroup.procs").read_text(encoding="ascii").split():
             raise RuntimeError("Transient unit cgroup did not contain its Docker client")
 
         replay = subprocess.run(ssh, input=REQUEST, capture_output=True, timeout=5)
         if replay.returncode != 65:
             raise RuntimeError("The typed helper did not reject a second request")
         authorized_keys.write_text("", encoding="ascii")
-        systemctl("kill", "--signal=SIGKILL", unit)
-
-        def stopped():
-            current = unit_state(unit)
-            return (
-                current["MainPID"] == "0"
-                and current["ExecMainStatus"] == str(signal.SIGKILL)
-                and empty_cgroup(procs)
-            )
-
-        wait_for(stopped, "the killed transient unit to have no processes", seconds=8)
+        # Suspend the SSH client so the unit can be killed before the client exits on its own.
+        client.send_signal(signal.SIGSTOP)
+        try:
+            (group / "cgroup.kill").write_text("1", encoding="ascii")
+        finally:
+            kill_client(client)
+        wait_for(lambda: empty_cgroup(group), "the killed transient unit to have no processes", seconds=8)
         denied = subprocess.run(ssh, input=REQUEST, capture_output=True, timeout=5)
         if denied.returncode != 255 or b"Permission denied (publickey)" not in denied.stderr:
             raise RuntimeError("The revoked fixture SSH key was not denied at authentication")
