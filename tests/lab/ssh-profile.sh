@@ -2,8 +2,10 @@
 set -euo pipefail
 export LC_ALL=C
 
-if [[ ${1-} != --isolated-vm || $# -gt 2 || ( $# -eq 2 && ${2-} != --docker-chain ) || $(id -u) != 0 ]]; then
-    echo 'Run as root in a disposable Ubuntu 24.04 VM with --isolated-vm [--docker-chain].' >&2
+if [[ ${1-} != --isolated-vm || $(id -u) != 0 ]] ||
+    ! { [[ $# -eq 1 ]] || [[ $# -eq 2 && ${2-} == --docker-chain ]] ||
+        [[ $# -eq 3 && ${2-} == --controller-loss ]]; }; then
+    echo 'Run as root in a disposable Ubuntu 24.04 VM with --isolated-vm [--docker-chain | --controller-loss WORKDIR].' >&2
     exit 2
 fi
 source /etc/os-release
@@ -183,10 +185,13 @@ test "$(typed_probe)" = "$expected"
 reject "shell without per-key options" client -T "$destination" id </dev/null
 echo 'Pinned SSH transport accepted the fixed typed probe.'
 
-if [[ ${2-} == --docker-chain ]]; then
+if [[ ${2-} == --controller-loss ]]; then
     install -m 0644 "$lab/authorized" "$key_file"
-    PYTHONPATH="$repo" PYTHONDONTWRITEBYTECODE=1 /usr/bin/python3 "$repo/tests/lab/ssh_systemd_docker.py" \
-        "$lab" "$port" "$helper_dir" "$key_file"
+    work=$3
+    "${HOSTORBIT_LAB_PYTHON:?Set the fixture Python interpreter}" "$repo/tests/lab/offhost_recovery.py" --isolated-vm \
+        --image "$work/ubuntu.qcow2" --dependencies "$work/deps" --age-dir "$work/age" --scratch "$work" \
+        --ssh-fixture "$lab" "$port" "$helper_dir" "$key_file"
+    exit
 fi
 
 # Model the external administrator rotating the fixture's restricted key.
@@ -198,3 +203,9 @@ reject "old Controller key after manual rotation" typed_probe
 [[ $(cat "$lab/reject.err") == *'Permission denied (publickey)'* ]]
 test "$(ssh_identity="$lab/recovery-client" typed_probe)" = "$expected"
 echo 'The rotated key accepted the typed probe.'
+
+if [[ ${2-} == --docker-chain ]]; then
+    install -m 0644 "$lab/authorized" "$key_file"
+    PYTHONPATH="$repo" PYTHONDONTWRITEBYTECODE=1 /usr/bin/python3 "$repo/tests/lab/ssh_systemd_docker.py" \
+        "$lab" "$port" "$helper_dir" "$key_file"
+fi
