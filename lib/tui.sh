@@ -21,7 +21,7 @@ kvpn_ui_ready() {
 kvpn_ui_box() {
   local title="$1" message="$2"
   if kvpn_ui_ready; then
-    whiptail --backtitle 'K-VPN Node Deployer' --title "$title" \
+    whiptail --backtitle "K-VPN Node Deployer v${KVPN_APP_VERSION}" --title "$title" \
       --msgbox "$message" 15 "${KVPN_UI_W:-76}"
   else
     printf '\n%s\n%s\n' "$title" "$message" >&2
@@ -31,7 +31,7 @@ kvpn_ui_box() {
 kvpn_ui_input() {
   local question="$1" default="${2:-}" result
   if kvpn_ui_ready; then
-    result=$(whiptail --backtitle 'K-VPN Node Deployer' --title 'Параметры' \
+    result=$(whiptail --backtitle "K-VPN Node Deployer v${KVPN_APP_VERSION}" --title 'Параметры' \
       --inputbox "$question" 13 "${KVPN_UI_W:-76}" "$default" 3>&1 1>&2 2>&3) || return 1
     printf '%s' "$result"
   else
@@ -52,7 +52,7 @@ kvpn_ui_password() {
     return $?
   fi
   if kvpn_ui_ready; then
-    result=$(whiptail --backtitle 'K-VPN Node Deployer' --title 'Секретное значение' \
+    result=$(whiptail --backtitle "K-VPN Node Deployer v${KVPN_APP_VERSION}" --title 'Секретное значение' \
       --passwordbox "$question\n\nТокен не сохраняется в истории терминала." \
       14 "${KVPN_UI_W:-76}" 3>&1 1>&2 2>&3) || return 1
     printf '%s' "$result"
@@ -67,7 +67,7 @@ kvpn_ui_password() {
 kvpn_ui_confirm() {
   local question="$1" answer
   if kvpn_ui_ready; then
-    whiptail --backtitle 'K-VPN Node Deployer' --title 'Подтверждение' \
+    whiptail --backtitle "K-VPN Node Deployer v${KVPN_APP_VERSION}" --title 'Подтверждение' \
       --yesno "$question\n\nДа — продолжить; Нет — вернуться без выполнения." 15 "${KVPN_UI_W:-76}"
   else
     [[ -r /dev/tty ]] || return 1
@@ -78,7 +78,7 @@ kvpn_ui_confirm() {
 
 kvpn_ui_choice_role() {
   if kvpn_ui_ready; then
-    whiptail --backtitle 'K-VPN Node Deployer' --title 'Роль сервера' \
+    whiptail --backtitle "K-VPN Node Deployer v${KVPN_APP_VERSION}" --title 'Роль сервера' \
       --radiolist 'Выберите роль этой ноды. Используйте стрелки и пробел.' 16 "${KVPN_UI_W:-76}" 4 \
       ru 'Входная нода в России' OFF \
       foreign 'Зарубежная выходная нода' ON 3>&1 1>&2 2>&3
@@ -90,7 +90,7 @@ kvpn_ui_choice_role() {
 kvpn_ui_yes_no() {
   local question="$1" default="${2:-no}"
   if kvpn_ui_ready; then
-    if whiptail --backtitle 'K-VPN Node Deployer' --title 'Дополнительная настройка' \
+    if whiptail --backtitle "K-VPN Node Deployer v${KVPN_APP_VERSION}" --title 'Дополнительная настройка' \
       --yesno "$question" 13 "${KVPN_UI_W:-76}"; then
       printf yes
     else
@@ -141,7 +141,7 @@ kvpn_ui_prompt_ru() {
 
 kvpn_ui_select() {
   local title="$1" prompt="$2"; shift 2
-  whiptail --backtitle 'K-VPN Node Deployer' --title "$title" \
+  whiptail --backtitle "K-VPN Node Deployer v${KVPN_APP_VERSION}" --title "$title" \
     --menu "$prompt" "${KVPN_UI_H:-22}" "${KVPN_UI_W:-76}" "$(( ${KVPN_UI_H:-22} - 8 ))" "$@" 3>&1 1>&2 2>&3
 }
 
@@ -175,7 +175,7 @@ kvpn_ui_readonly() {
     printf '\nКоманда завершилась с кодом %s\n' "$result" >>"$output"
   fi
   if kvpn_ui_ready; then
-    whiptail --backtitle 'K-VPN Node Deployer' --title "$label" \
+    whiptail --backtitle "K-VPN Node Deployer v${KVPN_APP_VERSION}" --title "$label" \
       --scrolltext --textbox "$output" "${KVPN_UI_H:-22}" "${KVPN_UI_W:-76}" || :
   else
     cat "$output"

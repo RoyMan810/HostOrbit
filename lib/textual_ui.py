@@ -24,6 +24,7 @@ from textual.widgets import Button, DataTable, Footer, Header, Input, Label, Lis
 PROTOCOL = "__KVPN_UI_PROMPT__\t"
 CANCEL = "__KVPN_UI_CANCEL__"
 ROOT = Path(__file__).resolve().parents[1]
+APP_VERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
 
 
 @dataclass(frozen=True)
@@ -198,7 +199,7 @@ class ApprovalScreen(ModalScreen[bool]):
 
 class KVpnApp(App):
     TITLE = "K-VPN  •  CONTROL CENTER"
-    SUB_TITLE = "Textual  /  SSH console"
+    SUB_TITLE = f"v{APP_VERSION}  /  Textual  /  SSH console"
     BINDINGS = [("q", "safe_exit", "Выход"), ("r", "refresh", "Обновить"), ("f5", "refresh", "Обновить")]
     CSS = """
     Screen { background: #0c1020; color: #e6edff; }
@@ -244,7 +245,7 @@ class KVpnApp(App):
         yield Header(show_clock=True)
         with Horizontal(id="shell"):
             with Vertical(id="sidebar"):
-                yield Static("◆  K-VPN  /  SYSTEM", id="brand")
+                yield Static(f"◆  K-VPN  /  SYSTEM  v{APP_VERSION}", id="brand")
                 yield Static("Выберите действие · Enter\nЗапуск — отдельной кнопкой", id="sidebar-note")
                 yield ListView(*(ListItem(Label(f"{i + 1:02d}  {t.title}"), id=f"task-{t.key}") for i, t in enumerate(TASKS)), id="nav")
             with Vertical(id="main"):

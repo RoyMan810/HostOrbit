@@ -3,6 +3,8 @@
 set -Eeuo pipefail
 umask 077
 ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+KVPN_APP_VERSION="$(< "$ROOT_DIR/VERSION")"
+[[ "$KVPN_APP_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || { echo "Invalid or missing application VERSION" >&2; exit 1; }
 STATE_DIR=/etc/kvpn-node-deployer
 NODE_DIR=/opt/remnanode
 source "$ROOT_DIR/lib/tui.sh"
@@ -10,6 +12,7 @@ source "$ROOT_DIR/lib/textual_launcher.sh"
 source "$ROOT_DIR/lib/common.sh"
 
 usage() {
+  printf 'K-VPN Node Deployer v%s\n' "$KVPN_APP_VERSION"
   cat <<'EOF'
 K-VPN Node Deployer — новый сервер / отдельные компоненты
 
@@ -33,6 +36,7 @@ K-VPN Node Deployer — новый сервер / отдельные компо�
   sudo ./install.sh monitor test-telegram sends a test alert from panel
   sudo ./install.sh status              read-only health summary
   sudo ./install.sh diagnostics         write redacted diagnostic text file
+  sudo ./install.sh --version           show application version (no root required)
   sudo ./install.sh help
 
 Does NOT install Remnawave Panel. VPN configurations, REALITY keys,
@@ -656,6 +660,7 @@ text_menu() {
   [[ -r /dev/tty ]] || die 'Interactive terminal required for menu'
   local choice
   while true; do
+    printf '\nK-VPN Node Deployer v%s\n' "$KVPN_APP_VERSION"
     cat <<'MENU'
 
 K-VPN Node Deployer — текстовое резервное меню
@@ -724,6 +729,7 @@ main() {
   local cmd="${1:-menu}"
   case "$cmd" in
     help|-h|--help) usage;;
+    version|-V|--version) printf 'K-VPN Node Deployer v%s\n' "$KVPN_APP_VERSION";;
     menu|tui) menu;;
     text-menu) require_root; text_menu;;
     preflight) preflight;;
