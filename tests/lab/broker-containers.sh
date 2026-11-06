@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
-image=docker.io/library/python@sha256:f3dac913ab53b78c64f26d5518fcd7043d5a1a46522d6a493b598c3ed12f62a6
+image=${HOSTORBIT_LAB_PYTHON_IMAGE:?Set the pinned lab image}
 lab=$(mktemp -d)
 socket_dir="$lab/broker"
 broker=
