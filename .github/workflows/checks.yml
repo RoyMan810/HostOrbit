@@ -17,7 +17,7 @@ jobs:
   prototypes:
     name: Stage 0 prototypes / Python 3.13
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -39,6 +39,16 @@ jobs:
           tar --no-same-owner -xzf age.tar.gz -- age/age age/age-keygen
           echo "$age_dir/age" >> "$GITHUB_PATH"
       - run: python -m unittest discover -s tests -v
+      - name: Install OpenSSH server if absent
+        run: |
+          if ! test -x /usr/sbin/sshd; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends openssh-server
+          fi
+      - name: Exercise SFTP publication and recovery
+        run: |
+          sudo -n /usr/bin/env "PATH=$PATH" "PYTHONPATH=$PWD" PYTHONDONTWRITEBYTECODE=1 \
+            "$(command -v python)" tests/lab/sftp_publication.py --isolated-vm
 
   broker-containers:
     name: Broker peer credentials / Docker
