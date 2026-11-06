@@ -42,7 +42,14 @@ def require_denied(code, operation, *args):
     raise RuntimeError(f"Expected {code}")
 
 
-def exercise(root, image):
+def launch_local_restart(container):
+    return subprocess.Popen(
+        ["docker", "container", "restart", "--timeout", "25", container],
+        stdout=subprocess.DEVNULL,
+    )
+
+
+def exercise(root, image, *, launch_restart=launch_local_restart, stop_remote=None):
     volume = root / "volume"
     volume.mkdir()
     program = Path(__file__).with_name("delayed_container.py").resolve()
@@ -65,16 +72,15 @@ def exercise(root, image):
             "independent-host": (),
         })
         permit = gate.admit_remote("docker-host", "fixture-restart")
-        client = subprocess.Popen(
-            ["docker", "container", "restart", "--timeout", "25", container],
-            stdout=subprocess.DEVNULL,
-        )
+        client = launch_restart(container)
         wait_for((volume / "stop-received").exists, "daemon to send SIGTERM")
         client.kill()
         if client.wait(timeout=5) != -signal.SIGKILL:
             raise RuntimeError("Restart client exited before SIGKILL")
+        if stop_remote is not None:
+            stop_remote(container)
         if state(container)["StartedAt"] != initial:
-            raise RuntimeError("Container restarted before the client was killed")
+            raise RuntimeError("Container restarted before the direct effect was stopped")
         print(f"Daemon accepted the restart, then the client was killed (StartedAt {initial}).")
 
         observed = gate.report_remote(permit, FixtureObservation(True, False, False))

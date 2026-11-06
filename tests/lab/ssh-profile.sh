@@ -2,8 +2,8 @@
 set -euo pipefail
 export LC_ALL=C
 
-if [[ ${1-} != --isolated-vm || $# != 1 || $(id -u) != 0 ]]; then
-    echo 'Run as root in a disposable Ubuntu 24.04 VM with --isolated-vm.' >&2
+if [[ ${1-} != --isolated-vm || $# -gt 2 || ( $# -eq 2 && ${2-} != --docker-chain ) || $(id -u) != 0 ]]; then
+    echo 'Run as root in a disposable Ubuntu 24.04 VM with --isolated-vm [--docker-chain].' >&2
     exit 2
 fi
 source /etc/os-release
@@ -181,3 +181,9 @@ printf '%s\n' "$public_key" > "$key_file"
 test "$(typed_probe)" = "$expected"
 reject "shell without per-key options" client -T "$destination" id </dev/null
 echo 'Pinned SSH transport accepted the fixed typed probe.'
+
+if [[ ${2-} == --docker-chain ]]; then
+    install -m 0644 "$lab/authorized" "$key_file"
+    PYTHONPATH="$repo" PYTHONDONTWRITEBYTECODE=1 /usr/bin/python3 "$repo/tests/lab/ssh_systemd_docker.py" \
+        "$lab" "$port" "$helper_dir" "$key_file"
+fi
