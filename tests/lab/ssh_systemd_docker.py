@@ -11,7 +11,7 @@ import subprocess
 from tempfile import TemporaryDirectory, TemporaryFile
 
 from docker_late_effect import docker, exercise, kill_client, wait_for
-from ssh_restart_fixture import COMMAND, DOCKER_HOST, REQUEST
+from ssh_restart_fixture import COMMAND, DOCKER_HOST, REQUEST, local_docker_socket
 
 
 def systemctl(*args, check=True):
@@ -36,7 +36,7 @@ def empty_cgroup(group):
         return True
 
 
-def experiment(lab, port, helper_dir, authorized_keys, image):
+def experiment(lab, port, helper_dir, authorized_keys, image, daemon):
     state_dir = helper_dir / "restart-fixture"
     state_dir.mkdir(mode=0o700)
     probe_gateway = helper_dir / "probe-gateway"
@@ -52,7 +52,7 @@ def experiment(lab, port, helper_dir, authorized_keys, image):
 
     def launch(container):
         (state_dir / "spec.json").write_text(
-            json.dumps({"container": container, "unit": unit}), encoding="ascii",
+            json.dumps({"container": container, "unit": unit, "docker_host": daemon}), encoding="ascii",
         )
         with TemporaryFile() as request:
             request.write(REQUEST)
@@ -112,12 +112,15 @@ def main():
     parser.add_argument("helper_dir", type=Path)
     parser.add_argument("authorized_keys", type=Path)
     args = parser.parse_args()
-    os.environ["DOCKER_HOST"] = DOCKER_HOST
+    daemon = os.environ.get("HOSTORBIT_LAB_DOCKER_HOST", DOCKER_HOST)
+    if not local_docker_socket(daemon):
+        parser.error("The fixture requires a local Docker Unix socket")
+    os.environ["DOCKER_HOST"] = daemon
     os.environ.pop("DOCKER_CONTEXT", None)
     image = os.environ["HOSTORBIT_LAB_PYTHON_IMAGE"]
     print(docker("version", "--format", "Docker Engine {{.Server.Version}}"))
     docker("pull", "--platform", "linux/amd64", image, timeout=90)
-    experiment(args.lab, args.port, args.helper_dir, args.authorized_keys, image)
+    experiment(args.lab, args.port, args.helper_dir, args.authorized_keys, image, daemon)
 
 
 if __name__ == "__main__":
