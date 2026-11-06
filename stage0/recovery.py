@@ -54,6 +54,15 @@ class Snapshot:
 
 
 @dataclass(frozen=True)
+class SealedBackup:
+    ciphertext: bytes = field(repr=False)
+    envelope: bytes
+
+    def sign(self, signing_key: SigningKey) -> "SignedBackup":
+        return SignedBackup(self.ciphertext, self.envelope, signing_key.sign(self.envelope).signature)
+
+
+@dataclass(frozen=True)
 class SignedBackup:
     ciphertext: bytes = field(repr=False)
     envelope: bytes
@@ -165,14 +174,18 @@ def _decrypt(identity: Path, ciphertext: bytes) -> bytes:
     return _run_age(["age", "-d", "-i", str(identity.absolute())], ciphertext)
 
 
-def seal_source(snapshot: Snapshot, recipient: str, signing_key: SigningKey) -> SignedBackup:
+def encrypt_source(snapshot: Snapshot, recipient: str) -> SealedBackup:
     ciphertext = _encrypt(recipient, _canonical(snapshot.encoded()))
     envelope = _canonical({
         "format": _SOURCE_FORMAT,
         "ciphertext_sha256": _sha256(ciphertext),
         "manifest": snapshot.manifest(),
     })
-    return SignedBackup(ciphertext, envelope, signing_key.sign(envelope).signature)
+    return SealedBackup(ciphertext, envelope)
+
+
+def seal_source(snapshot: Snapshot, recipient: str, signing_key: SigningKey) -> SignedBackup:
+    return encrypt_source(snapshot, recipient).sign(signing_key)
 
 
 def _verify_source(
