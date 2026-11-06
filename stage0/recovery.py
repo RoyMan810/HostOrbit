@@ -1,10 +1,11 @@
-"""T0-3 recovery transport for small fixtures. It never imports live state."""
+"""Backup transport and local activation evidence for the Stage 0 recovery fixtures."""
 
 import base64
 import binascii
 from dataclasses import dataclass, field
 import hashlib
 import hmac
+from itertools import combinations
 import json
 from pathlib import Path
 import re
@@ -20,6 +21,7 @@ from .journal import connect_journal, reserve_journal
 
 _SOURCE_FORMAT = "hostorbit.stage0.source.v1"
 _RECOVERY_FORMAT = "hostorbit.stage0.recovery.v1"
+_ACTIVATION_FORMAT = "hostorbit.stage0.activation.v1"
 _MAX_PART = 1024 * 1024
 _MAX_BUNDLE = 3 * _MAX_PART
 _MAX_ENVELOPE = 16 * 1024
@@ -30,6 +32,39 @@ _AGE_RECIPIENT = re.compile(r"age1[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{58}")
 
 class Rejected(RuntimeError):
     """A lab recovery step failed verification."""
+
+
+@dataclass(frozen=True)
+class RecoveryTarget:
+    old_controller_id: str
+    old_host_key_sha256: str
+    recovery_controller_id: str
+    backup_manifest_sha256: str
+    owner_verify_key: bytes
+
+    def __post_init__(self):
+        if (
+            not _matches(_TARGET_ID, self.old_controller_id)
+            or not _matches(_TARGET_ID, self.recovery_controller_id)
+            or self.old_controller_id == self.recovery_controller_id
+            or not _matches(_DIGEST, self.old_host_key_sha256)
+            or not _matches(_DIGEST, self.backup_manifest_sha256)
+            or not isinstance(self.owner_verify_key, bytes)
+            or len(self.owner_verify_key) != 32
+        ):
+            raise Rejected("INVALID_RECOVERY_TARGET")
+
+    def binding(self) -> dict:
+        return {
+            "old_controller_id": self.old_controller_id,
+            "old_host_key_sha256": self.old_host_key_sha256,
+            "recovery_controller_id": self.recovery_controller_id,
+            "backup_manifest_sha256": self.backup_manifest_sha256,
+        }
+
+
+def _matches(pattern, value) -> bool:
+    return isinstance(value, str) and pattern.fullmatch(value) is not None
 
 
 @dataclass(frozen=True)
@@ -293,3 +328,98 @@ def accept_bundle(
             raise Rejected("REQUEST_CONSUMED")
         db.execute("COMMIT")
         return snapshot
+
+
+def activation_attestation(target: RecoveryTarget, *, isolation: dict, checks: dict, hosts: dict) -> bytes:
+    """Encode the manual runbook record for the fixture Owner to sign."""
+    return _canonical({
+        "format": _ACTIVATION_FORMAT, "binding": target.binding(),
+        "isolation": isolation, "checks": checks, "hosts": hosts,
+    })
+
+
+def _reference(value) -> bool:
+    return isinstance(value, str) and 0 < len(value) <= 256 and value.strip() == value
+
+
+def _check_isolation(isolation) -> None:
+    fields = {"method", "console", "operator", "autostart_blocked", "worker_isolated", "observations"}
+    if (
+        not isinstance(isolation, dict) or isolation.keys() != fields
+        or isolation["method"] not in ("power_off", "network_isolation", "local_service_stop")
+        or not _reference(isolation["console"]) or not _reference(isolation["operator"])
+        or isolation["autostart_blocked"] is not True or isolation["worker_isolated"] is not True
+    ):
+        raise Rejected("ISOLATION_EVIDENCE_REQUIRED")
+    observations = isolation["observations"]
+    if not isinstance(observations, list) or len(observations) < 2:
+        raise Rejected("ISOLATION_OBSERVATIONS_REQUIRED")
+    now = _now()
+    for sample in observations:
+        if (
+            not isinstance(sample, dict) or sample.keys() != {"source", "at_utc", "isolated"}
+            or not _reference(sample["source"]) or type(sample["at_utc"]) is not int
+            or not 0 < sample["at_utc"] <= now or sample["isolated"] is not True
+        ):
+            raise Rejected("ISOLATION_OBSERVATIONS_REQUIRED")
+    if not any(
+        a["source"] != b["source"] and abs(a["at_utc"] - b["at_utc"]) >= 10
+        for a, b in combinations(observations, 2)
+    ):
+        raise Rejected("ISOLATION_OBSERVATIONS_REQUIRED")
+
+
+def _quarantine_seeds(hosts, expected_hosts: set[str]) -> set[str]:
+    if not isinstance(hosts, dict) or hosts.keys() != expected_hosts:
+        raise Rejected("RECOVERY_INVENTORY_MISMATCH")
+    seeds = set()
+    for host, report in hosts.items():
+        if not isinstance(report, dict) or not _reference(report.get("evidence")):
+            raise Rejected("HOST_EVIDENCE_REQUIRED")
+        if report.keys() == {"evidence", "reachable"} and report["reachable"] is False:
+            seeds.add(host)
+            continue
+        flags = {"reachable", "credentials_rotated", "old_key_denied", "new_key_verified"}
+        effects = {"direct_stopped", "delegated_terminal", "postconditions_verified"}
+        keys = {"old_key_sha256", "new_key_sha256"}
+        if (
+            report.keys() != flags | effects | keys | {"evidence"}
+            or not all(report[flag] is True for flag in flags)
+            or not all(_matches(_DIGEST, report[key]) for key in keys)
+            or report["old_key_sha256"] == report["new_key_sha256"]
+        ):
+            raise Rejected("CREDENTIAL_ROTATION_REQUIRED")
+        if not all(type(report[effect]) is bool for effect in effects):
+            raise Rejected("REMOTE_EFFECT_EVIDENCE_REQUIRED")
+        if not all(report[effect] for effect in effects):
+            seeds.add(host)
+    return seeds
+
+
+def verify_activation(
+    attestation: bytes, signature: bytes, *, owner_confirmation: str,
+    owner_verify_key: bytes, expected_binding: dict, expected_hosts: set[str],
+) -> set[str]:
+    """Verify the local Owner inputs and return hosts whose effects or keys remain unverified."""
+    if not isinstance(attestation, bytes) or not 0 < len(attestation) <= 64 * 1024:
+        raise Rejected("ATTESTATION_SIZE")
+    if not _matches(_DIGEST, owner_confirmation) or not hmac.compare_digest(owner_confirmation, _sha256(attestation)):
+        raise Rejected("ACTIVATION_CONFIRMATION_REQUIRED")
+    if not isinstance(signature, bytes) or len(signature) != 64:
+        raise Rejected("ACTIVATION_SIGNATURE")
+    try:
+        VerifyKey(owner_verify_key).verify(attestation, signature)
+    except (BadSignatureError, ValueError):
+        raise Rejected("ACTIVATION_SIGNATURE") from None
+    record = _object(attestation, {"format", "binding", "isolation", "checks", "hosts"})
+    if record["format"] != _ACTIVATION_FORMAT or record["binding"] != expected_binding:
+        raise Rejected("WRONG_ACTIVATION_BINDING")
+    _check_isolation(record["isolation"])
+    checks = record["checks"]
+    if (
+        not isinstance(checks, dict)
+        or checks.keys() != {"database_integrity", "vault_integrity", "permissions_verified", "old_automation_disabled"}
+        or not all(result is True for result in checks.values())
+    ):
+        raise Rejected("RECOVERY_CHECKS_REQUIRED")
+    return _quarantine_seeds(record["hosts"], expected_hosts)

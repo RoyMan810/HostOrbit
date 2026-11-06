@@ -121,8 +121,9 @@ printf '[127.0.0.1]:%s %s\n' "$port" "$(cut -d' ' -f1,2 "$lab/host.pub")" > "$la
 /usr/sbin/sshd -D -e -f "$lab/sshd_config" > "$lab/server.log" 2>&1 &
 sshd_pid=$!
 
+ssh_identity=$lab/client
 client() {
-    timeout 8s ssh -F /dev/null -p "$port" -i "$lab/client" -o BatchMode=yes -o IdentitiesOnly=yes \
+    timeout 8s ssh -F /dev/null -p "$port" -i "$ssh_identity" -o BatchMode=yes -o IdentitiesOnly=yes \
         -o ConnectTimeout=2 -o StrictHostKeyChecking=yes -o GlobalKnownHostsFile=/dev/null \
         -o "UserKnownHostsFile=$lab/known_hosts" "$@"
 }
@@ -187,3 +188,13 @@ if [[ ${2-} == --docker-chain ]]; then
     PYTHONPATH="$repo" PYTHONDONTWRITEBYTECODE=1 /usr/bin/python3 "$repo/tests/lab/ssh_systemd_docker.py" \
         "$lab" "$port" "$helper_dir" "$key_file"
 fi
+
+# Model the external administrator rotating the fixture's restricted key.
+ssh-keygen -q -t ed25519 -N '' -f "$lab/recovery-client"
+replacement=$(cat "$lab/recovery-client.pub")
+printf 'restrict,command="%s/ssh-gateway" %s\n' "$helper_dir" "$replacement" > "$lab/recovery-authorized"
+install -m 0644 "$lab/recovery-authorized" "$key_file"
+reject "old Controller key after manual rotation" typed_probe
+[[ $(cat "$lab/reject.err") == *'Permission denied (publickey)'* ]]
+test "$(ssh_identity="$lab/recovery-client" typed_probe)" = "$expected"
+echo 'The rotated key accepted the typed probe.'

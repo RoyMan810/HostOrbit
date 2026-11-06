@@ -11,7 +11,7 @@ def reserve_journal(path: Path) -> None:
 
 
 @contextmanager
-def connect_journal(path: Path, *, initialize=False):
+def connect_journal(path: Path, *, initialize=False, versions=(1,)):
     if sqlite3.sqlite_version_info < (3, 45, 0):
         raise RuntimeError("SQLite 3.45 or newer is required")
     uri = f"{path.absolute().as_uri()}?mode=rw"
@@ -26,11 +26,12 @@ def connect_journal(path: Path, *, initialize=False):
             "synchronous": 2,
             "foreign_keys": 1,
             "busy_timeout": 5000,
-            "user_version": 0 if initialize else 1,
         }
         for pragma, value in expected.items():
             if db.execute(f"PRAGMA {pragma}").fetchone()[0] != value:
                 raise RuntimeError(f"Unexpected SQLite setting: {pragma}")
+        if db.execute("PRAGMA user_version").fetchone()[0] not in ((0,) if initialize else versions):
+            raise RuntimeError("Unexpected SQLite setting: user_version")
         try:
             yield db
         finally:
