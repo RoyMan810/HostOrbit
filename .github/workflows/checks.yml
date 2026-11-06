@@ -1,7 +1,8 @@
-name: Installer checks
+name: HostOrbit Stage 0
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -9,38 +10,15 @@ permissions:
   contents: read
 
 jobs:
-  smoke-tests:
-    name: Smoke tests / ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-24.04, ubuntu-26.04]
+  admission:
+    name: Admission lab / Python 3.13
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-      - name: Check standalone installer matches sources
-        run: |
-          python3 tools/build_bundle.py --check
-      - name: Check Bash syntax
-        shell: bash
-        run: |
-          bash -n install.sh kvpn-install.sh lib/common.sh lib/tui.sh lib/backup-node.sh lib/textual_protocol.sh lib/textual_launcher.sh
-          bash -n monitor-kit/install.sh monitor-kit/lib/sender.sh
-      - name: Check Python syntax
-        run: |
-          python3 -m py_compile monitor-kit/lib/monitor.py monitor-kit/lib/receiver.py monitor-kit/lib/register.py monitor-kit/lib/verify_host_key.py lib/textual_ui.py tools/build_bundle.py
-      - name: Exercise the single-file installer (read-only)
-        run: |
-          bash kvpn-install.sh help
-          test "$(bash kvpn-install.sh help | grep -c 'interactive menu')" -ge 1
-      - name: Install Textual for headless UI smoke tests
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y python3-venv
-          python3 -m venv "$RUNNER_TEMP/kvpn-textual-venv"
-          "$RUNNER_TEMP/kvpn-textual-venv/bin/python" -m pip install --disable-pip-version-check --quiet 'textual==8.2.8'
-      - name: Run unit tests
-        run: |
-          "$RUNNER_TEMP/kvpn-textual-venv/bin/python" -m unittest discover -s tests -v
-          python3 -m unittest discover -s monitor-kit/tests -v
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.13"
+      - run: python -m unittest discover -s tests -v
