@@ -17,7 +17,6 @@ import subprocess
 import sys
 from tempfile import TemporaryDirectory
 from threading import Event
-import time
 import unittest
 
 from nacl.secret import Aead
@@ -36,29 +35,6 @@ def command(*args):
     if result.returncode:
         raise RuntimeError(f"{Path(args[0]).name} failed ({result.stderr.strip()})")
     return result.stdout
-
-
-def remove_account(account):
-    delete = ["/usr/sbin/userdel", account]
-    result = subprocess.run(delete, capture_output=True, text=True, timeout=5)
-    if result.returncode == 8:  # The fixture user still owns processes.
-        uid = pwd.getpwnam(account).pw_uid
-        if uid == 0 or not re.fullmatch(r"ho-sftp-[0-9a-f]{8}", account):
-            raise RuntimeError(f"Refusing to terminate a non-fixture user: {account}")
-        # PAM can keep a user session alive after the SFTP client disconnects.
-        subprocess.run(["/usr/bin/loginctl", "terminate-user", str(uid)], capture_output=True, timeout=5)
-        killed = subprocess.run(
-            ["/usr/bin/pkill", "--signal", "KILL", "--uid", str(uid)],
-            capture_output=True, text=True, timeout=5,
-        )
-        if killed.returncode not in (0, 1):
-            raise RuntimeError(f"pkill failed ({killed.stderr.strip()})")
-        deadline = time.monotonic() + 5
-        while result.returncode == 8 and time.monotonic() < deadline:
-            time.sleep(0.1)
-            result = subprocess.run(delete, capture_output=True, text=True, timeout=5)
-    if result.returncode:
-        raise RuntimeError(f"userdel failed ({result.stderr.strip()})")
 
 
 def age_key(path):
@@ -173,11 +149,12 @@ class SftpPublicationTests(unittest.TestCase):
         self.root = Path(self.enterContext(TemporaryDirectory(prefix="hostorbit-sftp-", dir="/run")))
         self.root.chmod(0o711)
         self.account = f"ho-sftp-{secrets.token_hex(4)}"
+        # Ubuntu's shadow entry '*' disables password login and allows public-key auth without PAM.
         command(
             "/usr/sbin/useradd", "--system", "--user-group", "--home-dir", "/store",
-            "--no-create-home", "--shell", "/bin/sh", self.account,
+            "--no-create-home", "--shell", "/bin/sh", "--password", "*", self.account,
         )
-        self.addCleanup(remove_account, self.account)
+        self.addCleanup(command, "/usr/sbin/userdel", self.account)
         user = pwd.getpwnam(self.account)
         jail = self.root / "jail"
         jail.mkdir(mode=0o755)
@@ -197,7 +174,7 @@ class SftpPublicationTests(unittest.TestCase):
             f"AuthorizedKeysFile {authorized}\n"
             f"AllowUsers {self.account}\n"
             f"ChrootDirectory {jail}\n"
-            "UsePAM yes\nPermitRootLogin no\nPermitTTY no\nPermitUserRC no\n"
+            "UsePAM no\nPermitRootLogin no\nPermitTTY no\nPermitUserRC no\n"
             "PasswordAuthentication no\nKbdInteractiveAuthentication no\n"
             "AuthenticationMethods publickey\nPubkeyAuthentication yes\nDisableForwarding yes\n"
             "Subsystem sftp internal-sftp\nForceCommand internal-sftp -d /store\n",
