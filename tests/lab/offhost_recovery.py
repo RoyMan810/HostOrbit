@@ -2,8 +2,9 @@
 
 import argparse
 import base64
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import asdict
+import hashlib
 from io import BufferedRWPair
 import json
 import os
@@ -20,6 +21,7 @@ import time
 from nacl.secret import Aead
 from nacl.signing import SigningKey, VerifyKey
 
+import fencing_vm as fencing
 from sftp_publication import SftpFailure, SftpPublication, age_key, command, listen, restored_values, sftp_receiver
 from stage0.recovery import RecoveryRequest, Rejected, SignedBackup, Snapshot, accept_bundle, issue_request, prepare_bundle, seal_source
 from stage0.snapshot import BackupLab, Work
@@ -130,21 +132,48 @@ def guest():
     command("/usr/bin/ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", ssh_identity)
     with open(_DEVICE, "r+b", buffering=0) as port, BufferedRWPair(port, port) as stream:
         send(stream, {"ready": True})
-        role = receive(stream)["role"]
+        boot = receive(stream)
+        role = boot["role"]
         signer = SigningKey.generate() if role == "source" else None
-        send(stream, {
+        greeting = {
             "boot_id": Path("/proc/sys/kernel/random/boot_id").read_text().strip(),
             "sftp_key": ssh_identity.with_suffix(".pub").read_text(encoding="ascii"),
             "signing_key": b64(bytes(signer.verify_key)) if signer is not None else None,
-        })
+        }
+        managed_identity = root / "managed-client"
+        if boot["managed"] and role == "source":
+            host_key = Path("/etc/ssh/ssh_host_ed25519_key.pub").read_text(encoding="ascii")
+            greeting["old_host_key_sha256"] = fencing.key_fingerprint(host_key)
+        elif boot["managed"]:
+            command("/usr/bin/ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", managed_identity)
+            greeting["managed_key"] = managed_identity.with_suffix(".pub").read_text(encoding="ascii")
+        send(stream, greeting)
         config = receive(stream)
         known_hosts = root / "known_hosts"
         known_hosts.write_text(f"[{_SFTP_HOST}]:{_SFTP_PORT} {config['host_key']}\n", encoding="ascii")
         endpoint = SftpPublication(config["account"], _SFTP_PORT, ssh_identity, known_hosts, host=_SFTP_HOST)
         if role == "source":
+            if boot["managed"]:
+                managed_identity.write_bytes(decode(config["old_managed_identity"]))
+                pinned = fencing.guest_known_hosts(root, config["managed_host_key"])
+                send(stream, {"old_invocation": fencing.source_restart(root, managed_identity, pinned)})
             send(stream, publish_source(root, endpoint, signer, config["recipient"]))
         elif role == "recovery":
             recover_guest(stream, root, endpoint, config["archives"])
+            if boot["managed"]:
+                pinned = fencing.guest_known_hosts(root, config["managed_host_key"])
+                target = receive(stream)["binding"]
+                target["owner_verify_key"] = decode(target["owner_verify_key"])
+                gate = fencing.recovery_gate(root, managed_identity, pinned, target)
+                send(stream, {"blocked": "READ_ONLY_RECOVERY", "unreachable": True})
+                proof = receive(stream)
+                safe = gate.activate_recovery(
+                    decode(proof["record"]), decode(proof["signature"]), owner_confirmation=receive(stream)["digest"],
+                )
+                if safe != {"managed"}:
+                    raise RuntimeError("Unexpected activation scope")
+                fencing.expect_denial("QUARANTINED", fencing.restart, gate, managed_identity, pinned, "unavailable")
+                send(stream, {"new_invocation": fencing.restart(gate, managed_identity, pinned)})
         else:
             raise ValueError("Unknown fixture guest role")
 
@@ -157,7 +186,11 @@ def offline_owner(identity):
     archive = SignedBackup(*(decode(part) for part in transfer["archive"]))
     signer = VerifyKey(decode(transfer["signing_key"]))
     bundle, review = prepare_bundle(archive, signer, identity, request)
-    send(sys.stdout.buffer, {"bundle": b64(bundle), "owner_digest": review.bundle_sha256})
+    manifest = json.dumps(review.manifest, sort_keys=True, separators=(",", ":")).encode("ascii")
+    send(sys.stdout.buffer, {
+        "bundle": b64(bundle), "owner_digest": review.bundle_sha256,
+        "manifest_sha256": hashlib.sha256(manifest).hexdigest(),
+    })
 
 
 def make_seed(work, dependencies, age_dir):
@@ -166,7 +199,7 @@ def make_seed(work, dependencies, age_dir):
     repo = Path(__file__).resolve().parents[2]
     shutil.copytree(repo / "stage0", payload / "stage0", ignore=shutil.ignore_patterns("__pycache__"))
     shutil.copytree(dependencies, payload / "deps", ignore=shutil.ignore_patterns("__pycache__"))
-    for name in ("offhost_recovery.py", "sftp_publication.py"):
+    for name in ("offhost_recovery.py", "sftp_publication.py", "fencing_vm.py"):
         shutil.copyfile(Path(__file__).with_name(name), payload / name)
     for name in ("age", "age-keygen"):
         shutil.copy2(age_dir / name, payload / name)
@@ -208,12 +241,19 @@ def connect_guest(path, process):
 
 
 @contextmanager
-def boot_guest(work, console, role, image, seed, sftp_port):
+def boot_guest(work, console, role, image, seed, sftp_port, managed):
     disk = work / f"{role}.qcow2"
     command("/usr/bin/qemu-img", "create", "-q", "-f", "qcow2", "-F", "qcow2", "-b", image, disk)
     port = console / f"{role}.sock"
     serial = work / f"{role}-serial.log"
     log = work / f"{role}-qemu.log"
+    ports = {_SFTP_PORT: sftp_port}
+    if managed is not None:
+        ports[fencing.MANAGED_PORT] = managed.port
+    forwarding = ",".join(
+        f"guestfwd=tcp:{_SFTP_HOST}:{guest_port}-cmd:/usr/bin/nc 127.0.0.1 {host_port}"
+        for guest_port, host_port in ports.items()
+    )
     with log.open("wb") as errors:
         process = subprocess.Popen([
             "/usr/bin/qemu-system-x86_64", "-machine", "q35,accel=tcg", "-cpu", "max",
@@ -221,7 +261,7 @@ def boot_guest(work, console, role, image, seed, sftp_port):
             "-serial", f"file:{serial}",
             "-drive", f"if=virtio,format=qcow2,file={disk}",
             "-drive", f"if=virtio,format=raw,readonly=on,file={seed}",
-            "-netdev", f"user,id=network,restrict=on,ipv6=off,guestfwd=tcp:{_SFTP_HOST}:{_SFTP_PORT}-cmd:/usr/bin/nc 127.0.0.1 {sftp_port}",
+            "-netdev", f"user,id=network,restrict=on,ipv6=off,{forwarding}",
             "-device", "virtio-net-pci,netdev=network",
             "-chardev", f"socket,id=control,path={port},server=on,wait=off",
             "-device", "virtio-serial-pci", "-device", "virtserialport,chardev=control,name=hostorbit.recovery",
@@ -230,7 +270,7 @@ def boot_guest(work, console, role, image, seed, sftp_port):
             with connect_guest(port, process) as channel, channel.makefile("rwb") as stream:
                 if receive(stream) != {"ready": True}:
                     raise RuntimeError("Unexpected fixture console greeting")
-                send(stream, {"role": role})
+                send(stream, {"role": role, "managed": managed is not None})
                 yield stream
         except Exception:
             for path in (log, serial):
@@ -244,7 +284,7 @@ def boot_guest(work, console, role, image, seed, sftp_port):
             disk.unlink()
 
 
-def experiment(work, console, image, dependencies, age_dir):
+def experiment(work, console, image, dependencies, age_dir, managed):
     seed = make_seed(work, dependencies, age_dir)
     owner = work / "offline-owner.agekey"
     recipient = age_key(owner)
@@ -252,25 +292,40 @@ def experiment(work, console, image, dependencies, age_dir):
     store_root.mkdir()
     with sftp_receiver(store_root) as receiver, listen(receiver.config, work / "sftp.log") as port:
         settings = {"account": receiver.account, "host_key": receiver.host_key}
-        with boot_guest(work, console, "source", image, seed, port) as stream:
+        if managed is not None:
+            original_invocation = fencing.invocation(managed.unit)
+            settings["managed_host_key"] = managed.host_key
+        with boot_guest(work, console, "source", image, seed, port, managed) as stream:
             source = receive(stream)
             receiver.authorize(source["sftp_key"])
-            send(stream, {**settings, "recipient": recipient})
+            source_config = {**settings, "recipient": recipient}
+            if managed is not None:
+                source_config["old_managed_identity"] = b64((managed.lab / "client").read_bytes())
+            send(stream, source_config)
+            if managed is not None:
+                old_invocation = receive(stream)["old_invocation"]
+                if old_invocation == original_invocation or old_invocation != fencing.invocation(managed.unit):
+                    raise RuntimeError("The original Controller did not restart the managed service")
             archives = receive(stream)
             if set(archives) != {"portable", "os_wrapped"} or set(archives.values()) != {p.name for p in receiver.store.iterdir()}:
                 raise RuntimeError("The SFTP store is missing a completed fixture archive")
             print("Source VM published the portable and OS-wrapped-only archives over SFTP.", flush=True)
         if (work / "source.qcow2").exists():
             raise RuntimeError("The source system disk still exists")
+        off_at = int(time.time())
         print("Source VM stopped and its writable system disk and credential store were removed.", flush=True)
 
-        with boot_guest(work, console, "recovery", image, seed, port) as stream:
+        with boot_guest(work, console, "recovery", image, seed, port, managed) as stream:
             target = receive(stream)
             if target["boot_id"] == source["boot_id"] or target["sftp_key"].split()[1] == source["sftp_key"].split()[1]:
                 raise RuntimeError("Recovery VM reused source identity")
             receiver.authorize(target["sftp_key"], read_only=True)
+            if managed is not None:
+                managed.rotate(target["managed_key"])
+                print("The managed SSH server denied the retired key after the source VM was powered off.", flush=True)
             send(stream, {**settings, "archives": archives})
-            for expected in ({"sqlite": "ok", "versions": [1, 2]}, {"rejected": "PORTABLE_DEK_REQUIRED"}):
+            results = ({"sqlite": "ok", "versions": [1, 2]}, {"rejected": "PORTABLE_DEK_REQUIRED"})
+            for expected in results:
                 transfer = receive(stream)
                 transfer["signing_key"] = source["signing_key"]
                 reviewed = subprocess.run(
@@ -284,6 +339,28 @@ def experiment(work, console, image, dependencies, age_dir):
                 send(stream, {"owner_digest": package["owner_digest"]})
                 if receive(stream) != expected:
                     raise RuntimeError("Unexpected restore result")
+                if expected == results[0]:
+                    manifest_sha256 = package["manifest_sha256"]
+            if managed is not None:
+                attester = SigningKey.generate()
+                binding = {
+                    "old_controller_id": source["boot_id"], "old_host_key_sha256": source["old_host_key_sha256"],
+                    "recovery_controller_id": target["boot_id"], "backup_manifest_sha256": manifest_sha256,
+                    "owner_verify_key": bytes(attester.verify_key),
+                }
+                send(stream, {"binding": {**binding, "owner_verify_key": b64(binding["owner_verify_key"])}})
+                if receive(stream) != {"blocked": "READ_ONLY_RECOVERY", "unreachable": True}:
+                    raise RuntimeError("Expected the recovered Controller to stay read-only before activation")
+                if fencing.invocation(managed.unit) != old_invocation or (work / "source.qcow2").exists():
+                    raise RuntimeError("Read-only recovery changed the service or the source disk reappeared")
+                print("The fresh VM had a valid key but the read-only gate prevented a restart.", flush=True)
+                record, signature, digest = fencing.attestation(binding, attester, managed, target["managed_key"], off_at)
+                send(stream, {"record": b64(record), "signature": b64(signature)})
+                send(stream, {"digest": digest})
+                restarted = receive(stream)["new_invocation"]
+                if restarted == old_invocation or restarted != fencing.invocation(managed.unit):
+                    raise RuntimeError("The activated Controller did not restart the verified service")
+                print("The activated Controller restarted the verified service. The unreachable host remained quarantined.", flush=True)
     print("Fresh VM verified SQLite and DEK generations 1 and 2. OS-wrapped-only restore was rejected.", flush=True)
 
 
@@ -301,14 +378,19 @@ def main():
     parser.add_argument("--dependencies", type=Path, required=True)
     parser.add_argument("--age-dir", type=Path, required=True)
     parser.add_argument("--scratch", type=Path, required=True)
+    parser.add_argument("--ssh-fixture", nargs=4, metavar=("LAB", "PORT", "HELPERS", "AUTHORIZED"))
     args = parser.parse_args()
     release = freedesktop_os_release()
     if os.geteuid() != 0 or (release["ID"], release["VERSION_ID"]) != ("ubuntu", "24.04"):
         raise SystemExit("Run as root in a disposable Ubuntu 24.04 VM.")
-    with TemporaryDirectory(prefix="hostorbit-guests-", dir=args.scratch) as work, \
+    service = nullcontext()
+    if args.ssh_fixture is not None:
+        lab, port, helper_dir, authorized = args.ssh_fixture
+        service = fencing.managed_service(Path(lab), int(port), Path(helper_dir), Path(authorized))
+    with service as managed, TemporaryDirectory(prefix="hostorbit-guests-", dir=args.scratch) as work, \
             TemporaryDirectory(prefix="hostorbit-console-", dir="/run") as console:
         Path(console).chmod(0o711)
-        experiment(Path(work), Path(console), args.image.resolve(), args.dependencies, args.age_dir)
+        experiment(Path(work), Path(console), args.image.resolve(), args.dependencies, args.age_dir, managed)
 
 
 if __name__ == "__main__":

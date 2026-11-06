@@ -7,6 +7,8 @@ on:
       - .github/workflows/offhost-recovery.yml
       - requirements-lab.txt
       - stage0/**
+      - tests/lab/fencing_vm.py
+      - tests/lab/ssh-profile.sh
       - tests/lab/offhost_recovery.py
       - tests/lab/sftp_publication.py
   pull_request:
@@ -14,6 +16,8 @@ on:
       - .github/workflows/offhost-recovery.yml
       - requirements-lab.txt
       - stage0/**
+      - tests/lab/fencing_vm.py
+      - tests/lab/ssh-profile.sh
       - tests/lab/offhost_recovery.py
       - tests/lab/sftp_publication.py
   workflow_dispatch:
@@ -23,7 +27,7 @@ permissions:
 
 jobs:
   restore:
-    name: Portable Vault after loss of the source VM
+    name: Portable Vault and scoped activation after source VM loss
     runs-on: ubuntu-24.04
     timeout-minutes: 16
     steps:
@@ -51,9 +55,9 @@ jobs:
           echo 'cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10  age.tar.gz' | sha256sum -c -
           tar --no-same-owner -xzf age.tar.gz -- age/age age/age-keygen
           python -m pip install --only-binary=:all: --target "$lab/deps" -r "$GITHUB_WORKSPACE/requirements-lab.txt"
-      - name: Destroy the source guest and recover from SFTP on a fresh guest
+      - name: Fence the source guest and exercise scoped activation after recovery
         run: |
           lab="$RUNNER_TEMP/hostorbit-offhost"
           sudo -n /usr/bin/env "PATH=$lab/age:$PATH" "PYTHONPATH=$PWD:$lab/deps" PYTHONDONTWRITEBYTECODE=1 \
-            "$(command -v python)" tests/lab/offhost_recovery.py --isolated-vm \
-            --image "$lab/ubuntu.qcow2" --dependencies "$lab/deps" --age-dir "$lab/age" --scratch "$lab"
+            "HOSTORBIT_LAB_PYTHON=$(command -v python)" \
+            /usr/bin/bash tests/lab/ssh-profile.sh --isolated-vm --controller-loss "$lab"
