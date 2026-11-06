@@ -1,13 +1,13 @@
 """Lab model of one durable admission authority. This module performs no remote I/O."""
 
 from collections.abc import Collection, Mapping
-from contextlib import closing, contextmanager
+from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import StrEnum
-import os
 from pathlib import Path
 import secrets
-import sqlite3
+
+from .journal import connect_journal, reserve_journal
 
 
 class GateState(StrEnum):
@@ -97,7 +97,7 @@ class HostGate:
     """Open a lab journal. Only create() can initialize a new fixture."""
 
     def __init__(self, path: Path):
-        self._uri = f"{path.absolute().as_uri()}?mode=rw"
+        self._path = path.absolute()
 
     @classmethod
     def create(cls, path: Path, topology: Mapping[str, Collection[str] | None]) -> "HostGate":
@@ -105,7 +105,7 @@ class HostGate:
         if any(isinstance(resources, (str, bytes)) for resources in topology.values()):
             raise ValueError("Each host needs a collection of resource IDs")
         gate = cls(path)
-        os.close(os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600))
+        reserve_journal(gate._path)
         with gate._connect(initialize=True) as db:
             db.executescript("BEGIN IMMEDIATE;\n" + _SCHEMA)
             db.executemany(
@@ -123,31 +123,8 @@ class HostGate:
             db.execute("COMMIT")
         return gate
 
-    @contextmanager
     def _connect(self, *, initialize=False):
-        if sqlite3.sqlite_version_info < (3, 45, 0):
-            raise RuntimeError("SQLite 3.45 or newer is required")
-        with closing(sqlite3.connect(self._uri, uri=True, autocommit=True, timeout=5)) as db:
-            db.row_factory = sqlite3.Row
-            db.execute("PRAGMA synchronous = FULL")
-            db.execute("PRAGMA foreign_keys = ON")
-            if initialize:
-                db.execute("PRAGMA journal_mode = WAL").fetchone()
-            expected = {
-                "journal_mode": "wal",
-                "synchronous": 2,
-                "foreign_keys": 1,
-                "busy_timeout": 5000,
-                "user_version": 0 if initialize else 1,
-            }
-            for pragma, value in expected.items():
-                if db.execute(f"PRAGMA {pragma}").fetchone()[0] != value:
-                    raise RuntimeError(f"Unexpected SQLite setting: {pragma}")
-            try:
-                yield db
-            finally:
-                if db.in_transaction:
-                    db.execute("ROLLBACK")
+        return connect_journal(self._path, initialize=initialize)
 
     @contextmanager
     def _write(self):

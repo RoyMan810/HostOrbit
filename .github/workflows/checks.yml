@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  admission:
-    name: Admission lab / Python 3.13
+  prototypes:
+    name: Stage 0 prototypes / Python 3.13
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -21,4 +21,17 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: "3.13"
+      - name: Install Python dependencies
+        run: python -m pip install -r requirements-lab.txt
+      - name: Install verified age release
+        shell: bash
+        run: |
+          age_dir="$RUNNER_TEMP/hostorbit-age"
+          mkdir -p "$age_dir"
+          cd "$age_dir"
+          curl --proto '=https' --proto-redir '=https' --fail --silent --show-error --location --retry 2 \
+            -o age.tar.gz https://github.com/FiloSottile/age/releases/download/v1.3.2/age-v1.3.2-linux-amd64.tar.gz
+          echo 'cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10  age.tar.gz' | sha256sum -c -
+          tar --no-same-owner -xzf age.tar.gz -- age/age age/age-keygen
+          echo "$age_dir/age" >> "$GITHUB_PATH"
       - run: python -m unittest discover -s tests -v
