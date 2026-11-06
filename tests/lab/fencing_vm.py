@@ -198,6 +198,7 @@ def attestation(target, owner, managed, new_key, off_at):
     from stage0.recovery import RecoveryTarget, activation_attestation
 
     time.sleep(max(0, off_at + 10 - time.time()))
+    observed_at = int(time.time())
     record = activation_attestation(
         RecoveryTarget(**target),
         isolation={
@@ -205,7 +206,7 @@ def attestation(target, owner, managed, new_key, off_at):
             "autostart_blocked": True, "worker_isolated": True,
             "observations": [
                 {"source": "source QEMU process exited", "at_utc": off_at, "isolated": True},
-                {"source": "source disk absent after recovery boot", "at_utc": int(time.time()), "isolated": True},
+                {"source": "source disk absent after recovery boot", "at_utc": observed_at, "isolated": True},
             ],
         },
         checks=dict.fromkeys(("database_integrity", "vault_integrity", "permissions_verified", "old_automation_disabled"), True),
@@ -219,7 +220,15 @@ def attestation(target, owner, managed, new_key, off_at):
             "unavailable": {"evidence": "unreachable test endpoint", "reachable": False},
         },
     )
-    return record, owner.sign(record).signature, hashlib.sha256(record).hexdigest()
+    return record, owner.sign(record).signature, hashlib.sha256(record).hexdigest(), observed_at
+
+
+def wait_for_observation_time(observed_at):
+    deadline = time.monotonic() + 10
+    while int(time.time()) < observed_at:
+        if time.monotonic() >= deadline:
+            raise RuntimeError("The recovery guest clock is behind the host observation")
+        time.sleep(0.1)
 
 
 if __name__ == "__main__":
