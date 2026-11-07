@@ -1,5 +1,7 @@
 # Установка Foundation Stage1
 
+Для завершённого локального Rescue import доступен отдельный [recovery installation](stage1-recovery-installation.md) через `--recovery-state`; он сохраняет READ_ONLY_RECOVERY и не открывает повторный Owner bootstrap.
+
 Постоянные родительские каталоги установки (`/opt`, `/etc`, `/var/lib`, `/run` и их ancestors) должны принадлежать root и не допускать group/other write. Preflight отказывает с `INSTALLATION_PARENT_UNTRUSTED` до создания состояния и не меняет права чужих системных каталогов. Disposable CI fixture отдельно проверяет отказ на `/opt` 0777, затем готовит защищённый профиль 0755 только в своей временной VM.
 
 Установщик разворачивает **development-сборку** на свежей Ubuntu Server 24.04 amd64. Он устанавливает API и Worker через Compose, host-native Broker и supervisor через systemd. Доступно только наблюдение `host.probe`; production mutation, автоматическое обновление и миграция существующей БД этим установщиком не разрешены.

@@ -272,8 +272,23 @@ def install(args):
         manifest, digest = snapshot(args.bundle, stage, key, allow_development=args.development)
         if not (stage / AGE_FILE).is_file():
             raise ArtifactError("PINNED_AGE_TOOL_REQUIRED")
+        recovery = None
+        if args.recovery_state:
+            if args.targets:
+                raise ArtifactError("RECOVERY_POLICY_CANNOT_BE_REPLACED")
+            # Execute only the independently verified wheelhouse, in a temporary
+            # private venv. A recovery --check creates no installation/claim.
+            check_venv = Path(temporary) / "recovery-check"
+            command(interpreter, "-m", "venv", check_venv)
+            command(check_venv / "bin/python", "-m", "pip", "install", "--no-index", "--find-links", stage / "wheelhouse",
+                    "--require-hashes", "-r", stage / "requirements-install.txt", timeout=180)
+            recovery = json.loads(command(check_venv / "bin/python", "-m", "hostorbit.runtime.recovery_install", "check",
+                                          "--state", args.recovery_state, timeout=90))
+            if recovery["status"] != "RECOVERY_INSTALLATION_ELIGIBLE" or recovery["mode"] != "READ_ONLY_RECOVERY":
+                raise ArtifactError("RECOVERY_DATA_NOT_ELIGIBLE")
         if args.check:
-            print(json.dumps({"preflight": "PASS", "manifest_sha256": digest, "channel": "development"}))
+            print(json.dumps({"preflight": "PASS", "manifest_sha256": digest, "channel": "development",
+                              "recovery": recovery["mode"] if recovery else "NOT_READY"}))
             return
         image = "hostorbit/controller:dev-" + digest[:24]
         docker(args.docker_host, "pull", "--platform", "linux/amd64", manifest["python_image"], timeout=180)
@@ -322,23 +337,27 @@ def install(args):
         folder(RUN, 0o755)
         folder(RUN / "broker", 0o710, 0, cfg["broker_rpc_gid"])
         folder(RUN / "supervisor", 0o710, 0, cfg["gate_rpc_gid"])
-        targets = args.targets.read_bytes() if args.targets else canonical({"v": 1, "targets": []})
+        targets = canonical(recovery["target_policy"]) if recovery else args.targets.read_bytes() if args.targets else canonical({"v": 1, "targets": []})
         write(CONFIG / "targets.json", targets)
         write(CONFIG / "backup-target.json", canonical({"v": 1, "enabled": False}))
         write(CONFIG / "runtime.json", canonical(cfg))
         write(CONFIG / "release-trust.pub", key)
         runtime = APP / "venv/bin/hostorbit-runtime"
-        command(runtime, "--config", CONFIG / "runtime.json", "initialize-credential")
-        command(runtime, "--config", CONFIG / "runtime.json", "initialize-writers")
-        command(APP / "venv/bin/hostorbit", "--database", cfg["database"], "--database-owner", cfg["app_uid"],
-                "--database-group", cfg["app_gid"], "init")
-        command(runtime, "--config", CONFIG / "runtime.json", "initialize-supervisor")
-        # systemd gives just this UID a private copy of the OS credential.
-        command("/usr/bin/systemd-run", "--unit=hostorbit-vault-initialize", "--quiet", "--wait", "--collect", "--property=User=ho-broker",
-                "--property=Group=ho-broker", "--property=SupplementaryGroups=ho-gate-rpc",
-                "--property=UMask=0077", "--property=LoadCredentialEncrypted=broker-dek:" + cfg["vault_credential"],
-                runtime, "--config", CONFIG / "runtime.json", "initialize-broker")
-        command(runtime, "--config", CONFIG / "runtime.json", "register-observations")
+        if recovery:
+            command(python, "-m", "hostorbit.runtime.recovery_install", "apply", "--state", args.recovery_state,
+                    "--config", CONFIG / "runtime.json", "--artifact-sha256", digest, timeout=120)
+        else:
+            command(runtime, "--config", CONFIG / "runtime.json", "initialize-credential")
+            command(runtime, "--config", CONFIG / "runtime.json", "initialize-writers")
+            command(APP / "venv/bin/hostorbit", "--database", cfg["database"], "--database-owner", cfg["app_uid"],
+                    "--database-group", cfg["app_gid"], "init")
+            command(runtime, "--config", CONFIG / "runtime.json", "initialize-supervisor")
+            # systemd gives just this UID a private copy of the OS credential.
+            command("/usr/bin/systemd-run", "--unit=hostorbit-vault-initialize", "--quiet", "--wait", "--collect", "--property=User=ho-broker",
+                    "--property=Group=ho-broker", "--property=SupplementaryGroups=ho-gate-rpc",
+                    "--property=UMask=0077", "--property=LoadCredentialEncrypted=broker-dek:" + cfg["vault_credential"],
+                    runtime, "--config", CONFIG / "runtime.json", "initialize-broker")
+            command(runtime, "--config", CONFIG / "runtime.json", "register-observations")
         compose = compose_document(cfg, image, args.port)
         write(CONFIG / "compose.json", canonical(compose))
         prefix = ("compose", "--project-name", "hostorbit", "--project-directory", str(APP), "--file", str(CONFIG / "compose.json"))
@@ -353,7 +372,7 @@ def install(args):
         write(CONFIG / "runtime.json", canonical(cfg), replace=True)
         metadata = {"v": 1, "project": "hostorbit", "image": image, "image_id": image_id, "docker_host": args.docker_host,
                     "manifest_sha256": digest, "source_commit": manifest["source_commit"], "version": manifest["version"],
-                    "channel": "development", "remote_mutation_enabled": False, "recovery": "NOT_READY", "port": args.port}
+                    "channel": "development", "remote_mutation_enabled": False, "recovery": recovery["mode"] if recovery else "NOT_READY", "port": args.port}
         write(APP / "installation.json", canonical(metadata), mode=0o600)
         for path in (UNITS, Path("/etc/sysusers.d"), Path("/etc/tmpfiles.d")):
             system_config_directory(path)
@@ -381,9 +400,13 @@ def install(args):
         with urlopen(f"http://127.0.0.1:{args.port}/healthz", timeout=5) as response:
             if json.load(response).get("status") != "alive":
                 raise ArtifactError("INSTALLATION_SMOKE_FAILED")
+        if recovery:
+            command(python, "-m", "hostorbit.runtime.recovery_install", "finish", "--state", args.recovery_state,
+                    "--artifact-sha256", digest)
         write(APP / "install-state.json", canonical({"v": 1, "phase": "COMPLETE", "manifest_sha256": digest}), mode=0o600, replace=True)
         print(json.dumps({"installed": True, "channel": "development", "endpoint": f"http://127.0.0.1:{args.port}",
-                          "owner_setup": "/opt/hostorbit/admin create-owner --username <name>", "recovery": "NOT_READY"}))
+                          "owner_setup": "RESTORED_OWNER" if recovery else "/opt/hostorbit/admin create-owner --username <name>",
+                          "recovery": recovery["mode"] if recovery else "NOT_READY"}))
 
 
 def main(argv=None):
@@ -396,6 +419,7 @@ def main(argv=None):
     new.add_argument("--origin", required=True)
     new.add_argument("--port", type=int, default=18080)
     new.add_argument("--targets", type=Path, help="Optional locally approved protected target policy; otherwise empty")
+    new.add_argument("--recovery-state", type=Path, help="Completed local Rescue ledger; install only in READ_ONLY_RECOVERY")
     new.add_argument("--docker-host", default="unix:///var/run/docker.sock")
     new.add_argument("--check", action="store_true", help="Validate preconditions and all bundle files without installing")
     commands.add_parser("verify-image", help="Internal systemd preflight for the installed image identity")

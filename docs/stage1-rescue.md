@@ -1,6 +1,6 @@
 # Offline Rescue и импорт данных Stage1
 
-Добавлен `hostorbit-rescue`: проверка production ControllerBackup на offline workstation, перепаковка на одноразовый recipient новой машины и консольный импорт в новый приватный каталог. Результат — **данные в READ_ONLY_RECOVERY**, с новым Gate signer/instance/epoch и новым host-bound OS seal для переносимого DEK. Команда не устанавливает службы и не активирует Controller. Интеграция этого layout с signed installer, независимый DR-прогон, ручной fencing/rotation и activation manager остаются следующими работами.
+Добавлен `hostorbit-rescue`: проверка production ControllerBackup на offline workstation, перепаковка на одноразовый recipient новой машины и консольный импорт в новый приватный каталог. Результат — **данные в READ_ONLY_RECOVERY**, с новым Gate signer/instance/epoch и новым host-bound OS seal для переносимого DEK. Службы устанавливаются отдельным [signed recovery installer](stage1-recovery-installation.md), с сохранением read-only profile. Независимый DR-прогон, ручной fencing/rotation и activation manager остаются открытыми.
 
 ## Доверенная workstation
 
