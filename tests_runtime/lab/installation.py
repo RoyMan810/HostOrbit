@@ -315,6 +315,8 @@ def controller_archive(root, bundle):
     # file is created by this fixture or by the Controller.
     import io
     import tarfile
+    import base64
+    from nacl.secret import Aead
     with tarfile.open(fileobj=io.BytesIO(decrypted.stdout)) as tar:
         names = tar.getnames()
         if "vault/portable-keys.json" not in names or any("signing.key" in n or "broker-dek" in n for n in names):
@@ -329,6 +331,18 @@ def controller_archive(root, bundle):
             data = tar.extractfile("vault/" + record["path"]).read()
             if len(data) != record["size"] or hashlib.sha256(data).hexdigest() != record["sha256"]:
                 raise RuntimeError("Decrypted pinned object differs from its manifest")
+        # Recover the working key solely from the encrypted portable member;
+        # neither source OS wrapping key nor source runtime credential is read.
+        aead = Aead(base64.b64decode(keyset["generations"][0]["key"], validate=True))
+        with sqlite3.connect(":memory:") as db:
+            db.deserialize(tar.extractfile("vault/vault.sqlite3").read())
+            for ref in pin["references"]:
+                metadata, state = db.execute("SELECT metadata,state FROM secrets WHERE ref=?", (ref["ref"],)).fetchone()
+                raw = tar.extractfile("vault/objects/" + ref["object_digest"]).read()
+                plaintext = aead.decrypt(raw, metadata.encode())
+                if state != ref["state"] or not plaintext.startswith(b"-----BEGIN OPENSSH PRIVATE KEY-----\n"):
+                    raise RuntimeError("Portable working DEK did not recover the pinned SSH fixture version")
+                del plaintext
         source = json.load(tar.extractfile("controller/manifest.json"))
         for record in source["files"]:
             data = tar.extractfile("controller/" + record["path"]).read()
