@@ -25,6 +25,25 @@ _SECURITY_BOUNDS = (
 )
 
 
+def _check_requirement_index(section, registry):
+    rows = {}
+    for line in section.splitlines():
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if not cells or not re.fullmatch(r"(?:FR-\d{3}\.\d+|NFR-\d{2}|P0-\d+|CTRL-B\d{2})", cells[0]):
+            continue
+        identifier = cells[0]
+        if len(cells) != 5 or identifier in rows:
+            raise InvalidRegistry(f"baseline: invalid or duplicate requirement index row {identifier}")
+        rows[identifier] = cells
+    if rows.keys() != registry.requirements.keys():
+        raise InvalidRegistry("baseline: requirement index and registry ID sets differ")
+    for identifier, item in registry.requirements.items():
+        _, _, release_stage, owner, acceptances = rows[identifier]
+        if (release_stage != item["release_inclusion"] + "/" + item["stage"]
+                or owner != item["owner"] or set(acceptances.split(",")) != set(item["acceptance_ids"])):
+            raise InvalidRegistry(f"baseline: stage, owner or acceptance trace drift for {identifier}")
+
+
 def _stage0_ids(declaration):
     result = set()
     for expression in re.findall(r"`(AC-[^`]+)`", declaration):
@@ -51,6 +70,7 @@ def check_baseline(markdown: str, data: dict) -> dict:
     if len(sections) != 1:
         raise InvalidRegistry("baseline: expected exactly one authoritative section 40")
     section = sections[0]
+    _check_requirement_index(section, registry)
     for name, expected in _MACHINES.items():
         pattern = rf"^\*\*{re.escape(name)}:\*\* `([^`]+)`"
         matches = re.findall(pattern, markdown, re.M)
@@ -74,6 +94,12 @@ def check_baseline(markdown: str, data: dict) -> dict:
         "stage0_required_tests": sorted(required),
         "job_unknown_is_terminal": True, "incident_is_separate": True,
         "owner_attestation_exclusion_present": True, "adr_amendment_clause_present": True,
+        "requirement_index_count": len(registry.requirements),
+        "acceptance_capability_trace": {
+            identifier: [{"requirement_id": ref, "stage": registry.requirements[ref]["stage"],
+                          "owner": registry.requirements[ref]["owner"]} for ref in item["linked_requirements"]]
+            for identifier, item in registry.tests.items()
+        },
         "scope": "Document and trace validation; does not certify runtime transitions or Owner truthfulness",
     }
 
