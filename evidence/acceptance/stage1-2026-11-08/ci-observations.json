@@ -1,0 +1,185 @@
+{
+  "conclusion": "success",
+  "counts": {
+    "application_tests": 51,
+    "runtime_tests": 137,
+    "sftp_publication_tests": 4,
+    "stage0_tests": 66,
+    "successful_jobs": 9
+  },
+  "jobs": [
+    {
+      "conclusion": "success",
+      "excerpts": [
+        "2026-11-07T21:22:45.6766325Z Distinct Worker UID verified a signed host report; a same-group stranger was denied."
+      ],
+      "id": 128532586768,
+      "name": "Stage 1 host TimeHealth / timesyncd",
+      "raw_log_digest_scope": "Complete decoded UTF-8 GitHub response including BOM if present, without newline conversion",
+      "raw_log_sha256": "93268a1be8da282e80549e88411c30dd3d70044519be701f9c0e4aedf8eda187",
+      "run_id": 42415508424,
+      "source_head": "688d1408004580d95ddd4d6bd1c75c576b1bb764",
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42415508424/job/128532586768"
+    },
+    {
+      "conclusion": "success",
+      "excerpts": [
+        "2026-11-07T21:22:04.4336439Z  Kernel Version: 7.0.0-1017-azure",
+        "2026-11-07T21:22:14.1960222Z The scoped grant produced a receipt only. Replaying it was denied."
+      ],
+      "id": 128532586925,
+      "name": "Broker peer credentials / Docker",
+      "raw_log_digest_scope": "Complete decoded UTF-8 GitHub response including BOM if present, without newline conversion",
+      "raw_log_sha256": "48923e21f2b0d28882d845b7385727e198a245c7a710a48dc2cb3aa8be764dcb",
+      "run_id": 42415508424,
+      "source_head": "688d1408004580d95ddd4d6bd1c75c576b1bb764",
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42415508424/job/128532586925"
+    },
+    {
+      "conclusion": "success",
+      "excerpts": [
+        "2026-11-07T21:22:06.0235639Z  Kernel Version: 7.0.0-1017-azure",
+        "2026-11-07T21:22:31.8758256Z Signed bundle preflight passed without creating application state.",
+        "2026-11-07T21:22:51.3392618Z Encrypted OS credential rejected another host key and another name; target resealing verified without a plaintext file.",
+        "2026-11-07T21:22:51.5712014Z Networkless Worker verified host TimeHealth through authenticated IPC and the mounted public key.",
+        "2026-11-07T21:22:52.3984082Z First web visitor had no bootstrap authority; hidden-input local Owner setup and HTTPS login passed.",
+        "2026-11-07T21:22:55.1212459Z Installed Broker streamed portable DEK into age without a plaintext key file; saved public anchor verified ciphertext/provenance and fixture Owner decrypted the full Controller/Vault archive.",
+        "2026-11-07T21:22:55.7500723Z Native Rescue data import passed exact Owner digest, separate Owner auth, new host credential/signer, replay refusal and durable READ_ONLY_RECOVERY; offline profile and physical DR remain unattested.",
+        "2026-11-07T21:23:04.6588963Z Real pinned OpenSSH SFTP publication passed fsync/readback/final marker, no-overwrite replay, wrong-host refusal, outage/ENOSPC recovery, corruption and revoked-key rejection; API stayed available.",
+        "2026-11-07T21:23:11.2304492Z Repeated install was denied without key replacement; systemd Compose restart preserved the installation.",
+        "2026-11-07T21:23:38.5464147Z Signed recovery installation passed restored HTTPS Owner/Audit, stable idle Worker, fresh inactive Gate/Broker, persistent read-only after latch loss/restart, and blocked business/jobs/reinstall; physical DR remains unattested.",
+        "2026-11-07T21:23:46.1507099Z Installed local Owner activation console passed separate digest/password, durable signed empty-inventory authorization, business admission and supervisor restart; manual isolation was simulated and VPS rotation/physical DR are not attested by this fixture."
+      ],
+      "id": 128532586978,
+      "name": "Stage 1 signed fresh installation / systemd and Compose",
+      "raw_log_digest_scope": "Complete decoded UTF-8 GitHub response including BOM if present, without newline conversion",
+      "raw_log_sha256": "64c8958f58d2b0b560cf706112a3cdc3f600f96e284951c35a2d2a7512e0669e",
+      "run_id": 42415508424,
+      "source_head": "688d1408004580d95ddd4d6bd1c75c576b1bb764",
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42415508424/job/128532586978"
+    },
+    {
+      "conclusion": "success",
+      "excerpts": [
+        "2026-11-07T21:22:14.0196101Z Distinct Worker UID verified a signed host report; a same-group stranger was denied."
+      ],
+      "id": 128532586980,
+      "name": "Stage 1 host TimeHealth / chrony",
+      "raw_log_digest_scope": "Complete decoded UTF-8 GitHub response including BOM if present, without newline conversion",
+      "raw_log_sha256": "452e13b076767faa4fa6c5ca330fe2c0b7000ef182d82c4411e5b4a73055931a",
+      "run_id": 42415508424,
+      "source_head": "688d1408004580d95ddd4d6bd1c75c576b1bb764",
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42415508424/job/128532586980"
+    },
+    {
+      "conclusion": "success",
+      "excerpts": [
+        "2026-11-07T21:22:16.9576580Z test_bootstrap_expiry_rotation_and_concurrent_consumption (test_auth_api.BootstrapTests.test_bootstrap_expiry_rotation_and_concurrent_consumption) ... ok",
+        "2026-11-07T21:22:17.1304969Z test_first_web_visitor_cannot_bootstrap_owner_and_token_is_local_single_use (test_auth_api.BootstrapTests.test_first_web_visitor_cannot_bootstrap_owner_and_token_is_local_single_use) ... ok",
+        "2026-11-07T21:22:17.3406228Z test_local_cli_creates_owner_without_password_or_token_in_arguments (test_auth_api.BootstrapTests.test_local_cli_creates_owner_without_password_or_token_in_arguments) ... ok",
+        "2026-11-07T21:22:17.3977626Z test_new_passwords_require_fourteen_characters_and_api_cli_refuses_root (test_auth_api.BootstrapTests.test_new_passwords_require_fourteen_characters_and_api_cli_refuses_root) ... ok",
+        "2026-11-07T21:22:18.0487332Z test_http_spoofed_proto_cross_origin_form_and_large_body_are_denied (test_http_boundary.HttpBoundaryTests.test_http_spoofed_proto_cross_origin_form_and_large_body_are_denied) ... ok",
+        "2026-11-07T21:22:26.0945517Z Ran 51 tests in 16.499s",
+        "2026-11-07T21:22:32.8374064Z test_unsigned_development_opt_in_and_broad_trust_key_permissions_are_denied (test_installation.InstallationTests.test_unsigned_development_opt_in_and_broad_trust_key_permissions_are_denied) ... ok",
+        "2026-11-07T21:22:32.8491449Z test_verified_copy_has_only_signed_files_and_never_copies_the_offline_seed (test_installation.InstallationTests.test_verified_copy_has_only_signed_files_and_never_copies_the_offline_seed) ... ok",
+        "2026-11-07T21:22:47.0670355Z Ran 137 tests in 20.573s"
+      ],
+      "id": 128532586993,
+      "name": "Stage 1 Auth, RBAC and Audit / Python 3.13",
+      "raw_log_digest_scope": "Complete decoded UTF-8 GitHub response including BOM if present, without newline conversion",
+      "raw_log_sha256": "594f9acb0b3f188db093f2a1a1e515ec8ac4bcdc2deb67184d0d2a0d84ed0c9f",
+      "run_id": 42415508424,
+      "source_head": "688d1408004580d95ddd4d6bd1c75c576b1bb764",
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42415508424/job/128532586993"
+    },
+    {
+      "conclusion": "success",
+      "excerpts": [
+        "2026-11-07T21:22:09.0457431Z  Kernel Version: 7.0.0-1017-azure",
+        "2026-11-07T21:22:16.4267829Z Denied interactive shell",
+        "2026-11-07T21:22:16.6838427Z Denied remote shell syntax",
+        "2026-11-07T21:22:16.9393912Z Denied untyped stdin",
+        "2026-11-07T21:22:17.1967186Z Denied target traversal",
+        "2026-11-07T21:22:17.4492254Z Denied environment override",
+        "2026-11-07T21:22:17.6801725Z Denied PTY",
+        "2026-11-07T21:22:17.9103109Z Denied remote forwarding",
+        "2026-11-07T21:22:17.9223396Z Denied sudo helper arguments",
+        "2026-11-07T21:22:17.9319844Z Denied sudo shell",
+        "2026-11-07T21:22:18.5092270Z Denied shell without per-key options",
+        "2026-11-07T21:22:18.6536389Z Denied old Controller key after manual rotation"
+      ],
+      "id": 128532587057,
+      "name": "Delegated restart effect / SSH, systemd and Docker",
+      "raw_log_digest_scope": "Complete decoded UTF-8 GitHub response including BOM if present, without newline conversion",
+      "raw_log_sha256": "d799ce1149e29363d0c215d224aee487280d804f6f7e6f7a1949189ae5d0e35e",
+      "run_id": 42415508424,
+      "source_head": "688d1408004580d95ddd4d6bd1c75c576b1bb764",
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42415508424/job/128532587057"
+    },
+    {
+      "conclusion": "success",
+      "excerpts": [
+        "2026-11-07T21:22:01.2757446Z Denied interactive shell",
+        "2026-11-07T21:22:01.4984260Z Denied remote shell syntax",
+        "2026-11-07T21:22:01.7316461Z Denied untyped stdin",
+        "2026-11-07T21:22:01.9625618Z Denied target traversal",
+        "2026-11-07T21:22:02.1935103Z Denied environment override",
+        "2026-11-07T21:22:02.3967999Z Denied PTY",
+        "2026-11-07T21:22:02.6029273Z Denied remote forwarding",
+        "2026-11-07T21:22:02.6128612Z Denied sudo helper arguments",
+        "2026-11-07T21:22:02.6201243Z Denied sudo shell",
+        "2026-11-07T21:22:03.1364361Z Denied shell without per-key options",
+        "2026-11-07T21:22:03.2633970Z Denied old Controller key after manual rotation"
+      ],
+      "id": 128532587059,
+      "name": "Restricted SSH account / Ubuntu",
+      "raw_log_digest_scope": "Complete decoded UTF-8 GitHub response including BOM if present, without newline conversion",
+      "raw_log_sha256": "646d222c3bfbe8fd682929b36ba28d0134a845af1ea0816bdfb5f78c041219bb",
+      "run_id": 42415508424,
+      "source_head": "688d1408004580d95ddd4d6bd1c75c576b1bb764",
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42415508424/job/128532587059"
+    },
+    {
+      "conclusion": "success",
+      "excerpts": [
+        "2026-11-07T21:22:03.4441798Z test_missing_requirement_even_with_its_tests_removed_and_index_drift_are_denied (test_baseline.BaselineTests.test_missing_requirement_even_with_its_tests_removed_and_index_drift_are_denied) ... ok",
+        "2026-11-07T21:22:03.4505535Z test_other_uid_or_gid_is_denied_even_with_a_forged_role (test_broker_lab.BrokerProbeTests.test_other_uid_or_gid_is_denied_even_with_a_forged_role) ... ok",
+        "2026-11-07T21:22:03.7484808Z test_verified_backup_is_transferred_and_consumed_once (test_recovery.RecoveryTests.test_verified_backup_is_transferred_and_consumed_once) ... ok",
+        "2026-11-07T21:22:03.7627630Z test_wrong_signer_and_modified_source_are_denied_before_decrypt (test_recovery.RecoveryTests.test_wrong_signer_and_modified_source_are_denied_before_decrypt) ... ok",
+        "2026-11-07T21:22:03.7927918Z test_pass_requires_evidence_and_verified_digest (test_requirements.RegistryTests.test_pass_requires_evidence_and_verified_digest) ... ok",
+        "2026-11-07T21:22:05.8503528Z test_no_publication_without_a_verified_receipt (test_snapshot.SnapshotTests.test_no_publication_without_a_verified_receipt) ... ok",
+        "2026-11-07T21:22:06.7249111Z Ran 66 tests in 4.671s",
+        "2026-11-07T21:22:06.8007575Z Stage0 passed",
+        "2026-11-07T21:22:09.8709739Z Ran 4 tests in 2.909s"
+      ],
+      "id": 128532587136,
+      "name": "Stage 0 prototypes / Python 3.13",
+      "raw_log_digest_scope": "Complete decoded UTF-8 GitHub response including BOM if present, without newline conversion",
+      "raw_log_sha256": "6936e7d71a31d2cdb66622df7b24a9a5f52d83e0df9471240366d8f7fafef11c",
+      "run_id": 42415508424,
+      "source_head": "688d1408004580d95ddd4d6bd1c75c576b1bb764",
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42415508424/job/128532587136"
+    },
+    {
+      "conclusion": "success",
+      "excerpts": [
+        "2026-11-07T21:22:13.3742673Z Systemd service/socket profiles passed the systemd syntax verifier.",
+        "2026-11-07T21:22:18.5929164Z Distinct API and Worker UIDs committed one verified SSH observation through Broker and host authority.",
+        "2026-11-07T21:22:20.1977529Z DAC denied API sockets and private stores; SO_PEERCRED denied a group member spoofing Worker.",
+        "2026-11-07T21:22:21.6136985Z Replay and signature substitution were denied; raw remote canary output did not reach SQLite or SSE.",
+        "2026-11-07T21:22:25.2711961Z Second Worker was excluded by flock; killed Worker recovered as UNKNOWN despite a late successful Broker receipt.",
+        "2026-11-07T21:22:25.8190340Z Real SSH host-key replacement was denied and the failed observation was committed with audit/outbox."
+      ],
+      "id": 128532587157,
+      "name": "Stage 1 process boundary / Linux UIDs and SSH",
+      "raw_log_digest_scope": "Complete decoded UTF-8 GitHub response including BOM if present, without newline conversion",
+      "raw_log_sha256": "dff32a0b0ddf1e0d6fceaaf80092466b8b6a51beb994b8346f59ede86e5fe78d",
+      "run_id": 42415508424,
+      "source_head": "688d1408004580d95ddd4d6bd1c75c576b1bb764",
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42415508424/job/128532587157"
+    }
+  ],
+  "run_id": 42415508424,
+  "source_commit": "688d1408004580d95ddd4d6bd1c75c576b1bb764",
+  "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42415508424"
+}

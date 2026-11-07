@@ -1,6 +1,6 @@
 # Foundation Controller
 
-Пакет `hostorbit` начинает прикладной Stage1. Он предоставляет локальное создание Owner, серверную аутентификацию, scope RBAC, SQLite, Audit/Outbox и версионированный HTTP API. Лабораторный `stage0` остаётся самостоятельным набором доказательных прототипов.
+Пакет `hostorbit` реализует прикладной Stage1 Foundation. Его [приёмка по шести capabilities §40](../evidence/acceptance/stage1-2026-11-08/README.md) зафиксирована отдельно от полного MVP. Он предоставляет локальное создание Owner, серверную аутентификацию, scope RBAC, SQLite, Audit/Outbox и версионированный HTTP API. Лабораторный `stage0` остаётся самостоятельным набором доказательных прототипов.
 
 ## Установка для разработки
 
@@ -54,4 +54,4 @@ Owner управляет прикладными правами. Admin испол
 
 Тесты включают гонку bootstrap, реальный SIGKILL до commit, ошибку записи Outbox, конкурентные ETag updates, обход RBAC, отзыв сессий, CSRF, лимиты и подмену proxy headers. В CI выделен отдельный Python 3.13 job.
 
-[Runtime contour](stage1-runtime.md) добавляет фиксированный read-only SSH probe через очередь, отдельные Worker/Broker и host authority. Browser получает только нормализованное наблюдение. [Development-установка](stage1-installation.md) разворачивает проверенный подписанный bundle; [репетиция миграции](stage1-migrations.md) работает с приватными копиями. Docker mutations, обновления и generic decrypt не входят в installed registry. Stage2 Change Plan/UI, live schema migration, полноценная release-упаковка и общий gate Stage1 остаются открытыми. Canonical registry и отдельные принятые evidence определяют переходы этапов.
+[Runtime contour](stage1-runtime.md) добавляет фиксированный read-only SSH probe через очередь, отдельные Worker/Broker и host authority. Browser получает только нормализованное наблюдение. [Development-установка](stage1-installation.md) разворачивает проверенный подписанный bundle; [репетиция миграции](stage1-migrations.md) работает с приватными копиями. Docker mutations, обновления и generic decrypt не входят в installed registry. Stage2 Change Plan/UI, live schema migration, полноценный production release и полные MVP AC остаются открытыми. Stage1 Foundation gate принят в ограниченном объёме §40; canonical registry и отдельные evidence определяют остальные переходы.

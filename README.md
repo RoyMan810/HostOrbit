@@ -2,7 +2,7 @@
 
 Self-hosted система управления Linux-серверами. Разработка начата с лабораторных прототипов Stage 0 по ТЗ v2.3.
 
-Прикладной Stage1 начат в пакете `hostorbit` — локальный Owner bootstrap, Auth/RBAC и SQLite с Audit/Outbox. [Запуск и границы Foundation](docs/stage1-foundation.md). Проверки приложения находятся в `tests_app`; лабораторные прототипы продолжают проверяться отдельно.
+Прикладной Stage1 Foundation реализован в пакете `hostorbit` — локальный Owner bootstrap, Auth/RBAC и SQLite с Audit/Outbox. [Запуск и границы Foundation](docs/stage1-foundation.md). Проверки приложения находятся в `tests_app`; лабораторные прототипы продолжают проверяться отдельно.
 
 [Runtime Stage1](docs/stage1-runtime.md) связывает read-only SSH observation с durable Job, отдельными UID Worker/Broker и независимым host authority. Проверки контрактов находятся в `tests_runtime`; отдельный CI job проверяет реальные Linux identities и SSH namespace.
 
@@ -16,15 +16,15 @@ Self-hosted система управления Linux-серверами. Раз
 
 [TimeHealth](docs/stage1-time-health.md) проверяет host chrony/timesyncd, clock continuity и подписанные привязки времени к ревизиям планов. Недостоверное время закрывает mutating admission и удерживает прерванное обновление в `RECOVERY_HOLD`; read-only probe остаётся доступен.
 
-[Барьер снимка](docs/stage1-backup-barrier.md) закрывает новые изменения и claims, допускает завершение активной работы, затем кратко останавливает critical writers до начала SQLite transactions. Независимый Root Coordinator фиксирует фазы и восстанавливается после SIGKILL; полный off-host ControllerBackup и live migration gate пока не реализованы.
+[Барьер снимка](docs/stage1-backup-barrier.md) закрывает новые изменения и claims, допускает завершение активной работы, затем кратко останавливает critical writers до начала SQLite transactions. Независимый Root Coordinator фиксирует фазы и восстанавливается после SIGKILL; archive/SFTP реализованы отдельно, live migration gate остаётся закрытым.
 
 [Vault pin](docs/stage1-vault-pins.md) фиксирует private metadata, Broker receipts и referenced ciphertext отдельным Broker-UID helper под Root barrier. Active/revoked версии и committed WAL сохраняются; plaintext keys не записываются. Это локальный staging без portable DEK, публикации и допуска Backup Gate.
 
-[Controller archive](docs/stage1-controller-archive.md) собирает App/Gate/config/dependency metadata, передаёт portable DEK из памяти Broker прямо в age и подписывает ciphertext/manifest. Writer admission открывается до encryption. Создание локального архива отделено от SFTP publication; restore и live migration gate пока закрыты.
+[Controller archive](docs/stage1-controller-archive.md) собирает App/Gate/config/dependency metadata, передаёт portable DEK из памяти Broker прямо в age и подписывает ciphertext/manifest. Writer admission открывается до encryption. Restore реализован через отдельные Rescue/import/installation/activation; независимая DR-приёмка и live migration gate остаются открытыми.
 
 [SFTP publication](docs/stage1-sftp-publication.md) публикует signed ciphertext на protected target с отдельным Vault purpose, fsync/readback и финальным marker/rename без overwrite. Root фиксирует completion только после verified receipt; restore/freshness/independent failure-domain gates ещё не закрыты.
 
-[Приёмка Stage0](evidence/acceptance/stage0-2026-11-07/README.md): 15 обязательных лабораторных критериев имеют проверенные отчёты `PASS`. Рецензирование выполнено автоматической самопроверкой Codex с явными ограничениями стенда. Остальные 69 AC сохраняют `NOT_RUN`; Stage1 и выпуск MVP остаются открытыми.
+[Приёмка Stage0](evidence/acceptance/stage0-2026-11-07/README.md) подтверждена повторно: 15 обязательных лабораторных критериев имеют `PASS`. [Stage1 Foundation принят по шести capabilities §40](evidence/acceptance/stage1-2026-11-08/README.md), с положительными/отрицательными component/native checks и явными границами автоматической самопроверки Codex. Остальные 69 полных AC сохраняют `NOT_RUN`; Stage2 и выпуск MVP не приняты. Приёмка Foundation не повышает все FR/AC с тегом Stage1.
 
 ## Допуск к изменениям
 
