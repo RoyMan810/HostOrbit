@@ -1,5 +1,7 @@
 # Установка Foundation Stage1
 
+Постоянные родительские каталоги установки (`/opt`, `/etc`, `/var/lib`, `/run` и их ancestors) должны принадлежать root и не допускать group/other write. Preflight отказывает с `INSTALLATION_PARENT_UNTRUSTED` до создания состояния и не меняет права чужих системных каталогов. Disposable CI fixture отдельно проверяет отказ на `/opt` 0777, затем готовит защищённый профиль 0755 только в своей временной VM.
+
 Установщик разворачивает **development-сборку** на свежей Ubuntu Server 24.04 amd64. Он устанавливает API и Worker через Compose, host-native Broker и supervisor через systemd. Доступно только наблюдение `host.probe`; production mutation, автоматическое обновление и миграция существующей БД этим установщиком не разрешены.
 
 Нужны rootful Docker Engine 29.x, Compose plugin v2, host Python 3.13 с SQLite ≥3.45, OpenSSL 3 и systemd. Интерпретатор Python должен находиться по постоянному доверенному пути: host supervisor использует его независимо от контейнеров. Минимальная конфигурация Controller — 2 CPU, 4 GiB RAM, 40 GiB диска. Установщик проверяет свободный высокий loopback-порт, существующие namespace, пользователей и units до создания данных. Установка Docker/Python и подписанные самостоятельные host-runtime artifacts относятся к следующей упаковке bootstrap/release.
