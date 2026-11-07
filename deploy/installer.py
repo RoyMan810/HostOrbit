@@ -76,6 +76,16 @@ def folder(path, mode, uid=0, gid=0):
     path.chmod(mode)
 
 
+def system_config_directory(path):
+    """Minimal Ubuntu images may omit optional /etc/*.d directories."""
+    try:
+        folder(path, 0o755)
+    except FileExistsError:
+        info = path.lstat()
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+            raise ArtifactError("SYSTEM_CONFIG_DIRECTORY_UNTRUSTED") from None
+
+
 def origin(value):
     p = urlsplit(value)
     try:
@@ -326,6 +336,8 @@ def install(args):
                     "manifest_sha256": digest, "source_commit": manifest["source_commit"], "version": manifest["version"],
                     "channel": "development", "remote_mutation_enabled": False, "recovery": "NOT_READY", "port": args.port}
         write(APP / "installation.json", canonical(metadata), mode=0o600)
+        for path in (UNITS, Path("/etc/sysusers.d"), Path("/etc/tmpfiles.d")):
+            system_config_directory(path)
         for name in HOST_UNITS:
             write(UNITS / name, (bundle / "deploy/systemd" / name).read_bytes())
         write(Path("/etc/sysusers.d/hostorbit.conf"), (bundle / "deploy/sysusers.d/hostorbit.conf").read_bytes())
@@ -389,8 +401,8 @@ def main(argv=None):
             # Code locations and exception classes help diagnose installation
             # failures without forwarding exception messages or local values.
             frames = traceback.extract_tb(error.__traceback__)
-            site = next((frame for frame in reversed(frames) if frame.filename == __file__), frames[-1])
-            print(f"failure_site=installer.py:{site.lineno} error_type={type(error).__name__}", file=sys.stderr)
+            sites = ",".join(str(frame.lineno) for frame in frames if frame.filename == __file__)
+            print(f"failure_site=installer.py:{sites} error_type={type(error).__name__}", file=sys.stderr)
         return 1
     return 0
 
