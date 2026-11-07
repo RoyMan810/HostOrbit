@@ -152,6 +152,15 @@ def main():
             "--port", str(PORT), "--docker-host", args.docker_host]
     with tempfile.TemporaryDirectory(prefix="hostorbit-install-lab-", dir="/run") as temp:
         root = Path(temp)
+        # setup-docker-action puts its daemon below runner's private home. The
+        # capability-free root Compose unit must not gain DAC override merely
+        # to traverse that test-only directory. Bind the same socket into this
+        # root-owned lab directory, like /run/docker.sock on a normal host.
+        daemon_socket = root / "docker.sock"
+        daemon_socket.touch(mode=0o600)
+        run("/usr/bin/mount", "--bind", args.docker_host.removeprefix("unix://"), daemon_socket)
+        args.docker_host = "unix://" + str(daemon_socket)
+        base[base.index("--docker-host") + 1] = args.docker_host
         # Independent trust root, not a public key automatically accepted from the bundle.
         trusted = root / "trusted.pub"
         trusted.write_bytes(args.trust_key.read_bytes())
@@ -259,6 +268,7 @@ print(json.dumps(out))
                 run("/usr/bin/systemctl", "stop", "hostorbit-compose.service", check=False, timeout=40)
                 docker(args.docker_host, "compose", "--project-name", "hostorbit", "--file",
                        "/etc/hostorbit/compose.json", "down", timeout=60)
+            run("/usr/bin/umount", daemon_socket, check=False)
 
 
 if __name__ == "__main__":
