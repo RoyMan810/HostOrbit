@@ -2,6 +2,8 @@
 
 Это прикладная основа Coordinator из §33.1 ТЗ v2.3. Новая установка включает её для API, Worker, Broker, Vault и host authority. Сам барьер ещё не создаёт пригодный ControllerBackup и не открывает Backup Gate: age stream, полный pin/export, подпись, off-host publication и проверка восстановления остаются следующим участком реализации.
 
+[Локальный Vault pin](stage1-vault-pins.md) уже захватывает private Vault/receipt SQLite и referenced ciphertext отдельным sandboxed Broker helper. Полный Controller snapshot и portable key export пока не собираются.
+
 ## Контракт записи
 
 Root владеет постоянным inode `writers.lock` и атомарно заменяемым `state.json` в `/var/lib/hostorbit/writer-admission` (каталог 0755, файлы 0644, без symlink/hardlink). API и Worker получают только read-only bind всего каталога, поэтому видят новые состояния после rename, но не могут заменить lock или latch. Отдельный private control journal находится в `/var/lib/hostorbit/control-gate/snapshots` (0700/0600).

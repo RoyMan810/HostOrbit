@@ -14,6 +14,8 @@ Self-hosted система управления Linux-серверами. Раз
 
 [Барьер снимка](docs/stage1-backup-barrier.md) закрывает новые изменения и claims, допускает завершение активной работы, затем кратко останавливает critical writers до начала SQLite transactions. Независимый Root Coordinator фиксирует фазы и восстанавливается после SIGKILL; полный off-host ControllerBackup и live migration gate пока не реализованы.
 
+[Vault pin](docs/stage1-vault-pins.md) фиксирует private metadata, Broker receipts и referenced ciphertext отдельным Broker-UID helper под Root barrier. Active/revoked версии и committed WAL сохраняются; plaintext keys не записываются. Это локальный staging без portable DEK, публикации и допуска Backup Gate.
+
 [Приёмка Stage0](evidence/acceptance/stage0-2026-11-07/README.md): 15 обязательных лабораторных критериев имеют проверенные отчёты `PASS`. Рецензирование выполнено автоматической самопроверкой Codex с явными ограничениями стенда. Остальные 69 AC сохраняют `NOT_RUN`; Stage1 и выпуск MVP остаются открытыми.
 
 ## Допуск к изменениям
