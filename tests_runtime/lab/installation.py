@@ -629,6 +629,8 @@ from hostorbit.database import DataAccess,Store
 from hostorbit.runtime.authority import Authority
 from hostorbit.runtime.coordinator import Coordinator
 from hostorbit.runtime.policy import Policy
+from nacl.secret import Aead
+import subprocess,sqlite3,hashlib,stat
 c=json.load(open('/etc/hostorbit/runtime.json'))
 w=Admission(c['writer_directory'])
 assert w.state()['phase']=='READ_ONLY_RECOVERY'
@@ -639,6 +641,22 @@ with a.journal.connect() as db:
  assert r['activated']==0 and r['state']=='RECOVERY_HOLD'
  assert db.execute('SELECT count(*) FROM attempts').fetchone()[0]==0
 a.close()
+key=subprocess.run(['/usr/bin/systemd-creds','decrypt','--name=broker-dek',c['vault_credential'],'-'],capture_output=True,check=True).stdout
+pin=json.load(open('/var/lib/hostorbit-rescue-lab/target-data/source/pin.json'))
+assert len(key)==32 and hashlib.sha256(key).hexdigest()==pin['key_fingerprints']['1']
+objects=Path(c['vault_directory'])/'objects'
+with sqlite3.connect(Path(c['vault_directory'])/'vault.sqlite3') as db:
+ rows=db.execute('SELECT ref,metadata,object_digest,state FROM secrets ORDER BY ref').fetchall()
+ assert [(r[0],r[2],r[3]) for r in rows]==[(r['ref'],r['object_digest'],r['state']) for r in pin['references']]
+ for ref,metadata,digest,state in rows:
+  p=objects/digest
+  assert p.stat().st_uid==c['broker_uid'] and stat.S_IMODE(p.stat().st_mode)==0o600
+  raw=p.read_bytes()
+  assert hashlib.sha256(raw).hexdigest()==digest
+  secret=Aead(key).decrypt(raw,metadata.encode())
+  assert secret.startswith(b'-----BEGIN OPENSSH PRIVATE KEY-----')
+  del secret
+del key
 Path(c['writer_directory'],'state.json').unlink()
 Coordinator(Path(c['supervisor_directory'])/'snapshots',w).recover_if_idle()
 assert w.state()['phase']=='READ_ONLY_RECOVERY'
@@ -646,6 +664,10 @@ print('RECOVERY_JOURNALS_VERIFIED')
 """
     if run("/opt/hostorbit/venv/bin/python", "-c", verify).stdout.strip() != b"RECOVERY_JOURNALS_VERIFIED":
         raise RuntimeError("Recovered installed journals failed verification")
+    for service in ("hostorbit-broker.service", "hostorbit-supervisor.service"):
+        if (run("/usr/bin/systemctl", "is-active", service).stdout.strip() != b"active"
+                or run("/usr/bin/systemctl", "show", "--property=NRestarts", "--value", service).stdout.strip() != b"0"):
+            raise RuntimeError("Recovered native service failed startup or restarted")
     # Actual HTTPS requests into the installed API, with auth-control writes
     # allowed and business/dispatch mutations rejected by the protected profile.
     with tls_proxy(Path(state).parent) as context:
