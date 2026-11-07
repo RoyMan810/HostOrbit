@@ -191,7 +191,7 @@ def bind(source, target, *, read_only=True):
 
 def compose_document(config, image, port):
     common = {"image": image, "pull_policy": "never", "read_only": True,
-              "cap_drop": ["ALL"], "security_opt": ["no-new-privileges:true"], "userns_mode": "host",
+              "cap_drop": ["ALL"], "security_opt": ["no-new-privileges=true"], "userns_mode": "host",
               "restart": "unless-stopped", "pids_limit": 128, "mem_limit": "512m", "cpus": 1,
               "tmpfs": ["/tmp:rw,nosuid,nodev,noexec,size=16m,mode=1777"],
               "environment": {"HOME": "/nonexistent", "PYTHONNOUSERSITE": "1", "PYTHONDONTWRITEBYTECODE": "1"},
@@ -208,7 +208,8 @@ def compose_document(config, image, port):
                    "network_mode": "none", "group_add": [str(config[key]) for key in ("app_gid", "broker_rpc_gid", "gate_rpc_gid")],
                    "volumes": [*mounts, bind(CONFIG / "targets.json", CONFIG / "targets.json"),
                                bind(RUN / "broker", RUN / "broker"), bind(RUN / "supervisor", RUN / "supervisor")]},
-    }, "networks": {"api": {"internal": True}}}
+    }, "networks": {"api": {"driver": "bridge", "internal": False,
+                              "driver_opts": {"com.docker.network.bridge.host_binding_ipv4": "127.0.0.1"}}}}
 
 
 def load_installation():
@@ -325,7 +326,7 @@ def install(args):
         prefix = ("compose", "--project-name", "hostorbit", "--project-directory", str(APP), "--file", str(CONFIG / "compose.json"))
         docker(args.docker_host, *prefix, "create", "--no-build")
         network, = json.loads(docker(args.docker_host, "network", "inspect", "hostorbit_api"))
-        if network["Labels"].get("com.docker.compose.project") != "hostorbit" or not network["Internal"]:
+        if network["Labels"].get("com.docker.compose.project") != "hostorbit" or network["Internal"]:
             raise ArtifactError("COMPOSE_NETWORK_BINDING_INVALID")
         gateway = ipaddress.ip_address(network["IPAM"]["Config"][0]["Gateway"])
         if gateway.version != 4 or not gateway.is_private:

@@ -156,6 +156,8 @@ class InstallationTests(unittest.TestCase):
         self.assertEqual(worker["group_add"], ["23201", "23202", "23203"])
         self.assertNotIn("group_add", api)
         self.assertEqual(set(doc["services"]), {"api", "worker"})
+        self.assertFalse(doc["networks"]["api"]["internal"])
+        self.assertEqual(doc["networks"]["api"]["driver_opts"]["com.docker.network.bridge.host_binding_ipv4"], "127.0.0.1")
         for service in (api, worker):
             self.assertEqual(service["userns_mode"], "host")
             self.assertEqual(service["cap_drop"], ["ALL"])
