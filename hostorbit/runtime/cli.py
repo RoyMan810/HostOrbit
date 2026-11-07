@@ -71,7 +71,7 @@ def configuration(path):
 def run(config, command, *, once=False, listener=None, import_args=None):
     expected = {"supervisor": 0, "initialize-supervisor": 0, "api": config["app_uid"], "worker": config["worker_uid"],
                 "broker": config["broker_uid"], "initialize-broker": config["broker_uid"], "import-key": config["broker_uid"],
-                "pin-vault": config["broker_uid"],
+                "pin-vault": config["broker_uid"], "seal-controller": config["broker_uid"],
                 "register-observations": 0, "initialize-time-health": 0, "time-health": 0,
                 "initialize-credential": 0, "initialize-writers": 0}[command]
     if os.geteuid() != expected:
@@ -165,6 +165,10 @@ def run(config, command, *, once=False, listener=None, import_args=None):
         Broker.initialize(config["broker_directory"], policy)
         return
     vault = Vault(config["vault_directory"], credential, systemd_credential=managed_credential, writers=writers)
+    if command == "seal-controller":
+        from .archive_stream import seal
+        seal(vault, config["broker_directory"], import_args.snapshot_id, sys.stdin.buffer, sys.stdout.buffer)
+        return
     if command == "pin-vault":
         if writers is None:
             raise Denied("WRITER_CONFIGURATION_REQUIRED")
@@ -202,10 +206,12 @@ def main(argv=None):
     key.add_argument("--version", type=int, default=1)
     pin = commands.add_parser("pin-vault", help="Private local pin under an active Root snapshot barrier; never an off-host backup")
     pin.add_argument("--snapshot-id", required=True)
+    seal = commands.add_parser("seal-controller", help="Broker-only one-way age stream; ciphertext stdout only")
+    seal.add_argument("--snapshot-id", required=True)
     args = parser.parse_args(argv)
     try:
         run(configuration(args.config), args.command, once=getattr(args, "once", False), import_args=args)
-    except (Denied, OSError, RuntimeError, ValueError, sqlite3.Error) as error:
+    except (Denied, OSError, RuntimeError, ValueError, sqlite3.Error, TypeError, KeyError) as error:
         print(error.code if isinstance(error, Denied) else "RUNTIME_UNAVAILABLE", file=sys.stderr)
         return 1
     return 0

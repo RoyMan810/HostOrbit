@@ -14,7 +14,8 @@ import time
 from ..admission import Admission
 from ..database import identifier
 from ..errors import Denied
-from .storage import Journal, process_lock
+from .storage import Journal, new_private_file, process_lock
+from .protocol import canonical
 
 
 _SCHEMA = """
@@ -24,7 +25,8 @@ CREATE TABLE transitions(seq INTEGER PRIMARY KEY AUTOINCREMENT, snapshot_id TEXT
 CREATE TRIGGER transitions_no_update BEFORE UPDATE ON transitions BEGIN SELECT RAISE(ABORT,'APPEND_ONLY'); END;
 CREATE TRIGGER transitions_no_delete BEFORE DELETE ON transitions BEGIN SELECT RAISE(ABORT,'APPEND_ONLY'); END;
 """
-_NEXT = {"REQUESTED": "CLOSING_ADMISSION", "CLOSING_ADMISSION": "SHORT_BARRIER", "SHORT_BARRIER": "BARRIER_RELEASED"}
+_NEXT = {"REQUESTED": "CLOSING_ADMISSION", "CLOSING_ADMISSION": "SHORT_BARRIER", "SHORT_BARRIER": "BARRIER_RELEASED",
+         "BARRIER_RELEASED": "SEALED", "SEALED": "SIGNED"}
 
 
 class _Expired(BaseException):
@@ -76,7 +78,8 @@ class Coordinator:
                 db.execute("INSERT INTO snapshots VALUES(?,?,?)", (snapshot_id, phase, reason))
             else:
                 if (phase != _NEXT.get(old["phase"]) and not
-                        (phase == "ABORTED" and old["phase"] in {*_NEXT, "BARRIER_RELEASED"})):
+                        (phase == "ABORTED" and old["phase"] in {"REQUESTED", "CLOSING_ADMISSION", "SHORT_BARRIER", "BARRIER_RELEASED"})
+                        and not (phase == "FAILED" and old["phase"] in {"BARRIER_RELEASED", "SEALED", "SIGNED"})):
                     raise Denied("SNAPSHOT_TRANSITION_DENIED")
                 db.execute("UPDATE snapshots SET phase=?,reason=? WHERE id=?", (phase, reason, snapshot_id))
             db.execute("INSERT INTO transitions(snapshot_id,phase,reason,boot_id,monotonic_ns) VALUES(?,?,?,?,?)",
@@ -106,8 +109,9 @@ class Coordinator:
             for snapshot_id in set(unfinished + ([token] if token else [])):
                 with self.journal.connect() as db:
                     row = db.execute("SELECT phase FROM snapshots WHERE id=?", (snapshot_id,)).fetchone()
-                if row is None or row["phase"] != "ABORTED":
-                    self._transition(snapshot_id, "ABORTED", "COORDINATOR_RESTART", recovering=True)
+                if row is None or row["phase"] not in {"ABORTED", "FAILED"}:
+                    phase = "FAILED" if row is not None and row["phase"] in {"SEALED", "SIGNED"} else "ABORTED"
+                    self._transition(snapshot_id, phase, "COORDINATOR_RESTART", recovering=True)
             # Status is durable before reopening. Existing control transactions
             # are allowed to finish; no snapshot is being taken during recovery.
             self.admission.publish("OPEN")
@@ -126,7 +130,7 @@ class Coordinator:
             if error.code != "PROCESS_ALREADY_RUNNING":
                 raise
 
-    def snapshot(self, drain, capture, *, drain_timeout=60, barrier_timeout=30):
+    def snapshot(self, drain, capture, *, drain_timeout=60, barrier_timeout=30, metadata=None):
         """Return (id, local result) only after all critical writers are released.
 
         drain() polls active work without holding SQLite write transactions;
@@ -151,6 +155,13 @@ class Coordinator:
             try:
                 with _deadline(drain_timeout):
                     self.admission.publish("CLOSING_ADMISSION", snapshot_id)
+                    if metadata is not None:
+                        raw = canonical(metadata)
+                        if len(raw) > 16384:
+                            raise Denied("SNAPSHOT_REQUEST_INVALID")
+                        requests = self.directory / "requests"
+                        requests.mkdir(mode=0o700, exist_ok=True)
+                        new_private_file(requests / (snapshot_id + ".json"), raw)
                     self._transition(snapshot_id, "REQUESTED")
                     self._transition(snapshot_id, "CLOSING_ADMISSION")
                     while not drain():
