@@ -25,7 +25,7 @@ class TimeHealth:
         self.journal = Journal(Path(directory) / "time.sqlite3")
         self.source, self.clock, self.watch = source or HostSources(), clock or clocks, watch or ClockWatch()
         self._next_probe = 0
-        self._recovery_failed = False
+        self._recovery_failed = True
 
     @classmethod
     def initialize(cls, directory, **kwargs):
@@ -33,7 +33,9 @@ class TimeHealth:
         with journal.write() as db:
             db.execute("INSERT INTO state VALUES(1,?)", (canonical({"generation": 0, "previous": None, "base": None,
                 "reason": "TIME_STARTUP", "clock_step_detected": False, "blocked_measurement": None}).decode(),))
-        return cls(directory, **kwargs)
+        health = cls(directory, **kwargs)
+        health._recovery_failed = False  # A new journal has no prior approvals.
+        return health
 
     @staticmethod
     def _read(db):
@@ -167,7 +169,7 @@ class TimeHealth:
                                 base["rate_ppm"] = max(base["rate_ppm"], sample["rate_ppm"])
                     except Denied as error:
                         if error.code != "TIME_SOURCE_UNAVAILABLE":
-                            self._invalidate(state, error.code)
+                            self._invalidate(state, error.code, step=error.code == "TIME_WATCH_UNAVAILABLE")
                         elif state["base"] is None:
                             state["reason"] = error.code
                     except (OSError, KeyError, ValueError, TypeError):

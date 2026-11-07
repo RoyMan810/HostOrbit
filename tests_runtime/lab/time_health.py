@@ -125,7 +125,7 @@ def configure_source(root, source):
               "driftfile /run/chrony/hostorbit-time-lab.drift\n")
         write(Path("/run/systemd/system/chrony.service.d/99-hostorbit-time-lab.conf"),
               "[Service]\nType=simple\nPIDFile=\nExecStart=\n"
-              f"ExecStart=/usr/sbin/chronyd -d -x -u _chrony -f {config}\n")
+              f"ExecStart=/usr/sbin/chronyd -d -x -U -u _chrony -f {config}\n")
         unit = "chrony.service"
     run("/usr/bin/systemctl", "daemon-reload")
     return unit
