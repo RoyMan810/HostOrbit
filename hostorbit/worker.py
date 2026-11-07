@@ -1,6 +1,6 @@
 """One process owns a durable queue claim. All SSH use goes through protected local IPC."""
 
-import time
+from threading import Event
 
 from .database import identifier
 from .errors import Denied
@@ -75,13 +75,15 @@ class Worker:
             self.queue.finish(claim, "UNKNOWN_OUTCOME" if sent else "CANCELLED_SAFE", error.code)
         return True
 
-    def run(self, *, once=False):
+    def run(self, *, once=False, stop=None):
+        stop = stop if stop is not None else Event()
         path = self.queue.store.path.with_suffix(".worker.lock")
         with process_lock(path, shared_gid=self.queue.store.access.shared_gid):
             self.queue.recover(self._recover_result)
-            while True:
+            while not stop.is_set():
                 found = self.run_one()
                 if once:
                     return found
                 if not found:
-                    time.sleep(0.5)
+                    stop.wait(0.5)
+            return False
