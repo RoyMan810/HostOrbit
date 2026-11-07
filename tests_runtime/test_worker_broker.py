@@ -158,3 +158,19 @@ class RuntimeTests(unittest.TestCase):
             db.execute("UPDATE secrets SET metadata=?", (canonical(value).decode(),))
         with self.assertRaisesRegex(Denied, "CORRUPT"):
             self.vault.use_ssh(SECRET + ":v1", worker_uid=WORKER_UID, target=TARGET)
+
+    def test_swapping_a_complete_secret_metadata_blob_pair_cannot_change_the_requested_reference(self):
+        other = "01JCYQZ4T9V8MNVYEH3D2M7Q1E"
+        self.vault.import_ssh(other, 1, private_key(), owner_id=ACTOR, worker_uid=WORKER_UID, target=TARGET)
+        self.vault.revoke(other + ":v1")
+        with self.vault.journal.write() as db:
+            row = db.execute("SELECT metadata,object_digest FROM secrets WHERE ref=?", (other + ":v1",)).fetchone()
+            db.execute("UPDATE secrets SET metadata=?,object_digest=? WHERE ref=?", (*row, SECRET + ":v1"))
+        with self.assertRaisesRegex(Denied, "SECRET_SCOPE_DENIED"):
+            self.vault.use_ssh(SECRET + ":v1", worker_uid=WORKER_UID, target=TARGET)
+
+    def test_missing_runtime_key_does_not_create_a_partial_vault(self):
+        root = self.directory / "not-created"
+        with self.assertRaises(FileNotFoundError):
+            Vault.initialize(root, self.directory / "missing-dek")
+        self.assertFalse(root.exists())

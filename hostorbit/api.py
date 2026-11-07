@@ -1,4 +1,4 @@
-"""Versioned foundation API. No infrastructure execution routes are registered."""
+"""Versioned authentication, audit and scoped observation-job API."""
 
 import ipaddress
 import sqlite3

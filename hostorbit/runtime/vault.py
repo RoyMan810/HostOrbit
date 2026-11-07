@@ -32,9 +32,10 @@ class Vault:
     @classmethod
     def initialize(cls, directory, key_path):
         directory = Path(directory)
+        vault = cls(directory, key_path)
         Journal.initialize(directory / "vault.sqlite3", _SCHEMA)
         (directory / "objects").mkdir(mode=0o700)
-        return cls(directory, key_path)
+        return vault
 
     def import_ssh(self, secret_id, version, key, *, owner_id, worker_uid, target):
         """Local administrative provisioning; never registered as a Web or Worker RPC."""
@@ -68,7 +69,9 @@ class Vault:
             if row is None or row["state"] != "ACTIVE":
                 raise Denied("SECRET_NOT_ACTIVE")
             metadata = json.loads(row["metadata"])
-            if (metadata["purpose"] != "host.probe" or metadata["target"] != target
+            if (reference != f'{metadata["secret_id"]}:v{metadata["version"]}' or metadata["kind"] != "ssh.ed25519"
+                    or metadata["key_version"] != 1 or metadata["allowed_consumers_digest"] != checksum(metadata["allowed_consumers"])
+                    or metadata["purpose"] != "host.probe" or metadata["target"] != target
                     or worker_uid not in metadata["allowed_consumers"] or metadata["state"] != "ACTIVE"):
                 raise Denied("SECRET_SCOPE_DENIED")
             digest = text(row["object_digest"], r"[0-9a-f]{64}")
