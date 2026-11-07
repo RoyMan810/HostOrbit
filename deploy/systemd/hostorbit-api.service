@@ -1,0 +1,31 @@
+[Unit]
+Description=HostOrbit versioned API
+After=network.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+ExecStart=/opt/hostorbit/venv/bin/hostorbit-runtime --config /etc/hostorbit/runtime.json api
+User=ho-api
+Group=ho-app-db
+UMask=0007
+Restart=on-failure
+RestartSec=2
+KillMode=control-group
+NoNewPrivileges=true
+CapabilityBoundingSet=
+LimitCORE=0
+RestrictSUIDSGID=true
+LockPersonality=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/hostorbit/app
+InaccessiblePaths=/var/lib/hostorbit/vault /var/lib/hostorbit/broker /var/lib/hostorbit/control-gate /etc/hostorbit/credentials /run/hostorbit/broker /run/hostorbit/supervisor
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+[Install]
+WantedBy=multi-user.target

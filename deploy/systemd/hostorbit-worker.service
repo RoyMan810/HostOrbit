@@ -1,0 +1,33 @@
+[Unit]
+Description=HostOrbit durable observation Worker
+Requires=hostorbit-broker.socket hostorbit-supervisor.socket
+After=hostorbit-broker.socket hostorbit-supervisor.socket
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+ExecStart=/opt/hostorbit/venv/bin/hostorbit-runtime --config /etc/hostorbit/runtime.json worker
+User=ho-worker
+Group=ho-worker
+SupplementaryGroups=ho-app-db ho-broker-rpc ho-gate-rpc
+UMask=0007
+Restart=on-failure
+RestartSec=2
+KillMode=control-group
+NoNewPrivileges=true
+CapabilityBoundingSet=
+LimitCORE=0
+RestrictSUIDSGID=true
+LockPersonality=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+RestrictAddressFamilies=AF_UNIX
+ReadWritePaths=/var/lib/hostorbit/app
+InaccessiblePaths=/var/lib/hostorbit/vault /var/lib/hostorbit/broker /var/lib/hostorbit/control-gate /etc/hostorbit/credentials
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+[Install]
+WantedBy=multi-user.target

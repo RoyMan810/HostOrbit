@@ -1,0 +1,23 @@
+{
+  "v": 1,
+  "database": "/var/lib/hostorbit/app/controller.sqlite3",
+  "app_uid": 23101,
+  "app_gid": 23201,
+  "worker_uid": 23102,
+  "worker_gid": 23102,
+  "broker_uid": 23103,
+  "broker_gid": 23103,
+  "broker_rpc_gid": 23202,
+  "gate_rpc_gid": 23203,
+  "public_origin": "https://hostorbit.example",
+  "trusted_proxies": ["127.0.0.1/32"],
+  "api_port": 8000,
+  "targets": "/etc/hostorbit/targets.json",
+  "supervisor_directory": "/var/lib/hostorbit/control-gate",
+  "broker_directory": "/var/lib/hostorbit/broker",
+  "vault_directory": "/var/lib/hostorbit/vault",
+  "vault_credential": "/etc/hostorbit/credentials/broker-dek",
+  "public_verify_key": "/etc/hostorbit/gate.pub",
+  "gate_socket": "/run/hostorbit/supervisor/gate.sock",
+  "broker_socket": "/run/hostorbit/broker/broker.sock"
+}

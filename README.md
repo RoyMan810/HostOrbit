@@ -4,6 +4,8 @@ Self-hosted система управления Linux-серверами. Раз
 
 Прикладной Stage1 начат в пакете `hostorbit` — локальный Owner bootstrap, Auth/RBAC и SQLite с Audit/Outbox. [Запуск и границы Foundation](docs/stage1-foundation.md). Проверки приложения находятся в `tests_app`; лабораторные прототипы продолжают проверяться отдельно.
 
+[Runtime Stage1](docs/stage1-runtime.md) связывает read-only SSH observation с durable Job, отдельными UID Worker/Broker и независимым host authority. Проверки контрактов находятся в `tests_runtime`; отдельный CI job проверяет реальные Linux identities и SSH namespace.
+
 ## Допуск к изменениям
 
 Первый прототип в `stage0/admission.py` покрывает локальную часть T0-4 (AC-B04 и AC-B09) и моделирует отложенный эффект из T0-1 (AC-B01).

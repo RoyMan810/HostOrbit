@@ -1,0 +1,14 @@
+[Unit]
+Description=HostOrbit host admission socket
+After=systemd-tmpfiles-setup.service
+
+[Socket]
+ListenStream=/run/hostorbit/supervisor/gate.sock
+SocketUser=root
+SocketGroup=ho-gate-rpc
+SocketMode=0660
+DirectoryMode=0710
+RemoveOnStop=true
+
+[Install]
+WantedBy=sockets.target

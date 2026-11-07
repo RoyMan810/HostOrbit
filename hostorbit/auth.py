@@ -33,11 +33,11 @@ class Role(StrEnum):
     AUDITOR = "Auditor"
 
 
-PERMISSIONS = frozenset(("users:manage", "audit:read", "vps:read", "vps:restart",
+PERMISSIONS = frozenset(("users:manage", "audit:read", "vps:read", "vps:probe", "vps:restart",
                          "secrets:View Metadata", "secrets:Use", "secrets:Manage"))
 _ROLE_PERMISSIONS = {
     Role.ADMIN: PERMISSIONS,
-    Role.OPERATOR: frozenset(("vps:read", "vps:restart", "secrets:Use")),
+    Role.OPERATOR: frozenset(("vps:read", "vps:probe", "vps:restart", "secrets:Use")),
     Role.AUDITOR: frozenset(("vps:read", "audit:read", "secrets:View Metadata")),
 }
 
@@ -73,7 +73,7 @@ def username(value):
 
 
 def password(value):
-    if not isinstance(value, str) or not 12 <= len(value) <= 128 or len(value.encode("utf-8")) > 512:
+    if not isinstance(value, str) or not 14 <= len(value) <= 128 or len(value.encode("utf-8")) > 512:
         raise Denied("PASSWORD_POLICY", 422)
     return value
 

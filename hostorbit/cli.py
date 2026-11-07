@@ -7,13 +7,15 @@ import sys
 
 from .auth import AuthService
 from .config import Settings
-from .database import Store
+from .database import DataAccess, Store
 from .errors import Denied
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="hostorbit")
     parser.add_argument("--database", type=Path, required=True)
+    parser.add_argument("--database-owner", type=int)
+    parser.add_argument("--database-group", type=int)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("init", help="Create a new private application database")
     commands.add_parser("bootstrap-token", help="Issue or rotate the local one-time 10-minute Owner token")
@@ -25,11 +27,15 @@ def main(argv=None):
     serve.add_argument("--port", type=int, default=8000)
     args = parser.parse_args(argv)
     try:
+        import os
+        if args.command == "serve" and os.geteuid() == 0:
+            raise Denied("UNPRIVILEGED_API_USER_REQUIRED")
+        access = DataAccess(args.database_owner if args.database_owner is not None else os.geteuid(), args.database_group)
         if args.command == "init":
-            Store.initialize(args.database)
+            Store.initialize(args.database, access=access)
             print("Database initialized")
             return 0
-        store = Store(args.database)
+        store = Store(args.database, access=access)
         with store.connect():
             pass
         service = AuthService(store)
@@ -47,7 +53,7 @@ def main(argv=None):
                 raise ValueError("Port is outside range")
             import uvicorn
             from .api import create_app
-            settings = Settings(args.database, args.origin, tuple(args.trusted_proxy))
+            settings = Settings(args.database, args.origin, tuple(args.trusted_proxy), access.owner_uid, access.shared_gid)
             uvicorn.run(create_app(settings, auth=service), host="127.0.0.1", port=args.port,
                         proxy_headers=False, access_log=False)
     except (Denied, OSError, RuntimeError, ValueError) as error:
