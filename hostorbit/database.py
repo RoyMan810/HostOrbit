@@ -9,9 +9,10 @@ import secrets
 import sqlite3
 import stat
 import time
+from dataclasses import dataclass
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 _ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 _SCHEMA = """
 CREATE TABLE users (
@@ -67,7 +68,31 @@ CREATE TABLE outbox (
 );
 CREATE TRIGGER outbox_no_update BEFORE UPDATE ON outbox BEGIN SELECT RAISE(ABORT,'OUTBOX_APPEND_ONLY'); END;
 CREATE TRIGGER outbox_no_delete BEFORE DELETE ON outbox BEGIN SELECT RAISE(ABORT,'OUTBOX_APPEND_ONLY'); END;
-PRAGMA user_version = 1;
+CREATE TABLE resources (
+    id TEXT PRIMARY KEY, scope_digest TEXT NOT NULL, policy_revision INTEGER NOT NULL,
+    revision INTEGER NOT NULL, enabled INTEGER NOT NULL CHECK(enabled IN (0,1)),
+    created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+);
+CREATE TABLE jobs (
+    id TEXT PRIMARY KEY, actor_id TEXT NOT NULL REFERENCES users(id),
+    resource_id TEXT NOT NULL REFERENCES resources(id), action TEXT NOT NULL CHECK(action='host.probe'),
+    payload_hash TEXT NOT NULL, scope_digest TEXT NOT NULL, policy_revision INTEGER NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('QUEUED','INTENT_PREPARED','DISPATCHING','EXECUTING','VERIFYING','SUCCEEDED','FAILED','UNKNOWN_OUTCOME','CANCELLED_SAFE')),
+    revision INTEGER NOT NULL DEFAULT 1, claimed_by TEXT, claim_nonce TEXT,
+    permit TEXT, result TEXT, reason TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+);
+CREATE INDEX job_queue ON jobs(status,claimed_by,created_at);
+CREATE INDEX jobs_resource_time ON jobs(resource_id,updated_at);
+CREATE TABLE request_keys (
+    actor_id TEXT NOT NULL REFERENCES users(id), namespace TEXT NOT NULL,
+    request_key TEXT NOT NULL, payload_hash TEXT NOT NULL, job_id TEXT NOT NULL REFERENCES jobs(id),
+    expires_at INTEGER NOT NULL, PRIMARY KEY(actor_id,namespace,request_key)
+);
+CREATE TABLE job_incidents (
+    id TEXT PRIMARY KEY, job_id TEXT NOT NULL UNIQUE REFERENCES jobs(id),
+    state TEXT NOT NULL CHECK(state='OPEN'), created_at INTEGER NOT NULL
+);
+PRAGMA user_version = 2;
 """
 
 
@@ -80,26 +105,51 @@ def identifier():
     return "".join(_ALPHABET[(number >> shift) & 31] for shift in range(125, -1, -5))
 
 
+@dataclass(frozen=True)
+class DataAccess:
+    owner_uid: int
+    shared_gid: int | None = None
+
+    def __post_init__(self):
+        if type(self.owner_uid) is not int or self.owner_uid < 0 or (self.shared_gid is not None and (type(self.shared_gid) is not int or self.shared_gid <= 0)):
+            raise ValueError("DATABASE_IDENTITY_INVALID")
+
+
 class Store:
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, *, access: DataAccess | None = None):
         self.path = Path(path).absolute()
+        self.access = access or DataAccess(os.geteuid())
 
     def _permissions(self):
         parent = self.path.parent.stat()
         file = self.path.lstat()
-        if (parent.st_uid != os.geteuid() or stat.S_IMODE(parent.st_mode) & 0o077
+        shared = self.access.shared_gid is not None
+        if (parent.st_uid != self.access.owner_uid
+                or stat.S_IMODE(parent.st_mode) != (0o2770 if shared else 0o700)
                 or not stat.S_ISDIR(parent.st_mode) or not stat.S_ISREG(file.st_mode)
-                or file.st_uid != os.geteuid() or stat.S_IMODE(file.st_mode) != 0o600):
+                or file.st_uid != self.access.owner_uid or stat.S_IMODE(file.st_mode) != (0o660 if shared else 0o600)
+                or (shared and (parent.st_gid != self.access.shared_gid or file.st_gid != self.access.shared_gid))):
             raise RuntimeError("DATABASE_PERMISSIONS")
 
     @classmethod
-    def initialize(cls, path: Path):
-        store = cls(path)
+    def initialize(cls, path: Path, *, access: DataAccess | None = None):
+        store = cls(path, access=access)
+        shared = store.access.shared_gid is not None
         store.path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
         parent = store.path.parent.stat()
-        if parent.st_uid != os.geteuid() or stat.S_IMODE(parent.st_mode) & 0o077:
+        if parent.st_uid not in (os.geteuid(), store.access.owner_uid) or stat.S_IMODE(parent.st_mode) & 0o007:
             raise RuntimeError("DATABASE_DIRECTORY_PERMISSIONS")
-        os.close(os.open(store.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW, 0o600))
+        if store.access.owner_uid != os.geteuid() and os.geteuid() != 0:
+            raise RuntimeError("DATABASE_OWNER_INVALID")
+        # Reserve the database before adjusting an existing directory; never replace a database.
+        fd = os.open(store.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW, 0o600)
+        try:
+            os.fchown(fd, store.access.owner_uid, store.access.shared_gid if shared else -1)
+            os.fchmod(fd, 0o660 if shared else 0o600)
+        finally:
+            os.close(fd)
+        os.chown(store.path.parent, store.access.owner_uid, store.access.shared_gid if shared else -1)
+        store.path.parent.chmod(0o2770 if shared else 0o700)
         with store.connect(initializing=True) as db:
             db.executescript("BEGIN IMMEDIATE;\n" + _SCHEMA)
             db.execute("COMMIT")
@@ -118,7 +168,8 @@ class Store:
                 db.execute("PRAGMA journal_mode=WAL")
             for name, expected in {"journal_mode": "wal", "synchronous": 2, "foreign_keys": 1, "busy_timeout": 5000,
                                    "user_version": 0 if initializing else SCHEMA_VERSION}.items():
-                if db.execute(f"PRAGMA {name}").fetchone()[0] != expected:
+                actual = db.execute(f"PRAGMA {name}").fetchone()[0]
+                if actual != expected and not (name == "user_version" and not initializing and actual == 1):
                     raise RuntimeError("DATABASE_CONTRACT_MISMATCH")
             try:
                 yield db

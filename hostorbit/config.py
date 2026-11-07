@@ -10,6 +10,8 @@ class Settings:
     database: Path
     public_origin: str
     trusted_proxies: tuple[str, ...] = ()
+    database_owner_uid: int | None = None
+    database_gid: int | None = None
 
     def __post_init__(self):
         parsed = urlsplit(self.public_origin)

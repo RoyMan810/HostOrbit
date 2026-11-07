@@ -7,10 +7,11 @@ name = "hostorbit"
 version = "0.1.0.dev1"
 description = "Self-hosted infrastructure Controller"
 requires-python = ">=3.13"
-dependencies = ["fastapi==0.162.0", "uvicorn==0.54.0", "argon2-cffi==25.1.0"]
+dependencies = ["fastapi==0.162.0", "uvicorn==0.54.0", "argon2-cffi==25.1.0", "PyNaCl==1.6.2"]
 
 [project.scripts]
 hostorbit = "hostorbit.cli:main"
+hostorbit-runtime = "hostorbit.runtime.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["hostorbit*"]

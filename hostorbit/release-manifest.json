@@ -2,7 +2,8 @@
   "application": "HostOrbit",
   "version": "0.1.0.dev1",
   "channel": "development",
-  "sqlite_schema": 1,
+  "sqlite_schema": 2,
+  "sqlite_compatibility": {"authentication": [1, 2], "observation_queue": [2]},
   "password_profile": {
     "version": 1,
     "algorithm": "argon2id",

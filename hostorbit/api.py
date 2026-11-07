@@ -15,8 +15,9 @@ from starlette.concurrency import run_in_threadpool
 from . import __version__
 from .auth import ABSOLUTE_SECONDS, COOKIE, AuthService, Role
 from .config import Settings
-from .database import Store, canonical, identifier
+from .database import DataAccess, Store, canonical, identifier
 from .errors import Denied
+from .queue import JobQueue
 
 
 def failure(code, status, correlation, *, retry_after=None, details=None):
@@ -131,7 +132,7 @@ class Login(Input):
 
 
 class Grant(Input):
-    permission: Literal["users:manage", "audit:read", "vps:read", "vps:restart", "secrets:View Metadata", "secrets:Use", "secrets:Manage"]
+    permission: Literal["users:manage", "audit:read", "vps:read", "vps:probe", "vps:restart", "secrets:View Metadata", "secrets:Use", "secrets:Manage"]
     resource_id: Annotated[str, Field(min_length=1, max_length=26)]
 
 
@@ -152,7 +153,10 @@ class Reauthentication(Input):
 
 
 def create_app(settings: Settings, *, auth: AuthService | None = None):
-    service = auth or AuthService(Store(settings.database))
+    import os
+    access = DataAccess(settings.database_owner_uid if settings.database_owner_uid is not None else os.geteuid(), settings.database_gid)
+    service = auth or AuthService(Store(settings.database, access=access))
+    queue = JobQueue(service.store, clock=service.clock)
     app = FastAPI(title="HostOrbit API", version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.auth = service
     app.add_middleware(SecurityBoundary, settings=settings, auth=service)
@@ -255,6 +259,18 @@ def create_app(settings: Settings, *, auth: AuthService | None = None):
     @app.get("/api/v1/audit")
     def audit(request: Request, after: Annotated[int, Field(ge=0, lt=2**63)] = 0, actor=Depends(audit_access)):
         return {"items": service.audit_events(token(request), after)}
+
+    @app.post("/api/v1/resources/{resource_id}/observations", status_code=202)
+    def observe_resource(resource_id: str, body: Input, request: Request, response: Response, actor=Depends(principal)):
+        result = queue.enqueue_probe(service, token(request), csrf(request), resource_id, request.headers.get("idempotency-key"))
+        response.headers["Location"] = f'/api/v1/jobs/{result["id"]}'
+        return result
+
+    @app.get("/api/v1/jobs/{job_id}")
+    def get_job(job_id: str, request: Request, response: Response, actor=Depends(principal)):
+        value, current = queue.get(service, token(request), job_id)
+        response.headers["ETag"] = current
+        return value
 
     @app.get("/api/v1/events")
     def events(request: Request, actor=Depends(audit_access)):

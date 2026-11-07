@@ -1,0 +1,26 @@
+#!/usr/bin/python3 -I
+"""Forced command for the fixed HostOrbit observation capability."""
+import os
+import signal
+import subprocess
+import sys
+
+
+def main():
+    request = b'{"operation":"probe","version":1}\n'
+    if len(sys.argv) != 1 or os.environ.get("SSH_ORIGINAL_COMMAND") != "hostorbit.v1.probe":
+        return 65
+    signal.alarm(5)
+    payload = sys.stdin.buffer.read(len(request) + 1)
+    signal.alarm(0)
+    if payload != request:
+        return 65
+    try:
+        return subprocess.run(["/usr/bin/sudo", "-n", "--", "/usr/local/libexec/hostorbit/typed-helper"],
+                              input=request, timeout=5, env={"PATH": "/usr/bin:/bin", "LC_ALL": "C"}).returncode
+    except (OSError, subprocess.SubprocessError):
+        return 70
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

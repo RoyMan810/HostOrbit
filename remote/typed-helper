@@ -1,0 +1,26 @@
+#!/usr/bin/python3 -I
+"""Read-only root observation. No command, path or target arguments are accepted."""
+import json
+import os
+from pathlib import Path
+import signal
+import sys
+import time
+
+
+def main():
+    if os.geteuid() != 0 or len(sys.argv) != 1:
+        return 65
+    request = b'{"operation":"probe","version":1}\n'
+    signal.alarm(5)
+    payload = sys.stdin.buffer.read(len(request) + 1)
+    signal.alarm(0)
+    if payload != request:
+        return 65
+    value = {"v": 1, "uid": 0, "boot_id": Path("/proc/sys/kernel/random/boot_id").read_text().strip(), "observed_at": int(time.time())}
+    print(json.dumps(value, sort_keys=True, separators=(",", ":")))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
