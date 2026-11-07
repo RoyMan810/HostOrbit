@@ -89,6 +89,13 @@ class Authority:
         if (row is None or row["policy_digest"] != self.policy.digest or row["host_binding"] != host_binding()
                 or row["state"] not in ("NORMAL", "QUIESCING", "MAINTENANCE", "RESUMING", "RECOVERY_HOLD")):
             raise Denied("AUTHORITY_BINDING_INVALID")
+        from .activation_guard import authorization
+        try:
+            self.recovery_authorization = authorization(self.directory, bytes(self.key.verify_key), row, self.journal.writers)
+        except (Denied, OSError, ValueError, TypeError, KeyError):
+            if self.journal.writers:
+                self.journal.writers.publish("READ_ONLY_RECOVERY")
+            raise Denied("RECOVERY_ACTIVATION_INVALID") from None
         return row
 
     def recover(self):
@@ -162,6 +169,8 @@ class Authority:
             gate = self._gate(db)
             if not gate["activated"] or (mutating and gate["state"] != "NORMAL"):
                 raise Denied("GATE_CLOSED")
+            if self.recovery_authorization and target.id not in self.recovery_authorization["allowed_targets"]:
+                raise Denied("TARGET_QUARANTINED")
             if mutating and db.execute("SELECT 1 FROM incidents").fetchone():
                 raise Denied("OPEN_INCIDENT")
             if mutating and db.execute("SELECT 1 FROM attempts WHERE mutating=1 AND state IN ('ISSUED','DISPATCHING','UNKNOWN_OUTCOME')").fetchone():
@@ -183,6 +192,8 @@ class Authority:
             gate = self._gate(db)
             if not gate["activated"]:
                 raise Denied("GATE_CLOSED")
+            if self.recovery_authorization and claims["target"] not in self.recovery_authorization["allowed_targets"]:
+                raise Denied("TARGET_QUARANTINED")
             if claims["epoch"] != gate["epoch"] or (claims["mutating"] and gate["state"] != "NORMAL"):
                 raise Denied("STALE_GATE_EPOCH")
             if claims["mutating"]:
@@ -241,6 +252,8 @@ class Authority:
         with self.journal.write(kind="business" if operation == "update.quiesce" else "control") as db:
             gate = self._gate(db)
             if operation == "update.quiesce":
+                if self.recovery_authorization and self.recovery_authorization["open_incidents"]:
+                    raise Denied("OPEN_INCIDENT")
                 fields(request, ("kind", "plan_id", "revision", "plan_digest", "approval_id", "time_anchor"))
                 if request["kind"] not in ("application", "self"):
                     raise Denied("RPC_INVALID_REQUEST")

@@ -47,13 +47,13 @@ def _require_root():
         raise Denied("LOCAL_ROOT_REQUIRED")
 
 
-def _record(state):
+def _record(state, *, installed=False):
     state = _trusted_path(state)
     with Journal(state / "recovery.sqlite3").connect() as db:
         row = db.execute("SELECT * FROM request WHERE id=1").fetchone()
     if row is None or row["state"] != "IMPORTED" or (state / "identity.cred").exists():
         raise Denied("RECOVERY_IMPORT_NOT_COMPLETE")
-    if os.path.lexists(state / "installation.claim.json"):
+    if not installed and os.path.lexists(state / "installation.claim.json"):
         raise Denied("RECOVERY_INSTALLATION_CONSUMED")
     request = parse_manifest(row["value"])
     validate_request(request, now=request["issued_at"])  # Transport has already been consumed; no new age gate.

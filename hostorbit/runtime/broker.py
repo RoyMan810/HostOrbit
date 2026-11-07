@@ -64,7 +64,7 @@ class Broker:
         if claims["capability"] != "host.probe" or claims["mutating"] or request["secret_ref"] != target.value["secret_ref"]:
             raise Denied("BROKER_SCOPE_DENIED")
         # Key bytes stay in this Broker process and the fixed SSH child; never in an RPC response.
-        key = self.vault.use_ssh(request["secret_ref"], worker_uid=peer.uid, target=target.id)
+        key = self.vault.use_ssh(request["secret_ref"], worker_uid=peer.uid, target=target.id, policy_revision=target.revision)
         with self.journal.write() as db:
             if db.execute("SELECT 1 FROM receipts WHERE job_id=? OR nonce=?", (claims["job_id"], claims["nonce"])).fetchone():
                 raise Denied("PERMIT_REPLAY")

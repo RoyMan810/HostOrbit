@@ -38,17 +38,17 @@ class Vault:
         (directory / "objects").mkdir(mode=0o700)
         return vault
 
-    def import_ssh(self, secret_id, version, key, *, owner_id, worker_uid, target):
+    def import_ssh(self, secret_id, version, key, *, owner_id, worker_uid, target, policy_revision=1):
         """Local administrative provisioning; never registered as a Web or Worker RPC."""
         return self._import_ssh(secret_id, version, key, owner_id=owner_id, consumer_uid=worker_uid,
-                                target=target, purpose="host.probe", policy_revision=1)
+                                target=target, purpose="host.probe", policy_revision=policy_revision)
 
     def import_backup_ssh(self, secret_id, version, key, *, owner_id, broker_uid, target, policy_revision=1):
         """Separate Broker-only SFTP purpose, not a managed VPS probe identity."""
         return self._import_ssh(secret_id, version, key, owner_id=owner_id, consumer_uid=broker_uid,
                                 target=target, purpose="backup.sftp", policy_revision=policy_revision)
 
-    def _import_ssh(self, secret_id, version, key, *, owner_id, consumer_uid, target, purpose, policy_revision):
+    def _import_ssh(self, secret_id, version, key, *, owner_id, consumer_uid, target, purpose, policy_revision, write_kind="business"):
         for value in (secret_id, owner_id, target):
             text(value, ULID)
         integer(version, 1, 10**9 - 1)
@@ -66,15 +66,15 @@ class Vault:
                     "state": "ACTIVE", "policy_revision": policy_revision, "key_version": 1}
         ciphertext = bytes(self._aead.encrypt(key, canonical(metadata)))
         object_digest = hashlib.sha256(ciphertext).hexdigest()
-        with self.journal.write(kind="business") as db:
+        with self.journal.write(kind=write_kind) as db:
             if db.execute("SELECT 1 FROM secrets WHERE ref=?", (reference,)).fetchone():
                 raise Denied("SECRET_VERSION_IMMUTABLE", 409)
             new_private_file(self.directory / "objects" / object_digest, ciphertext)
             db.execute("INSERT INTO secrets VALUES(?,?,?,'ACTIVE')", (reference, canonical(metadata).decode(), object_digest))
         return reference
 
-    def use_ssh(self, reference, *, worker_uid, target):
-        return self._use_ssh(reference, consumer_uid=worker_uid, target=target, purpose="host.probe")
+    def use_ssh(self, reference, *, worker_uid, target, policy_revision=None):
+        return self._use_ssh(reference, consumer_uid=worker_uid, target=target, purpose="host.probe", policy_revision=policy_revision)
 
     def use_backup_ssh(self, reference, *, broker_uid, target, policy_revision):
         return self._use_ssh(reference, consumer_uid=broker_uid, target=target, purpose="backup.sftp", policy_revision=policy_revision)

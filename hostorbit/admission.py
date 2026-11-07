@@ -58,6 +58,17 @@ class Admission:
         return value
 
     def _state(self, parent):
+        try:
+            pending = self._file(parent, "activation.pending")
+        except FileNotFoundError:
+            pass
+        else:
+            try:
+                if os.read(pending, 513) != b"ACTIVATION_PENDING\n":
+                    raise Denied("WRITER_STATE_INVALID", 503)
+                return {"v": 1, "phase": "READ_ONLY_RECOVERY", "snapshot_id": None}
+            finally:
+                os.close(pending)
         # This profile survives loss of the replaceable snapshot latch. A
         # watchdog may recover a failed backup, never activate imported data.
         try:
@@ -66,9 +77,18 @@ class Admission:
             pass
         else:
             try:
-                if os.read(profile, 513) != b'{"mode":"READ_ONLY_RECOVERY","v":1}':
+                raw_profile = os.read(profile, 513)
+                if raw_profile == b'{"mode":"READ_ONLY_RECOVERY","v":1}':
+                    return {"v": 1, "phase": "READ_ONLY_RECOVERY", "snapshot_id": None}
+                value = json.loads(raw_profile)
+                if (not isinstance(value, dict) or set(value) != {"v", "mode", "activation_sha256"}
+                        or type(value["v"]) is not int or value["v"] != 1 or value["mode"] != "ACTIVE"
+                        or not isinstance(value["activation_sha256"], str)
+                        or re.fullmatch(r"[0-9a-f]{64}", value["activation_sha256"]) is None
+                        or raw_profile != json.dumps(value, sort_keys=True, separators=(",", ":")).encode()):
                     raise Denied("WRITER_STATE_INVALID", 503)
-                return {"v": 1, "phase": "READ_ONLY_RECOVERY", "snapshot_id": None}
+            except (ValueError, TypeError, UnicodeError):
+                raise Denied("WRITER_STATE_INVALID", 503) from None
             finally:
                 os.close(profile)
         fd = self._file(parent, "state.json")
@@ -92,6 +112,48 @@ class Admission:
                 os.close(parent)
         except OSError:
             raise Denied("WRITER_STATE_UNAVAILABLE", 503) from None
+
+    def activation_digest(self):
+        parent = self._directory()
+        try:
+            if os.path.lexists(self.directory / "activation.pending"):
+                return None
+            fd = self._file(parent, "recovery-profile.json")
+            try:
+                value = json.loads(os.read(fd, 513))
+                self._state(parent)  # Validate the complete profile/latch contract.
+                return value.get("activation_sha256") if value.get("mode") == "ACTIVE" else None
+            finally:
+                os.close(fd)
+        finally:
+            os.close(parent)
+
+    def _activate_verified(self, digest):
+        """Final local commit by the Owner activation manager; no CLI bypass.
+
+        Both DB commits and the signed protected authorization must already be
+        durable. Readers remain read-only until the profile's final rename.
+        """
+        if os.geteuid() != self.owner or re.fullmatch(r"[0-9a-f]{64}", digest) is None:
+            raise Denied("WRITER_COORDINATOR_IDENTITY_INVALID")
+        if self.state()["phase"] != "READ_ONLY_RECOVERY":
+            raise Denied("RECOVERY_ACTIVATION_REQUIRED")
+        parent = self._directory()
+        try:
+            for name, value in (("state.json", {"v": 1, "phase": "OPEN", "snapshot_id": None}),
+                                ("recovery-profile.json", {"v": 1, "mode": "ACTIVE", "activation_sha256": digest})):
+                temporary = ".activate-" + os.urandom(16).hex()
+                fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644, dir_fd=parent)
+                try:
+                    os.fchmod(fd, 0o644)
+                    os.write(fd, json.dumps(value, sort_keys=True, separators=(",", ":")).encode())
+                    os.fsync(fd)
+                finally:
+                    os.close(fd)
+                os.rename(temporary, name, src_dir_fd=parent, dst_dir_fd=parent)
+                os.fsync(parent)
+        finally:
+            os.close(parent)
 
     @classmethod
     def initialize(cls, directory, *, owner=0):
