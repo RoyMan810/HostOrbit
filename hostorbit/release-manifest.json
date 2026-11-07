@@ -1,0 +1,17 @@
+{
+  "application": "HostOrbit",
+  "version": "0.1.0.dev1",
+  "channel": "development",
+  "sqlite_schema": 1,
+  "password_profile": {
+    "version": 1,
+    "algorithm": "argon2id",
+    "time_cost": 3,
+    "memory_cost_kib": 65536,
+    "parallelism": 4,
+    "hash_len": 32,
+    "salt_len": 16
+  },
+  "capabilities": ["owner_auth", "scoped_rbac", "sqlite_audit_outbox"],
+  "remote_mutation_enabled": false
+}

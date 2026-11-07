@@ -1,0 +1,5 @@
+-r requirements-app.txt
+-r requirements-lab.txt
+certifi==2026.10.23
+httpcore==1.0.9
+httpx==0.28.1
