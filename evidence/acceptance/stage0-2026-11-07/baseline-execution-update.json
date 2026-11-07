@@ -1,0 +1,23 @@
+{
+  "change": "Execution outcomes only: fifteen Stage0 AC statuses PASS, overall status updated, execution appendix appended to MD/DOCX",
+  "files": [
+    {
+      "filename": "HostOrbit_Requirements_Registry_v2.3.json",
+      "input_sha256": "27dd0d50aabc90b7111932dacd78a9c5cbfd5065d71e5981c7548b0a5567b264",
+      "output_sha256": "20015d08dca924f1ce645d825fee0ae13433785c20ba17f9abb3fa1e998fe75d"
+    },
+    {
+      "filename": "HostOrbit_Technical_Spec_v2.3.md",
+      "input_sha256": "6e7c58c2ee0c1cc783c24560228b4603804bf5bb135a8e8bf3efe44c15c85d67",
+      "output_sha256": "550cdc3afef5570c3b2cf0662fd3311a5e2d680f2892643f363646409a539426"
+    },
+    {
+      "filename": "HostOrbit_Technical_Spec_v2.3.docx",
+      "input_sha256": "d7f4e31e8ae20ae4c1da47d8e3fbe8cb45a450feefa5bf409c7104cf125ca0ad",
+      "output_sha256": "3f4c06ad85561882aa3dd808254732e5d965b5579f9aad45a8c2bf446a3118ee"
+    }
+  ],
+  "normative_requirements_assertions_graphs_and_gates_changed": false,
+  "recorded_at_utc": "2026-11-07T09:51:44.526664Z",
+  "review_kind": "AUTOMATED_SELF_REVIEW"
+}

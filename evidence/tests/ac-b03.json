@@ -1,0 +1,49 @@
+{
+  "acceptance_scope": "Narrow Stage0 prototype per specification section 41; does not accept linked production/MVP features",
+  "assertion": "Build wrong age payload with correct source-hash/recipient/challenge but altered DB/DEK; Rescue must require independent exact Owner digest and reject substitution/replay/other target.",
+  "assertion_sha256": "c06faa7d84a58a70f051d62539ffaa405434407ba17ecac8899f3273770eebef",
+  "baseline_check_digest": "67e80c270436de6899b67a7a3c8dc8ca68297ef243ff9a0eb5ab56f8a49bf7d5",
+  "build_digest": "24f50e10520639e7bb777fa64367f28e0ae0af52b159bfc52fb2c0b5ff8cd393",
+  "ci_jobs": [
+    {
+      "id": 128338874496,
+      "raw_log_sha256": "dfbd76aaaec418449272b853910057bdc4a193faa8f0370c0c8b3289b0aee0fc",
+      "run_id": 42350989156,
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42350989156/job/128338874496"
+    }
+  ],
+  "ci_observations_digest": "ef4c0aa0a4cd05903468469155bbdc3c8a6d4d833d1f804bcb7ce6c435faf52f",
+  "enables_production_mutation": false,
+  "environment": "Disposable GitHub-hosted Ubuntu 24.04.5; Python 3.13 unit/native labs, Python 3.12 QEMU harness; Docker 29.9.3, Compose 2.38.2, age 1.3.2; no user VPS/SSH keys",
+  "evidence_digest": "6cb628db3836719227db7718e9e40fcb5417b858c94ffd94f8fa73fc6d606724",
+  "fault_injection": "Replace DB/DEK while preserving recipient/challenge/source binding; replay, concurrent import and wrong target",
+  "initial_state": "Signed encrypted source backup and target-bound one-time request",
+  "limits": [
+    "Automated self-review, not an independent human security audit.",
+    "QEMU guests, managed services and SFTP share one hypervisor; external operator/offline Owner roles are automated fixture processes.",
+    "Independent VPS/targets in dependency tests are inventory scopes on the fixture runner, not independently administered production machines.",
+    "SIGKILL/ENOSPC phase-boundary injection does not prove physical power-loss or arbitrary filesystem/storage durability.",
+    "Backend approval authority and managed root/Docker daemon remain within the stated TCB; knowingly false Owner attestation is not detected with a guarantee.",
+    "Lab dependency SBOM is scoped and incomplete for a production release; package install/update/restore integration remains unaccepted."
+  ],
+  "manifest_digest": "7cc8cfc1627d19c789e56fe7ead7d849b64f7033b34cd35e3bd5be8dacbcff1a",
+  "observation": "Altered DB/DEK with correct public recipient/challenge/source hash is rejected before decryption unless it matches independent exact Owner digest. Wrong signer, ciphertext, target, transport key and expired challenge are denied. Replay and concurrent acceptance consume a challenge only once; validation failure leaves it usable.",
+  "outcome": "PASS",
+  "recorded_at_utc": "2026-11-07T09:51:44.526664Z",
+  "review_kind": "AUTOMATED_SELF_REVIEW",
+  "review_status": "ACCEPTED_STAGE0_LAB",
+  "reviewed_assertion_parts": [
+    "Altered DB/DEK with correct public recipient/challenge/source hash is rejected before decryption unless it matches independent exact Owner digest.",
+    "Wrong signer, ciphertext, target, transport key and expired challenge are denied.",
+    "Replay and concurrent acceptance consume a challenge only once; validation failure leaves it usable."
+  ],
+  "reviewed_source_paths": [
+    "tests/test_recovery.py",
+    "stage0/recovery.py"
+  ],
+  "reviewer": "Codex automated source and CI evidence self-review; no independent human audit",
+  "sbom_digest": "343a64ca99894ca07ee28ed4577453a777eea68ecbde6f7dcb860b3fbd6f4498",
+  "scenario": "Stage0 prototype review for AC-B03",
+  "source_commit": "71d964e18d7251430e0d998022f9ceb6d3bee156",
+  "test_id": "AC-B03"
+}

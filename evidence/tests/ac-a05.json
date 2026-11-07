@@ -1,0 +1,57 @@
+{
+  "acceptance_scope": "Narrow Stage0 prototype per specification section 41; does not accept linked production/MVP features",
+  "assertion": "Запустить transient unit с задержанным побочным эффектом, оборвать SSH, выключить прежний Controller, отозвать key. Новый не снимает conflict lock и не запускает вторую мутацию пока unit не завершён/не остановлен и не проверены postconditions или VPS не изолирована. Запущенный process tree проверяется через cgroup/systemd.",
+  "assertion_sha256": "ecaa31b1922db77e2092a7c9a9871c645091f6efac4ea65db53f68d5843e6f1d",
+  "baseline_check_digest": "67e80c270436de6899b67a7a3c8dc8ca68297ef243ff9a0eb5ab56f8a49bf7d5",
+  "build_digest": "24f50e10520639e7bb777fa64367f28e0ae0af52b159bfc52fb2c0b5ff8cd393",
+  "ci_jobs": [
+    {
+      "id": 128338874166,
+      "raw_log_sha256": "f5fa478775e4e7060cd681fe3757963b99bbbf6bf3a39abeaf1a7afe9b1208de",
+      "run_id": 42350989155,
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42350989155/job/128338874166"
+    },
+    {
+      "id": 128338874432,
+      "raw_log_sha256": "72a9ae8799ead3ed403f33b7127b8507d7fdc0a5726f7230a504569ed1319c0f",
+      "run_id": 42350989156,
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42350989156/job/128338874432"
+    }
+  ],
+  "ci_observations_digest": "ef4c0aa0a4cd05903468469155bbdc3c8a6d4d833d1f804bcb7ce6c435faf52f",
+  "enables_production_mutation": false,
+  "environment": "Disposable GitHub-hosted Ubuntu 24.04.5; Python 3.13 unit/native labs, Python 3.12 QEMU harness; Docker 29.9.3, Compose 2.38.2, age 1.3.2; no user VPS/SSH keys",
+  "evidence_digest": "c96c906ef7c89d9a17a1fe61d90891c9619c92e559cc8ea0023a461cf130528b",
+  "fault_injection": "Kill SSH/cgroup, power off old VM and remove disk, revoke old key while effect is pending",
+  "initial_state": "Accepted Docker restart held in daemon after transient client dispatch",
+  "limits": [
+    "Automated self-review, not an independent human security audit.",
+    "QEMU guests, managed services and SFTP share one hypervisor; external operator/offline Owner roles are automated fixture processes.",
+    "Independent VPS/targets in dependency tests are inventory scopes on the fixture runner, not independently administered production machines.",
+    "SIGKILL/ENOSPC phase-boundary injection does not prove physical power-loss or arbitrary filesystem/storage durability.",
+    "Backend approval authority and managed root/Docker daemon remain within the stated TCB; knowingly false Owner attestation is not detected with a guarantee.",
+    "Lab dependency SBOM is scoped and incomplete for a production release; package install/update/restore integration remains unaccepted."
+  ],
+  "manifest_digest": "7cc8cfc1627d19c789e56fe7ead7d849b64f7033b34cd35e3bd5be8dacbcff1a",
+  "observation": "Typed SSH helper starts a real transient unit; its Docker client is verified in the expected systemd cgroup. SSH/cgroup stop, source VM power-off/disk removal and old-key revocation occur while daemon effect remains pending. Fresh Controller denies activation and a second restart until verified late completion. New StartedAt, readiness and exactly one Docker restart event are checked before a fresh signed activation.",
+  "outcome": "PASS",
+  "recorded_at_utc": "2026-11-07T09:51:44.526664Z",
+  "review_kind": "AUTOMATED_SELF_REVIEW",
+  "review_status": "ACCEPTED_STAGE0_LAB",
+  "reviewed_assertion_parts": [
+    "Typed SSH helper starts a real transient unit; its Docker client is verified in the expected systemd cgroup.",
+    "SSH/cgroup stop, source VM power-off/disk removal and old-key revocation occur while daemon effect remains pending.",
+    "Fresh Controller denies activation and a second restart until verified late completion.",
+    "New StartedAt, readiness and exactly one Docker restart event are checked before a fresh signed activation."
+  ],
+  "reviewed_source_paths": [
+    "tests/lab/offhost_recovery.py",
+    "tests/lab/fencing_vm.py",
+    "tests/lab/ssh_systemd_docker.py"
+  ],
+  "reviewer": "Codex automated source and CI evidence self-review; no independent human audit",
+  "sbom_digest": "343a64ca99894ca07ee28ed4577453a777eea68ecbde6f7dcb860b3fbd6f4498",
+  "scenario": "Stage0 prototype review for AC-A05",
+  "source_commit": "71d964e18d7251430e0d998022f9ceb6d3bee156",
+  "test_id": "AC-A05"
+}

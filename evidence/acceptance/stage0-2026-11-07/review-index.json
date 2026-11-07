@@ -1,0 +1,85 @@
+{
+  "recorded_at_utc": "2026-11-07T09:51:44.526664Z",
+  "registry_output_sha256": "20015d08dca924f1ce645d825fee0ae13433785c20ba17f9abb3fa1e998fe75d",
+  "reports": [
+    {
+      "evidence_digest": "3cf50e59a4751b999e5c3ec42324def2c23eaafed266362170d8dfe703b3b2db",
+      "path": "evidence/tests/ac-a01.json",
+      "test_id": "AC-A01"
+    },
+    {
+      "evidence_digest": "6db8f1566c11cf47c6f3b32c681ee6fd57649b982385ce1cd337719058620168",
+      "path": "evidence/tests/ac-a02.json",
+      "test_id": "AC-A02"
+    },
+    {
+      "evidence_digest": "4f9734c7a725b0744231a20f720724aa6366771f27b8b49a7ca4a9e517ffc953",
+      "path": "evidence/tests/ac-a03.json",
+      "test_id": "AC-A03"
+    },
+    {
+      "evidence_digest": "084e6fb2a5adcefeca240afb88e841c4826a6a02389f4007b53d7458a122c857",
+      "path": "evidence/tests/ac-a04.json",
+      "test_id": "AC-A04"
+    },
+    {
+      "evidence_digest": "c96c906ef7c89d9a17a1fe61d90891c9619c92e559cc8ea0023a461cf130528b",
+      "path": "evidence/tests/ac-a05.json",
+      "test_id": "AC-A05"
+    },
+    {
+      "evidence_digest": "13e6832b5a1239a84552554e908565f2df1f3cea6650019f6865948ec108a2d8",
+      "path": "evidence/tests/ac-a20.json",
+      "test_id": "AC-A20"
+    },
+    {
+      "evidence_digest": "2ab061e7a52672b52a98c40b04b55f13aed2c073a281b931f306065263c067b2",
+      "path": "evidence/tests/ac-b01.json",
+      "test_id": "AC-B01"
+    },
+    {
+      "evidence_digest": "4ad5ea6e294142742f93173425db45f7b6bad7175937b1d9a146bab556458c25",
+      "path": "evidence/tests/ac-b02.json",
+      "test_id": "AC-B02"
+    },
+    {
+      "evidence_digest": "6cb628db3836719227db7718e9e40fcb5417b858c94ffd94f8fa73fc6d606724",
+      "path": "evidence/tests/ac-b03.json",
+      "test_id": "AC-B03"
+    },
+    {
+      "evidence_digest": "9c0156deae4d5a91c4e60a3f1b8c4b7182dd620e6cf8f22efeb05ac16fcc5575",
+      "path": "evidence/tests/ac-b04.json",
+      "test_id": "AC-B04"
+    },
+    {
+      "evidence_digest": "d5bb27c60887a73adf615ba7cb0a2d56256f141c0b504786f6a9627cac3c369e",
+      "path": "evidence/tests/ac-b06.json",
+      "test_id": "AC-B06"
+    },
+    {
+      "evidence_digest": "6d5e06fff1997c651c99097ddff35f97711fff63d43ead96cacc076ac221ce8a",
+      "path": "evidence/tests/ac-b07.json",
+      "test_id": "AC-B07"
+    },
+    {
+      "evidence_digest": "f12e41d5154838100f3a2a40546adda176322b05cdde40336e4c867a91cac863",
+      "path": "evidence/tests/ac-b08.json",
+      "test_id": "AC-B08"
+    },
+    {
+      "evidence_digest": "45267b7edc5fed43abecce5a1e0219541018d20310e137b1a5699240d8d20158",
+      "path": "evidence/tests/ac-b09.json",
+      "test_id": "AC-B09"
+    },
+    {
+      "evidence_digest": "87cbc62cb0a518c4d82ab639407a27dac5a6a4f4aa511d975a209352f74e1f9c",
+      "path": "evidence/tests/ac-b10.json",
+      "test_id": "AC-B10"
+    }
+  ],
+  "review_kind": "AUTOMATED_SELF_REVIEW",
+  "source_head": "71d964e18d7251430e0d998022f9ceb6d3bee156",
+  "stage0_outcome": "PASS",
+  "stage3_outcome": "BLOCKED"
+}

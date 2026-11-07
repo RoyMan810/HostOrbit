@@ -1,0 +1,2311 @@
+{
+  "generated_from": "HostOrbit Technical Spec v2.2 + Independent Reaudit B01-B10",
+  "requirements": [
+    {
+      "acceptance_ids": [
+        "AC-01"
+      ],
+      "dependencies": [],
+      "description": "Первоначальный Owner создаётся через локальную защищённую CLI, а не методом «кто первым открыл сайт — администратор».",
+      "evidence_path": "evidence/owner_bootstrap_auth.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-001.1",
+      "kind": "FUNCTIONAL",
+      "owner": "Auth/Bootstrap",
+      "release_inclusion": "MVP",
+      "stage": "Stage1",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-01",
+        "AC-42",
+        "AC-A04"
+      ],
+      "dependencies": [],
+      "description": "HTTPS, серверные сессии, безопасные cookies, CSRF, Argon2id, rate limiting, аудит входов и критических подтверждений.",
+      "evidence_path": "evidence/sessions_csrf_rate_limits.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-002.1",
+      "kind": "FUNCTIONAL",
+      "owner": "Auth",
+      "release_inclusion": "MVP",
+      "stage": "Stage1",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-02",
+        "AC-06",
+        "AC-A04",
+        "AC-A18"
+      ],
+      "dependencies": [],
+      "description": "Роли Owner/Admin/Operator/Auditor; серверная проверка отдельных полномочий View Metadata / Use / Manage и фиксированных scope.",
+      "evidence_path": "evidence/rbac_scopes_negative.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-003.1",
+      "kind": "FUNCTIONAL",
+      "owner": "RBAC/Policy",
+      "release_inclusion": "MVP",
+      "stage": "Stage1",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-26"
+      ],
+      "dependencies": [],
+      "description": "RU и EN интерфейсы, адаптивный UI, тёмная/светлая/системная тема, доступность форм и ошибок с клавиатуры.",
+      "evidence_path": "evidence/ru_en_a11y.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-004.1",
+      "kind": "FUNCTIONAL",
+      "owner": "Frontend",
+      "release_inclusion": "MVP",
+      "stage": "Stage2",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-03",
+        "AC-28",
+        "AC-33",
+        "AC-A07",
+        "AC-A18"
+      ],
+      "dependencies": [],
+      "description": "Добавление и проверка VPS с подтверждением SSH fingerprint, capability detection и безопасным bootstrap.",
+      "evidence_path": "evidence/ssh_bootstrap_capability.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-005.1",
+      "kind": "FUNCTIONAL",
+      "owner": "SSH/OS Manager",
+      "release_inclusion": "MVP",
+      "stage": "Stage1",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-05",
+        "AC-15",
+        "AC-28",
+        "AC-33"
+      ],
+      "dependencies": [],
+      "description": "Инвентаризация VPS, статусов, ролей, интерфейсов, установленных сервисов и их зависимостей; различие обнаруженных и управляемых объектов.",
+      "evidence_path": "evidence/inventory_discovery.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-006.1",
+      "kind": "FUNCTIONAL",
+      "owner": "Infrastructure Registry",
+      "release_inclusion": "MVP",
+      "stage": "Stage2",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-05",
+        "AC-28",
+        "AC-33",
+        "AC-A07"
+      ],
+      "dependencies": [],
+      "description": "Универсальное обнаружение поддерживаемых сервисов через SSH/OS и зарегистрированные адаптеры; базовая работа с VPS/Docker/Compose/Nginx не зависит от VPN. Remnawave Panel/Node — отдельная необязательная интеграция через поддерживаемый API.",
+      "evidence_path": "evidence/adapter_mvp_capabilities.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-007.1",
+      "kind": "FUNCTIONAL",
+      "owner": "Service Adapter Registry",
+      "release_inclusion": "MVP",
+      "stage": "Stage2",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-25"
+      ],
+      "dependencies": [],
+      "description": "Универсальное обнаружение поддерживаемых сервисов через SSH/OS и зарегистрированные адаптеры; базовая работа с VPS/Docker/Compose/Nginx не зависит от VPN. Remnawave Panel/Node — отдельная необязательная интеграция через поддерживаемый API. [Опциональная/расширенная часть соответствующего FR.]",
+      "evidence_path": "evidence/remnawave_contract.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-007.2",
+      "kind": "FUNCTIONAL",
+      "owner": "Remnawave Adapter",
+      "release_inclusion": "POST/OPTIONAL",
+      "stage": "Stage4",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-07",
+        "AC-09",
+        "AC-28",
+        "AC-A05",
+        "AC-A17"
+      ],
+      "dependencies": [],
+      "description": "Безопасный базовый lifecycle поддерживаемых сервисов и контейнеров: состояние, только нормализованные журналы HostOrbit и типизированные события, ручной перезапуск исключительно импортированных поддерживаемых объектов, ограниченная публикация HostOrbit-owned Nginx. Сырые сторонние stdout/stderr, массовые обновления и конфигурационные изменения вне объявленных capabilities — post-MVP/unsupported (§35).",
+      "evidence_path": "evidence/service_restart_scoped.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-008.1",
+      "kind": "FUNCTIONAL",
+      "owner": "Service Details/Worker",
+      "release_inclusion": "MVP",
+      "stage": "Stage2",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-18",
+        "AC-23"
+      ],
+      "dependencies": [],
+      "description": "Безопасный базовый lifecycle поддерживаемых сервисов и контейнеров: состояние, только нормализованные журналы HostOrbit и типизированные события, ручной перезапуск исключительно импортированных поддерживаемых объектов, ограниченная публикация HostOrbit-owned Nginx. Сырые сторонние stdout/stderr, массовые обновления и конфигурационные изменения вне объявленных capabilities — post-MVP/unsupported (§35). [Опциональная/расширенная часть соответствующего FR.]",
+      "evidence_path": "evidence/infrastructure_update.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-008.2",
+      "kind": "FUNCTIONAL",
+      "owner": "Update Manager",
+      "release_inclusion": "POST",
+      "stage": "Stage4",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-25"
+      ],
+      "dependencies": [],
+      "description": "Необязательный профиль VPN/Remnawave: поддержка сценариев Entry → Foreign Exit (включая несколько Exit) с явно выбранным маршрутом; без самовольного переключения на другой Exit, downgrade или direct-routing. Функция не влияет на работу стандартных серверных сценариев.",
+      "evidence_path": "evidence/vpn_topology_manual_exit.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-009.1",
+      "kind": "FUNCTIONAL",
+      "owner": "VPN Adapter",
+      "release_inclusion": "POST/OPTIONAL",
+      "stage": "Stage4",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-15",
+        "AC-17",
+        "AC-33",
+        "AC-A18"
+      ],
+      "dependencies": [],
+      "description": "Инвентаризация портов, Nginx Stream/HTTP, Docker, IPv4/IPv6, сертификатов и DNS; обнаружение конфликтов до изменения.",
+      "evidence_path": "evidence/ports_readonly.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-010.1",
+      "kind": "FUNCTIONAL",
+      "owner": "Network Discovery",
+      "release_inclusion": "MVP",
+      "stage": "Stage2",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-05",
+        "AC-17",
+        "AC-34",
+        "AC-A08",
+        "AC-A16",
+        "AC-43"
+      ],
+      "dependencies": [],
+      "description": "В MVP управление только изолированным HostOrbit-owned Nginx instance с выделенным незанятым listener и собственным config namespace; общий system Nginx и Caddy — read-only/discovered. Общие публичные vhost, сертификатный lifecycle и публикация поверх чужого reverse proxy — post-MVP или ручная операция вне HostOrbit. DNS редактируется владельцем вручную (§35).",
+      "evidence_path": "evidence/nginx_isolated_publication.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-011.1",
+      "kind": "FUNCTIONAL",
+      "owner": "Nginx Manager",
+      "release_inclusion": "MVP",
+      "stage": "Stage2",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-24"
+      ],
+      "dependencies": [],
+      "description": "В MVP управление только изолированным HostOrbit-owned Nginx instance с выделенным незанятым listener и собственным config namespace; общий system Nginx и Caddy — read-only/discovered. Общие публичные vhost, сертификатный lifecycle и публикация поверх чужого reverse proxy — post-MVP или ручная операция вне HostOrbit. DNS редактируется владельцем вручную (§35). [Опциональная/расширенная часть соответствующего FR.]",
+      "evidence_path": "evidence/domain_tls_manage.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-011.2",
+      "kind": "FUNCTIONAL",
+      "owner": "Domains/Certs/Caddy Managers",
+      "release_inclusion": "POST",
+      "stage": "Stage4",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-16",
+        "AC-49"
+      ],
+      "dependencies": [],
+      "description": "Изменения Firewall/SSH — только при независимом Safe Apply; диагностика отделяет локальное прослушивание от внешней доступности.",
+      "evidence_path": "evidence/firewall_ssh_denied.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-012.1",
+      "kind": "FUNCTIONAL",
+      "owner": "Network/Firewall Manager",
+      "release_inclusion": "MVP/BLOCKED",
+      "stage": "Stage1",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-16"
+      ],
+      "dependencies": [],
+      "description": "Изменения Firewall/SSH — только при независимом Safe Apply; диагностика отделяет локальное прослушивание от внешней доступности. [Опциональная/расширенная часть соответствующего FR.]",
+      "evidence_path": "evidence/safe_apply_watchdog.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-012.2",
+      "kind": "FUNCTIONAL",
+      "owner": "Network/Firewall Manager",
+      "release_inclusion": "POST",
+      "stage": "Stage4",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-06",
+        "AC-07",
+        "AC-08",
+        "AC-09",
+        "AC-37",
+        "AC-52",
+        "AC-A05",
+        "AC-A08",
+        "AC-A09",
+        "AC-A10",
+        "AC-A19",
+        "AC-48"
+      ],
+      "dependencies": [],
+      "description": "Устойчивая очередь заданий, Timeline, безопасные логи, cancellation на согласованных checkpoints, child jobs и reconciliation Unknown Outcome.",
+      "evidence_path": "evidence/durable_job_reconcile.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-013.1",
+      "kind": "FUNCTIONAL",
+      "owner": "Operations/Worker",
+      "release_inclusion": "MVP",
+      "stage": "Stage1",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-06",
+        "AC-36",
+        "AC-A08"
+      ],
+      "dependencies": [],
+      "description": "Версионированные typed config drafts, optimistic concurrency, серверный семантический Diff, apply-time baseline CAS; расширенный графический/текстовый редактор — post-MVP.",
+      "evidence_path": "evidence/etag_diff_preflight.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-014.1",
+      "kind": "FUNCTIONAL",
+      "owner": "Config/Change Plan",
+      "release_inclusion": "MVP",
+      "stage": "Stage2",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-06"
+      ],
+      "dependencies": [],
+      "description": "Версионированные typed config drafts, optimistic concurrency, серверный семантический Diff, apply-time baseline CAS; расширенный графический/текстовый редактор — post-MVP. [Опциональная/расширенная часть соответствующего FR.]",
+      "evidence_path": "evidence/advanced_editor.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-014.2",
+      "kind": "FUNCTIONAL",
+      "owner": "Config Editor",
+      "release_inclusion": "POST",
+      "stage": "Stage4",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-11",
+        "AC-12",
+        "AC-38",
+        "AC-47",
+        "AC-A02",
+        "AC-A03",
+        "AC-A11",
+        "AC-A12",
+        "AC-A13"
+      ],
+      "dependencies": [],
+      "description": "Отдельные ControllerBackup (согласованный SQLite/Vault/configs/audit snapshot) и ResourceBackup: HostOrbit-owned Nginx config-only либо остановленный импортированный тестовый Docker named volume, без обещания полного снимка VPS; остальные типы — UNSUPPORTED. Все архивы зашифрованы и имеют подписанный manifest/provenance, локальное/удалённое SFTP хранение, retention и защиту последней проверенной копии. Фактический test restore — вручную (§33).",
+      "evidence_path": "evidence/controller_resource_backup.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-015.1",
+      "kind": "FUNCTIONAL",
+      "owner": "Backup/Recovery",
+      "release_inclusion": "MVP",
+      "stage": "Stage2",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-10",
+        "AC-45",
+        "AC-A10",
+        "AC-A17"
+      ],
+      "dependencies": [],
+      "description": "Audit Center: акторы, планы, ресурсы, действия, события, связанная Timeline, экспорт с проверкой приватности и контроль целостности.",
+      "evidence_path": "evidence/audit_outbox_redaction.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-016.1",
+      "kind": "FUNCTIONAL",
+      "owner": "Audit Manager",
+      "release_inclusion": "MVP",
+      "stage": "Stage2",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-27",
+        "AC-31"
+      ],
+      "dependencies": [],
+      "description": "Audit Center: акторы, планы, ресурсы, действия, события, связанная Timeline, экспорт с проверкой приватности и контроль целостности. [Опциональная/расширенная часть соответствующего FR.]",
+      "evidence_path": "evidence/audit_remote_archive.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-016.2",
+      "kind": "FUNCTIONAL",
+      "owner": "Audit Manager",
+      "release_inclusion": "POST",
+      "stage": "Stage4",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-04",
+        "AC-12",
+        "AC-35",
+        "AC-38",
+        "AC-47",
+        "AC-A02",
+        "AC-A04",
+        "AC-A14"
+      ],
+      "dependencies": [],
+      "description": "Secrets Center: Secret References, разграничение View Metadata / Use / Manage, разрешённая ротация и отзыв, отсутствие раскрытия значений в UI.",
+      "evidence_path": "evidence/secrets_acl_vault.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-017.1",
+      "kind": "FUNCTIONAL",
+      "owner": "Secrets Broker",
+      "release_inclusion": "MVP",
+      "stage": "Stage1",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-15",
+        "AC-26",
+        "AC-28",
+        "AC-49"
+      ],
+      "dependencies": [],
+      "description": "MVP: базовый Dashboard, VPS/Service Details, read-only порты, минимальная диагностика и понятная индикация `MANAGED / READ_ONLY / UNSUPPORTED` с причиной и допустимыми действиями. Post-MVP: редактируемая Topology, расширенные Service Catalog, Domains & Certificates, Network Center, Monitoring/Analytics, Security Center и Support Bundle.",
+      "evidence_path": "evidence/dashboard_service_readonly.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-018.1",
+      "kind": "FUNCTIONAL",
+      "owner": "Frontend/Monitoring",
+      "release_inclusion": "MVP",
+      "stage": "Stage2",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-19",
+        "AC-20",
+        "AC-30",
+        "AC-31"
+      ],
+      "dependencies": [],
+      "description": "MVP: базовый Dashboard, VPS/Service Details, read-only порты, минимальная диагностика и понятная индикация `MANAGED / READ_ONLY / UNSUPPORTED` с причиной и допустимыми действиями. Post-MVP: редактируемая Topology, расширенные Service Catalog, Domains & Certificates, Network Center, Monitoring/Analytics, Security Center и Support Bundle. [Опциональная/расширенная часть соответствующего FR.]",
+      "evidence_path": "evidence/advanced_centers.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-018.2",
+      "kind": "FUNCTIONAL",
+      "owner": "Topology/Monitoring/Security",
+      "release_inclusion": "POST",
+      "stage": "Stage4",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-20"
+      ],
+      "dependencies": [],
+      "description": "Версионированные Infrastructure Templates/Presets с базовыми профилями VPS, Docker-сервисов, обратного прокси и статических сайтов; специализированные VPN-профили — необязательные. Визуальный конструктор, декларативная схема, Preview Only; импорт не содержит исполняемых скриптов.",
+      "evidence_path": "evidence/templates_versioning.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-019.1",
+      "kind": "FUNCTIONAL",
+      "owner": "Templates Manager",
+      "release_inclusion": "POST",
+      "stage": "Stage4",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-19"
+      ],
+      "dependencies": [],
+      "description": "Groups & Operations: статические/динамические группы, замороженные цели, безопасная последовательность, индивидуальные результаты.",
+      "evidence_path": "evidence/groups_frozen_targets.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-020.1",
+      "kind": "FUNCTIONAL",
+      "owner": "Groups/Operations",
+      "release_inclusion": "POST",
+      "stage": "Stage4",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-02",
+        "AC-06"
+      ],
+      "dependencies": [],
+      "description": "Policies & Access: Global → Group → VPS, Effective Policy, конфликты, обязательные ограничения, RBAC.",
+      "evidence_path": "evidence/policy_rbac_basic.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-021.1",
+      "kind": "FUNCTIONAL",
+      "owner": "RBAC/Policy",
+      "release_inclusion": "MVP",
+      "stage": "Stage1",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-20"
+      ],
+      "dependencies": [],
+      "description": "Policies & Access: Global → Group → VPS, Effective Policy, конфликты, обязательные ограничения, RBAC. [Опциональная/расширенная часть соответствующего FR.]",
+      "evidence_path": "evidence/policy_inheritance_ui.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-021.2",
+      "kind": "FUNCTIONAL",
+      "owner": "Policy Engine",
+      "release_inclusion": "POST",
+      "stage": "Stage4",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-18",
+        "AC-39",
+        "AC-50",
+        "AC-A15"
+      ],
+      "dependencies": [],
+      "description": "Update Center: HostOrbit через Independent Update Controller; инфраструктура через Task Engine; матрица совместимости, backup/verify, ручное выполнение по умолчанию.",
+      "evidence_path": "evidence/host_updater_release.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-022.1",
+      "kind": "FUNCTIONAL",
+      "owner": "Independent Update Controller",
+      "release_inclusion": "MVP",
+      "stage": "Stage1",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-18",
+        "AC-23"
+      ],
+      "dependencies": [],
+      "description": "Update Center: HostOrbit через Independent Update Controller; инфраструктура через Task Engine; матрица совместимости, backup/verify, ручное выполнение по умолчанию. [Опциональная/расширенная часть соответствующего FR.]",
+      "evidence_path": "evidence/infra_updates.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-022.2",
+      "kind": "FUNCTIONAL",
+      "owner": "Infrastructure Update Manager",
+      "release_inclusion": "POST",
+      "stage": "Stage4",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-14",
+        "AC-22"
+      ],
+      "dependencies": [],
+      "description": "Scheduler & Automation: календарь, разрешения, история, часовые пояса, пропуски запусков, предодобренные ограниченные изменяющие действия; после восстановления Controller всё приостановлено.",
+      "evidence_path": "evidence/scheduler_paused_recovery.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-023.1",
+      "kind": "FUNCTIONAL",
+      "owner": "Scheduler",
+      "release_inclusion": "MVP/PAUSED",
+      "stage": "Stage1",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-22"
+      ],
+      "dependencies": [],
+      "description": "Scheduler & Automation: календарь, разрешения, история, часовые пояса, пропуски запусков, предодобренные ограниченные изменяющие действия; после восстановления Controller всё приостановлено. [Опциональная/расширенная часть соответствующего FR.]",
+      "evidence_path": "evidence/scheduler_calendar_approvals.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-023.2",
+      "kind": "FUNCTIONAL",
+      "owner": "Scheduler",
+      "release_inclusion": "POST",
+      "stage": "Stage5",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-12",
+        "AC-13",
+        "AC-14",
+        "AC-38",
+        "AC-40",
+        "AC-41",
+        "AC-46",
+        "AC-47",
+        "AC-51",
+        "AC-A01",
+        "AC-A02",
+        "AC-A05",
+        "AC-A06",
+        "AC-44",
+        "AC-A21"
+      ],
+      "dependencies": [],
+      "description": "Recovery Center: штатный Web Migration Wizard, независимая Rescue CLI, Read-only restore, документированная ручная изоляция старого Controller, отзыв его полномочий и отдельная ручная активация; API хостера отсутствует.",
+      "evidence_path": "evidence/manual_recovery_quarantine.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-024.1",
+      "kind": "FUNCTIONAL",
+      "owner": "Recovery/Rescue CLI",
+      "release_inclusion": "MVP",
+      "stage": "Stage1",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-13"
+      ],
+      "dependencies": [],
+      "description": "Recovery Center: штатный Web Migration Wizard, независимая Rescue CLI, Read-only restore, документированная ручная изоляция старого Controller, отзыв его полномочий и отдельная ручная активация; API хостера отсутствует. [Опциональная/расширенная часть соответствующего FR.]",
+      "evidence_path": "evidence/migration_web_wizard.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-024.2",
+      "kind": "FUNCTIONAL",
+      "owner": "Recovery Web Wizard",
+      "release_inclusion": "POST",
+      "stage": "Stage4",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-11",
+        "AC-21"
+      ],
+      "dependencies": [],
+      "description": "Storage & Retention: учёт собственных объектов, Dry Run, защита зависимостей и ограниченная автоматическая очистка.",
+      "evidence_path": "evidence/protected_retention.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-025.1",
+      "kind": "FUNCTIONAL",
+      "owner": "Backup/Storage Registry",
+      "release_inclusion": "MVP",
+      "stage": "Stage2",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-21"
+      ],
+      "dependencies": [],
+      "description": "Storage & Retention: учёт собственных объектов, Dry Run, защита зависимостей и ограниченная автоматическая очистка. [Опциональная/расширенная часть соответствующего FR.]",
+      "evidence_path": "evidence/storage_cleanup_ui.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-025.2",
+      "kind": "FUNCTIONAL",
+      "owner": "Storage Center",
+      "release_inclusion": "POST",
+      "stage": "Stage4",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-01",
+        "AC-03",
+        "AC-28"
+      ],
+      "dependencies": [],
+      "description": "Web Setup & Onboarding Wizard: отдельные маршруты для новой установки, подключения существующей инфраструктуры и восстановления Controller; простой/расширенный режим, диагностика предусловий и остановка при конфликте с уже работающими сервисами.",
+      "evidence_path": "evidence/onboarding_entry.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-026.1",
+      "kind": "FUNCTIONAL",
+      "owner": "Onboarding",
+      "release_inclusion": "MVP",
+      "stage": "Stage2",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-29"
+      ],
+      "dependencies": [],
+      "description": "Единый Activity & Notifications Center с категориями Alerts, Operations, Approvals, контекстными переходами, in-app и опциональным Telegram. Утверждения изменяющих операций выполняются только в защищённой Web-сессии, не через Telegram-сообщение.",
+      "evidence_path": "evidence/in_app_notifications.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-027.1",
+      "kind": "FUNCTIONAL",
+      "owner": "Activity Center",
+      "release_inclusion": "MVP",
+      "stage": "Stage2",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-29"
+      ],
+      "dependencies": [],
+      "description": "Единый Activity & Notifications Center с категориями Alerts, Operations, Approvals, контекстными переходами, in-app и опциональным Telegram. Утверждения изменяющих операций выполняются только в защищённой Web-сессии, не через Telegram-сообщение. [Опциональная/расширенная часть соответствующего FR.]",
+      "evidence_path": "evidence/telegram_delivery.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-027.2",
+      "kind": "FUNCTIONAL",
+      "owner": "Telegram Integration",
+      "release_inclusion": "POST",
+      "stage": "Stage4",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-30"
+      ],
+      "dependencies": [],
+      "description": "Global Search & Command Palette: поиск по разрешённым ресурсам, задачам, событиям и справке; только зарегистрированные безопасные действия, без произвольного исполнения команд.",
+      "evidence_path": "evidence/search_rbac_palette.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-028.1",
+      "kind": "FUNCTIONAL",
+      "owner": "Search/Palette",
+      "release_inclusion": "POST",
+      "stage": "Stage5",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-32",
+        "AC-47"
+      ],
+      "dependencies": [],
+      "description": "Help & Documentation Center: поставляемая с выпуском версионированная RU/EN документация, контекстная справка, офлайн-доступ и необязательные подписанные справочные обновления без запуска исполняемого кода.",
+      "evidence_path": "evidence/offline_help_recovery.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-029.1",
+      "kind": "FUNCTIONAL",
+      "owner": "Help/Runbook",
+      "release_inclusion": "MVP",
+      "stage": "Stage1",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-32"
+      ],
+      "dependencies": [],
+      "description": "Help & Documentation Center: поставляемая с выпуском версионированная RU/EN документация, контекстная справка, офлайн-доступ и необязательные подписанные справочные обновления без запуска исполняемого кода. [Опциональная/расширенная часть соответствующего FR.]",
+      "evidence_path": "evidence/help_center_updates.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-029.2",
+      "kind": "FUNCTIONAL",
+      "owner": "Help Center",
+      "release_inclusion": "POST",
+      "stage": "Stage4",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-04",
+        "AC-45",
+        "AC-A17"
+      ],
+      "dependencies": [],
+      "description": "Diagnostics & Support Bundle: Basic/Expanded режимы, выбор объектов, автоматическое удаление секретов, стабильная псевдонимизация чувствительных идентификаторов, обязательный Privacy Review и исключительно ручная передача экспорта.",
+      "evidence_path": "evidence/redaction_canary.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-030.1",
+      "kind": "FUNCTIONAL",
+      "owner": "Diagnostics Log Sanitizer",
+      "release_inclusion": "MVP",
+      "stage": "Stage1",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-31"
+      ],
+      "dependencies": [],
+      "description": "Diagnostics & Support Bundle: Basic/Expanded режимы, выбор объектов, автоматическое удаление секретов, стабильная псевдонимизация чувствительных идентификаторов, обязательный Privacy Review и исключительно ручная передача экспорта. [Опциональная/расширенная часть соответствующего FR.]",
+      "evidence_path": "evidence/privacy_review_bundle.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-030.2",
+      "kind": "FUNCTIONAL",
+      "owner": "Support Bundle",
+      "release_inclusion": "POST",
+      "stage": "Stage4",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-26"
+      ],
+      "dependencies": [],
+      "description": "Web Settings, Localization & Appearance: независимые пользовательские и системные настройки, понятная область действия, темы, плотность, часовой пояс, ограничения и история изменений.",
+      "evidence_path": "evidence/themes_ru_en_timezone.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-031.1",
+      "kind": "FUNCTIONAL",
+      "owner": "Preferences",
+      "release_inclusion": "MVP",
+      "stage": "Stage2",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-26"
+      ],
+      "dependencies": [],
+      "description": "Web Settings, Localization & Appearance: независимые пользовательские и системные настройки, понятная область действия, темы, плотность, часовой пояс, ограничения и история изменений. [Опциональная/расширенная часть соответствующего FR.]",
+      "evidence_path": "evidence/advanced_appearance.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-031.2",
+      "kind": "FUNCTIONAL",
+      "owner": "Preferences",
+      "release_inclusion": "POST",
+      "stage": "Stage5",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-05",
+        "AC-15",
+        "AC-28",
+        "AC-A16"
+      ],
+      "dependencies": [],
+      "description": "Service Catalog & Deployment и Service Details & Lifecycle: управляемые декларативные шаблоны, режимы Fully Managed / Publication Only / Discovered, стандартизированные вкладки Overview / Configuration / Logs / Monitoring / Updates / Backup / History и безопасные специальные действия профильных менеджеров.",
+      "evidence_path": "evidence/service_details_mvp.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-032.1",
+      "kind": "FUNCTIONAL",
+      "owner": "Service Details",
+      "release_inclusion": "MVP",
+      "stage": "Stage2",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-20",
+        "AC-23"
+      ],
+      "dependencies": [],
+      "description": "Service Catalog & Deployment и Service Details & Lifecycle: управляемые декларативные шаблоны, режимы Fully Managed / Publication Only / Discovered, стандартизированные вкладки Overview / Configuration / Logs / Monitoring / Updates / Backup / History и безопасные специальные действия профильных менеджеров. [Опциональная/расширенная часть соответствующего FR.]",
+      "evidence_path": "evidence/service_catalog_post.json",
+      "evidence_status": "NOT_RUN",
+      "id": "FR-032.2",
+      "kind": "FUNCTIONAL",
+      "owner": "Service Catalog",
+      "release_inclusion": "POST",
+      "stage": "Stage4",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-01",
+        "AC-02",
+        "AC-04",
+        "AC-B10"
+      ],
+      "dependencies": [],
+      "description": "Least privilege, отсутствует публичный доступ к Worker/SQLite/Vault, нет произвольного shell, защита host key, TLS/CSRF/sessions, запрет секретов в логах, ограничение SSRF и инъекций через строго типизированные операции.  ",
+      "evidence_path": "evidence/nfr_nfr-01.json",
+      "evidence_status": "NOT_RUN",
+      "id": "NFR-01",
+      "kind": "NON_FUNCTIONAL",
+      "owner": "Architecture/QA",
+      "release_inclusion": "MVP",
+      "stage": "Stage1",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-07",
+        "AC-08",
+        "AC-A10",
+        "AC-B01",
+        "AC-B09"
+      ],
+      "dependencies": [],
+      "description": "После restart Controller не теряет принятые задания/аудит; неопределённость фиксируется явно; нет blind retry; изменения сериализуются по конфликтующим ресурсам.  ",
+      "evidence_path": "evidence/nfr_nfr-02.json",
+      "evidence_status": "NOT_RUN",
+      "id": "NFR-02",
+      "kind": "NON_FUNCTIONAL",
+      "owner": "Architecture/QA",
+      "release_inclusion": "MVP",
+      "stage": "Stage1",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-11",
+        "AC-12",
+        "AC-A03",
+        "AC-B02",
+        "AC-B03"
+      ],
+      "dependencies": [],
+      "description": "Переносимая зашифрованная backup chain, ручной test restore, автономная Rescue CLI, ручная изоляция старого Controller и отзыв его полномочий без API хостера. RPO ≤24 ч — только при реально успешно выполненном суточном резервировании; лабораторный RTO ≤4 ч измеряется при подготовленной recovery VPS, доступном архиве/офлайн-ключе и выполненной ручной изоляции. Эти числа являются условиями отдельного лабораторного теста, **не коммерческим SLA, не гарантией доступности и не обещанием RTO для реальной аварии**; фактический RTO зависит от владельца и доступности независимых средств управления сервером.  ",
+      "evidence_path": "evidence/nfr_nfr-03.json",
+      "evidence_status": "NOT_RUN",
+      "id": "NFR-03",
+      "kind": "NON_FUNCTIONAL",
+      "owner": "Architecture/QA",
+      "release_inclusion": "MVP",
+      "stage": "Stage2",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-15",
+        "AC-28"
+      ],
+      "dependencies": [],
+      "description": "Структурированные журналы, корреляционные ID, доступные источники/времена наблюдений, безопасные diagnostic bundles с Privacy Review.  ",
+      "evidence_path": "evidence/nfr_nfr-04.json",
+      "evidence_status": "NOT_RUN",
+      "id": "NFR-04",
+      "kind": "NON_FUNCTIONAL",
+      "owner": "Architecture/QA",
+      "release_inclusion": "MVP",
+      "stage": "Stage2",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-26",
+        "AC-B06"
+      ],
+      "dependencies": [],
+      "description": "RU/EN с одинаковой функциональностью, клавиатурная доступность, ошибки рядом с полями, подтверждения опасных действий, без неподтверждённых зелёных статусов.  ",
+      "evidence_path": "evidence/nfr_nfr-05.json",
+      "evidence_status": "NOT_RUN",
+      "id": "NFR-05",
+      "kind": "NON_FUNCTIONAL",
+      "owner": "Architecture/QA",
+      "release_inclusion": "MVP",
+      "stage": "Stage2",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-18",
+        "AC-A15",
+        "AC-B09"
+      ],
+      "dependencies": [],
+      "description": "Версионированные контракты API и схем; миграции с резервной копией; поддерживаемые версии ОС/Docker и подключённых сервисных адаптеров заданы матрицей, тестами и release notes.  ",
+      "evidence_path": "evidence/nfr_nfr-06.json",
+      "evidence_status": "NOT_RUN",
+      "id": "NFR-06",
+      "kind": "NON_FUNCTIONAL",
+      "owner": "Architecture/QA",
+      "release_inclusion": "MVP",
+      "stage": "Stage2",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-A20",
+        "AC-B06",
+        "AC-B07"
+      ],
+      "dependencies": [],
+      "description": "Модульная кодовая база, независимые тесты менеджеров, типизированные контракты, документация API, ADR и единый каталог ошибок.  ",
+      "evidence_path": "evidence/nfr_nfr-07.json",
+      "evidence_status": "NOT_RUN",
+      "id": "NFR-07",
+      "kind": "NON_FUNCTIONAL",
+      "owner": "Architecture/QA",
+      "release_inclusion": "MVP",
+      "stage": "Stage1",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-A22",
+        "AC-B02"
+      ],
+      "dependencies": [],
+      "description": "MVP: Controller ≥2 vCPU, 4 GiB RAM, 40 GiB SSD; ≤25 управляемых VPS, ≤200 Service Instances; одновременные read-only проверки ≤8, изменяющая операция ≤1 на ресурс; p95 чтения API ≤500 мс на лабораторном стенде при отсутствии внешних SSH-вызовов. SQLite WAL только на локальном POSIX-томе, резервирование через Online Backup API; критерии будущей миграции БД в разделе 24.",
+      "evidence_path": "evidence/nfr_nfr-08.json",
+      "evidence_status": "NOT_RUN",
+      "id": "NFR-08",
+      "kind": "NON_FUNCTIONAL",
+      "owner": "Architecture/QA",
+      "release_inclusion": "MVP",
+      "stage": "Stage2",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-13",
+        "AC-40",
+        "AC-46",
+        "AC-A01",
+        "AC-A05",
+        "AC-B04"
+      ],
+      "dependencies": [],
+      "description": "Single-active manual isolation and quarantine",
+      "evidence_path": "evidence/p0-1.json",
+      "evidence_status": "NOT_RUN",
+      "id": "P0-1",
+      "kind": "SAFETY",
+      "owner": "Architecture/Security",
+      "release_inclusion": "MVP",
+      "stage": "Stage0",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-11",
+        "AC-12",
+        "AC-A02",
+        "AC-A03",
+        "AC-B02",
+        "AC-B03"
+      ],
+      "dependencies": [],
+      "description": "Portable Vault DEKs and coherent, authenticated snapshots",
+      "evidence_path": "evidence/p0-2.json",
+      "evidence_status": "NOT_RUN",
+      "id": "P0-2",
+      "kind": "SAFETY",
+      "owner": "Architecture/Security",
+      "release_inclusion": "MVP",
+      "stage": "Stage0",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-05",
+        "AC-A08",
+        "AC-A16"
+      ],
+      "dependencies": [],
+      "description": "Single-owner resource/aspect, apply-time baseline",
+      "evidence_path": "evidence/p0-3.json",
+      "evidence_status": "NOT_RUN",
+      "id": "P0-3",
+      "kind": "SAFETY",
+      "owner": "Architecture/Security",
+      "release_inclusion": "MVP",
+      "stage": "Stage0",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-07",
+        "AC-08",
+        "AC-A10",
+        "AC-A19",
+        "AC-B01",
+        "AC-B09"
+      ],
+      "dependencies": [],
+      "description": "Durable job semantics, unknown, no double execution",
+      "evidence_path": "evidence/p0-4.json",
+      "evidence_status": "NOT_RUN",
+      "id": "P0-4",
+      "kind": "SAFETY",
+      "owner": "Architecture/Security",
+      "release_inclusion": "MVP",
+      "stage": "Stage0",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-B01"
+      ],
+      "dependencies": [],
+      "description": "Docker delegated-effect termination: Artificially delay daemon restart after typed helper receipt; kill SSH/helper/systemd; verify late daemon effect cannot produce false quiescence, and closure stays blocked until proven completion/manual isolation.",
+      "evidence_path": "evidence/b01_test.json",
+      "evidence_status": "NOT_RUN",
+      "id": "CTRL-B01",
+      "kind": "CONTROL",
+      "owner": "Execution/Adapter",
+      "release_inclusion": "MVP",
+      "stage": "Stage0",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-B02"
+      ],
+      "dependencies": [],
+      "description": "Backup coordinator admission and barrier: Long Job and Vault rotation during backup; SFTP unreachable, ENOSPC and coordinator kill in every phase; verify bounded business admission block, checkpoint/audit progress, self-contained immutable snapshot and safe pin GC.",
+      "evidence_path": "evidence/b02_test.json",
+      "evidence_status": "NOT_RUN",
+      "id": "CTRL-B02",
+      "kind": "CONTROL",
+      "owner": "Backup Coordinator",
+      "release_inclusion": "MVP",
+      "stage": "Stage0",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-B03"
+      ],
+      "dependencies": [],
+      "description": "Recovery bundle owner provenance: Build wrong age payload with correct source-hash/recipient/challenge but altered DB/DEK; Rescue must require independent exact Owner digest and reject substitution/replay/other target.",
+      "evidence_path": "evidence/b03_test.json",
+      "evidence_status": "NOT_RUN",
+      "id": "CTRL-B03",
+      "kind": "CONTROL",
+      "owner": "Rescue/Recovery",
+      "release_inclusion": "MVP",
+      "stage": "Stage0",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-B04"
+      ],
+      "dependencies": [],
+      "description": "Quarantine dependency closure: Unknown Docker A shares Compose network/volume with B; B blocked, truly independent VPS may proceed after durable closure; updater blocked while any OPEN unknown.",
+      "evidence_path": "evidence/b04_test.json",
+      "evidence_status": "NOT_RUN",
+      "id": "CTRL-B04",
+      "kind": "CONTROL",
+      "owner": "Operations/Policy",
+      "release_inclusion": "MVP",
+      "stage": "Stage0",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-B05"
+      ],
+      "dependencies": [],
+      "description": "Restore source eligibility: Restore valid previous-day source archive into new empty volume; success after compatibility/origin/attestation; refuse restore on occupied target regardless of age.",
+      "evidence_path": "evidence/b05_test.json",
+      "evidence_status": "NOT_RUN",
+      "id": "CTRL-B05",
+      "kind": "CONTROL",
+      "owner": "Backup/Resource Restore",
+      "release_inclusion": "MVP",
+      "stage": "Stage2",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-B06"
+      ],
+      "dependencies": [],
+      "description": "Requirements trace and security sessions: Validator rejects missing descriptions, stage, release, assertion, AC owner, dependency; test session idle/absolute expiry, logout/revocation, role change, CSRF denial and Stage0/MVP gates derived from registry.",
+      "evidence_path": "evidence/b06_test.json",
+      "evidence_status": "NOT_RUN",
+      "id": "CTRL-B06",
+      "kind": "CONTROL",
+      "owner": "Requirements/Auth",
+      "release_inclusion": "MVP",
+      "stage": "Stage0",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-B07"
+      ],
+      "dependencies": [],
+      "description": "No competing normative state machines: Static checker finds single normative Plan/Job/Incident/Gate definitions and Stage0 gate, no promise to detect knowingly false Owner attestation; ADR amendment allows design changes.",
+      "evidence_path": "evidence/b07_test.json",
+      "evidence_status": "NOT_RUN",
+      "id": "CTRL-B07",
+      "kind": "CONTROL",
+      "owner": "Architecture/QA",
+      "release_inclusion": "MVP",
+      "stage": "Stage0",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-B08"
+      ],
+      "dependencies": [],
+      "description": "SSH account reproducibility: Fresh Ubuntu forced-command with /bin/sh and root-owned authorized_keys; valid typed request succeeds; shell/PTY/forwarding/sudo wildcard/writable key and helper paths fail.",
+      "evidence_path": "evidence/b08_test.json",
+      "evidence_status": "NOT_RUN",
+      "id": "CTRL-B08",
+      "kind": "CONTROL",
+      "owner": "SSH/OS",
+      "release_inclusion": "MVP",
+      "stage": "Stage0",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-B09"
+      ],
+      "dependencies": [],
+      "description": "Update admission mutual exclusion: Race Docker restart, app update and self-update with kill/crash before/after quiesce, schema migration and supervisor restart; no two permits, open unknown blocks update, host gate recovers fail closed.",
+      "evidence_path": "evidence/b09_test.json",
+      "evidence_status": "NOT_RUN",
+      "id": "CTRL-B09",
+      "kind": "CONTROL",
+      "owner": "Updater/Operations",
+      "release_inclusion": "MVP",
+      "stage": "Stage0",
+      "state": "DESIGNED"
+    },
+    {
+      "acceptance_ids": [
+        "AC-B10"
+      ],
+      "dependencies": [],
+      "description": "Broker UID/GID socket ACL: Real container UID/GID mapping with 0660 dedicated group and SO_PEERCRED; Worker scoped RPC succeeds, Backend/stranger uid denied, JSON consumer spoof rejected.",
+      "evidence_path": "evidence/b10_test.json",
+      "evidence_status": "NOT_RUN",
+      "id": "CTRL-B10",
+      "kind": "CONTROL",
+      "owner": "Secrets Broker",
+      "release_inclusion": "MVP",
+      "stage": "Stage0",
+      "state": "DESIGNED"
+    }
+  ],
+  "schema_version": "1.0",
+  "spec": "HostOrbit 2.3",
+  "stage_gates": {
+    "Stage0": {
+      "description": "Prototypes and static contract verification; no production changes",
+      "required_tests": [
+        "AC-A01",
+        "AC-A02",
+        "AC-A03",
+        "AC-A04",
+        "AC-A05",
+        "AC-A20",
+        "AC-B01",
+        "AC-B02",
+        "AC-B03",
+        "AC-B04",
+        "AC-B06",
+        "AC-B07",
+        "AC-B08",
+        "AC-B09",
+        "AC-B10"
+      ]
+    },
+    "Stage1": {
+      "description": "Foundation with negative tests; AC-28 not required",
+      "required_capabilities": [
+        "owner_auth",
+        "rbac",
+        "sqlite_audit_outbox",
+        "ssh_helper",
+        "broker_ipc",
+        "admission_supervisor"
+      ]
+    },
+    "Stage2": {
+      "description": "End-to-end new VPS→managed service→safe change→backup→audit",
+      "required_tests": [
+        "AC-28",
+        "AC-B05"
+      ]
+    },
+    "Stage3": {
+      "description": "All MVP tests and P0 NFR gates PASS, no affected capability with NOT_RUN",
+      "required_requirement_release": [
+        "MVP",
+        "MVP/BLOCKED",
+        "MVP/PAUSED"
+      ]
+    },
+    "Stage4": {
+      "description": "Only enabled post-MVP capabilities",
+      "required_requirement_release": [
+        "POST",
+        "POST/OPTIONAL"
+      ]
+    },
+    "Stage5": {
+      "description": "Scheduler and advanced UX features",
+      "required_requirement_release": [
+        "POST"
+      ]
+    }
+  },
+  "status": "STAGE0_PROTOTYPES_ACCEPTED_MVP_NOT_ACCEPTED",
+  "tests": [
+    {
+      "assertion": "Чистая установка не предоставляет Owner первому веб-посетителю; локальный bootstrap создаёт Owner, случайный посетитель не может создать администратора.",
+      "evidence_path": "evidence/tests/ac-01.json",
+      "id": "AC-01",
+      "linked_requirements": [
+        "FR-001.1",
+        "FR-002.1",
+        "FR-026.1",
+        "NFR-01"
+      ],
+      "owner": "Auth/Bootstrap",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Operator вне назначенного scope получает отказ API на изменение чужой VPS, даже если запрос сконструирован вручную.",
+      "evidence_path": "evidence/tests/ac-02.json",
+      "id": "AC-02",
+      "linked_requirements": [
+        "FR-003.1",
+        "FR-021.1",
+        "NFR-01"
+      ],
+      "owner": "RBAC/Policy",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Подмена SSH host fingerprint приводит к блокировке подключения и событию безопасности.",
+      "evidence_path": "evidence/tests/ac-03.json",
+      "id": "AC-03",
+      "linked_requirements": [
+        "FR-005.1",
+        "FR-026.1"
+      ],
+      "owner": "SSH/OS Manager",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Приватные SSH-ключи и API-токены отсутствуют в ответах обычного Web API и в структурированных журналах HostOrbit; разрешённая операция использует Secret Reference. Сырые сторонние stdout/stderr не выдаются в MVP; допускается только явно санкционированный age-зашифрованный Rescue export (§33, §35).",
+      "evidence_path": "evidence/tests/ac-04.json",
+      "id": "AC-04",
+      "linked_requirements": [
+        "FR-017.1",
+        "FR-030.1",
+        "NFR-01"
+      ],
+      "owner": "Secrets Broker",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Попытка изменить ресурс, принадлежащий внешнему приложению/API (например, Panel-owned), через файл или чужой менеджер блокируется; система объясняет авторитетный источник.",
+      "evidence_path": "evidence/tests/ac-05.json",
+      "id": "AC-05",
+      "linked_requirements": [
+        "FR-006.1",
+        "FR-007.1",
+        "FR-011.1",
+        "FR-032.1",
+        "P0-3"
+      ],
+      "owner": "Architecture/Security",
+      "stage": "Stage0",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "После утверждения изменение хотя бы одной цели, параметра или версии плана аннулирует approval; применение требует нового подтверждения.",
+      "evidence_path": "evidence/tests/ac-06.json",
+      "id": "AC-06",
+      "linked_requirements": [
+        "FR-003.1",
+        "FR-013.1",
+        "FR-014.1",
+        "FR-014.2",
+        "FR-021.1"
+      ],
+      "owner": "RBAC/Policy",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Перезапуск Worker во время задачи не создаёт параллельный исполнитель и сохраняет её ID/checkpoint.",
+      "evidence_path": "evidence/tests/ac-07.json",
+      "id": "AC-07",
+      "linked_requirements": [
+        "FR-008.1",
+        "FR-013.1",
+        "NFR-02",
+        "P0-4"
+      ],
+      "owner": "Architecture/Security",
+      "stage": "Stage0",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Разрыв SSH после передачи команды переводит операцию в Unknown Outcome; автоматический повтор запрещён до reconciliation.",
+      "evidence_path": "evidence/tests/ac-08.json",
+      "id": "AC-08",
+      "linked_requirements": [
+        "FR-013.1",
+        "NFR-02",
+        "P0-4"
+      ],
+      "owner": "Architecture/Security",
+      "stage": "Stage0",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Все mutating jobs MVP глобально сериализованы одним host admission authority с Update Controller. UNKNOWN сохраняет конфликтное dependency closure; карантин всей затронутой VPS и связанных cross-host ресурсов запрещает все пересекающиеся изменения до reconciliation/изоляции. Параллельные read-only проверки разрешены.",
+      "evidence_path": "evidence/tests/ac-09.json",
+      "id": "AC-09",
+      "linked_requirements": [
+        "FR-008.1",
+        "FR-013.1"
+      ],
+      "owner": "Operations/Worker",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Записываются инициатор, цель, одобрение, план, результат и время; запись не поддаётся обычному редактированию через UI.",
+      "evidence_path": "evidence/tests/ac-10.json",
+      "id": "AC-10",
+      "linked_requirements": [
+        "FR-016.1"
+      ],
+      "owner": "Audit Manager",
+      "stage": "Stage2",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "ControllerBackup выпускается только после согласованного barrier SQLite/Vault/key versions/audit-head, структурной проверки ссылок, проверки внешней подписи provenance-envelope и age ciphertext; незавершённые архивы не помечаются COMPLETED, последняя пригодная off-host копия защищена.",
+      "evidence_path": "evidence/tests/ac-11.json",
+      "id": "AC-11",
+      "linked_requirements": [
+        "FR-015.1",
+        "FR-025.1",
+        "NFR-03",
+        "P0-2"
+      ],
+      "owner": "Architecture/Security",
+      "stage": "Stage0",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Offline Rescue CLI на доверенной рабочей станции расшифровывает age-архив с приватной identity владельца и перешифровывает payload на временный публичный ключ нового Controller; Controller восстанавливает DB и Vault DEK без получения самой offline identity.",
+      "evidence_path": "evidence/tests/ac-12.json",
+      "id": "AC-12",
+      "linked_requirements": [
+        "FR-015.1",
+        "FR-017.1",
+        "FR-024.1",
+        "NFR-03",
+        "P0-2"
+      ],
+      "owner": "Architecture/Security",
+      "stage": "Stage0",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Восстановленный Controller не допускает `ACTIVE` без локальной Owner attestation ручного протокола изоляции старого экземпляра, зафиксированных наблюдений и следующих условий: остановка/изоляция старого Worker, отсутствие опасных исполняющихся операций, отзыв старых credentials на доступных ресурсах, карантин остальных, целостность базы/Vault и локальное повторное подтверждение в Rescue CLI. API хостера не используется.",
+      "evidence_path": "evidence/tests/ac-13.json",
+      "id": "AC-13",
+      "linked_requirements": [
+        "FR-024.1",
+        "FR-024.2",
+        "P0-1"
+      ],
+      "owner": "Architecture/Security",
+      "stage": "Stage0",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "После DR все незавершённые задания не запускаются самопроизвольно, расписания остаются на паузе до явного разрешения.",
+      "evidence_path": "evidence/tests/ac-14.json",
+      "id": "AC-14",
+      "linked_requirements": [
+        "FR-023.1",
+        "FR-024.1"
+      ],
+      "owner": "Scheduler",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "При недоступной проверке интерфейс показывает Unknown/Unreachable с источником и временем, не Healthy.",
+      "evidence_path": "evidence/tests/ac-15.json",
+      "id": "AC-15",
+      "linked_requirements": [
+        "FR-006.1",
+        "FR-010.1",
+        "FR-018.1",
+        "FR-032.1",
+        "NFR-04"
+      ],
+      "owner": "Infrastructure Registry",
+      "stage": "Stage2",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "При отсутствии подтверждённого независимого отката опасное изменение Firewall/SSH невозможно выполнить.",
+      "evidence_path": "evidence/tests/ac-16.json",
+      "id": "AC-16",
+      "linked_requirements": [
+        "FR-012.1",
+        "FR-012.2"
+      ],
+      "owner": "Network/Firewall Manager",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "MVP не меняет общий system Nginx и не публикует на занятом чужом listener. HostOrbit-owned Nginx запускается на отдельном свободном address:port/config-prefix; проверяются конфликт IPv4/IPv6, effective config, routing/TLS и здоровье существующих сайтов.",
+      "evidence_path": "evidence/tests/ac-17.json",
+      "id": "AC-17",
+      "linked_requirements": [
+        "FR-010.1",
+        "FR-011.1"
+      ],
+      "owner": "Network Discovery",
+      "stage": "Stage2",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Обновление HostOrbit с несовместимой миграцией SQLite не запускает автоматический откат старой версии поверх новой базы.",
+      "evidence_path": "evidence/tests/ac-18.json",
+      "id": "AC-18",
+      "linked_requirements": [
+        "FR-008.2",
+        "FR-022.1",
+        "FR-022.2",
+        "NFR-06"
+      ],
+      "owner": "Independent Update Controller",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Новая VPS, попавшая в динамическую группу, не добавляется в ранее подтверждённую изменяющую операцию и не наследует прежнее разрешение на изменение.",
+      "evidence_path": "evidence/tests/ac-19.json",
+      "id": "AC-19",
+      "linked_requirements": [
+        "FR-018.2",
+        "FR-020.1"
+      ],
+      "owner": "Topology/Monitoring/Security",
+      "stage": "Stage4",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Конфликт групповых политик без согласованного правила разрешения блокирует применение, а источник каждого Effective Value отображается в UI.",
+      "evidence_path": "evidence/tests/ac-20.json",
+      "id": "AC-20",
+      "linked_requirements": [
+        "FR-018.2",
+        "FR-019.1",
+        "FR-021.2",
+        "FR-032.2"
+      ],
+      "owner": "Topology/Monitoring/Security",
+      "stage": "Stage4",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Dry Run фиксирует точный набор удаляемых объектов; новые файлы после approval не попадают в удаление; связанные backup и журналы не удаляются.",
+      "evidence_path": "evidence/tests/ac-21.json",
+      "id": "AC-21",
+      "linked_requirements": [
+        "FR-025.1",
+        "FR-025.2"
+      ],
+      "owner": "Backup/Storage Registry",
+      "stage": "Stage2",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Просроченное/отозванное разрешение блокирует изменение; пропущенный approved update не выполняется автоматически после восстановления Controller.",
+      "evidence_path": "evidence/tests/ac-22.json",
+      "id": "AC-22",
+      "linked_requirements": [
+        "FR-023.1",
+        "FR-023.2"
+      ],
+      "owner": "Scheduler",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Обновление статического сайта из одобренного источника не запускает автоматический rollback без отдельного ручного решения.",
+      "evidence_path": "evidence/tests/ac-23.json",
+      "id": "AC-23",
+      "linked_requirements": [
+        "FR-008.2",
+        "FR-022.2",
+        "FR-032.2"
+      ],
+      "owner": "Update Manager",
+      "stage": "Stage4",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Выпуск сертификата не меняет DNS автоматически; manual DNS-01 не маркируется как полностью автоматическое продление.",
+      "evidence_path": "evidence/tests/ac-24.json",
+      "id": "AC-24",
+      "linked_requirements": [
+        "FR-011.2"
+      ],
+      "owner": "Domains/Certs/Caddy Managers",
+      "stage": "Stage4",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "При включённом VPN-адаптере неуспех Foreign Exit не приводит к неразрешённому переключению выхода, понижению защиты или direct-route. Без VPN-адаптера тест не требуется.",
+      "evidence_path": "evidence/tests/ac-25.json",
+      "id": "AC-25",
+      "linked_requirements": [
+        "FR-007.2",
+        "FR-009.1"
+      ],
+      "owner": "Remnawave Adapter",
+      "stage": "Stage4",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "В RU/EN проходят основные сценарии с клавиатуры; критические предупреждения доступны без опоры только на цвет.",
+      "evidence_path": "evidence/tests/ac-26.json",
+      "id": "AC-26",
+      "linked_requirements": [
+        "FR-004.1",
+        "FR-018.1",
+        "FR-031.1",
+        "FR-031.2",
+        "NFR-05"
+      ],
+      "owner": "Frontend",
+      "stage": "Stage2",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Нарушение локальной цепочки Integrity после появления независимой контрольной точки обнаруживается проверкой.",
+      "evidence_path": "evidence/tests/ac-27.json",
+      "id": "AC-27",
+      "linked_requirements": [
+        "FR-016.2"
+      ],
+      "owner": "Audit Manager",
+      "stage": "Stage4",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "На VPS без VPN и Remnawave доступны регистрация, обнаружение Docker/Compose или Nginx, безопасная ручная операция и аудит. Принятие существующей VPS не перезаписывает сторонний Nginx/Compose-проект без явного Change Plan.",
+      "evidence_path": "evidence/tests/ac-28.json",
+      "id": "AC-28",
+      "linked_requirements": [
+        "FR-005.1",
+        "FR-006.1",
+        "FR-007.1",
+        "FR-008.1",
+        "FR-018.1",
+        "FR-026.1",
+        "FR-032.1",
+        "NFR-04"
+      ],
+      "owner": "SSH/OS Manager",
+      "stage": "Stage2",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Approvals нельзя подтвердить через Telegram; уведомление содержит безопасную ссылку на защищённую Web-сессию.",
+      "evidence_path": "evidence/tests/ac-29.json",
+      "id": "AC-29",
+      "linked_requirements": [
+        "FR-027.1",
+        "FR-027.2"
+      ],
+      "owner": "Activity Center",
+      "stage": "Stage2",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Командная палитра не показывает недоступные оператору ресурсы и не позволяет сформировать произвольную shell-команду.",
+      "evidence_path": "evidence/tests/ac-30.json",
+      "id": "AC-30",
+      "linked_requirements": [
+        "FR-018.2",
+        "FR-028.1"
+      ],
+      "owner": "Topology/Monitoring/Security",
+      "stage": "Stage4",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Экспорт проходит Privacy Review; приватные ключи, токены и пароли отсутствуют, а пользователь сам разрешает передачу архива.",
+      "evidence_path": "evidence/tests/ac-31.json",
+      "id": "AC-31",
+      "linked_requirements": [
+        "FR-016.2",
+        "FR-018.2",
+        "FR-030.2"
+      ],
+      "owner": "Audit Manager",
+      "stage": "Stage4",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Критическая справка доступна без подключения к внешним сайтам; обновление справки не исполняет код.",
+      "evidence_path": "evidence/tests/ac-32.json",
+      "id": "AC-32",
+      "linked_requirements": [
+        "FR-029.1",
+        "FR-029.2"
+      ],
+      "owner": "Help/Runbook",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "На неподдерживаемом хосте Adapter возвращает `UNSUPPORTED` для изменяющего действия; read-only описание не выдаётся за Fully Managed.",
+      "evidence_path": "evidence/tests/ac-33.json",
+      "id": "AC-33",
+      "linked_requirements": [
+        "FR-005.1",
+        "FR-006.1",
+        "FR-007.1",
+        "FR-010.1"
+      ],
+      "owner": "SSH/OS Manager",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "HostOrbit-owned Nginx instance использует отдельный listener и config namespace; существующий сторонний Nginx master не перезагружается, его vhost сохраняют маршрутизацию/TLS/health. Сравнение байтов файлов дополняется функциональными проверками routing и портов (§35).",
+      "evidence_path": "evidence/tests/ac-34.json",
+      "id": "AC-34",
+      "linked_requirements": [
+        "FR-011.1"
+      ],
+      "owner": "Nginx Manager",
+      "stage": "Stage2",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Попытка удалить Secret Reference при живой ссылке от resource/job/backup блокируется `409`; удаление resource не очищает секрет каскадно.",
+      "evidence_path": "evidence/tests/ac-35.json",
+      "id": "AC-35",
+      "linked_requirements": [
+        "FR-017.1"
+      ],
+      "owner": "Secrets Broker",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Два одновременных изменения по stale strong ETag приводят к одному success и другому `412`; без `If-Match` — `428`.",
+      "evidence_path": "evidence/tests/ac-36.json",
+      "id": "AC-36",
+      "linked_requirements": [
+        "FR-014.1"
+      ],
+      "owner": "Config/Change Plan",
+      "stage": "Stage2",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Повтор `Idempotency-Key` создаёт один Job, а тот же key с другим payload — `409`. Remote SSH effect при `UNKNOWN_OUTCOME` автоматически не повторяется.",
+      "evidence_path": "evidence/tests/ac-37.json",
+      "id": "AC-37",
+      "linked_requirements": [
+        "FR-013.1"
+      ],
+      "owner": "Operations/Worker",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Повреждённый архив и неверная age identity отвергаются; private recovery key используется исключительно offline Rescue CLI на доверенной рабочей станции и не передаётся на VPS ни временно, ни постоянно. При восстановлении новая VPS получает лишь ciphertext, зашифрованный на одноразовый публичный ключ получателя; test-restore DB+Vault успешен, логи/аргументы/env не содержат ключей.",
+      "evidence_path": "evidence/tests/ac-38.json",
+      "id": "AC-38",
+      "linked_requirements": [
+        "FR-015.1",
+        "FR-017.1",
+        "FR-024.1"
+      ],
+      "owner": "Secrets Broker",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Подмена подписи/digest update manifest блокирует обновление; сбой обновления самого Update Controller откатывает только его A/B слот, а не SQLite.",
+      "evidence_path": "evidence/tests/ac-39.json",
+      "id": "AC-39",
+      "linked_requirements": [
+        "FR-022.1"
+      ],
+      "owner": "Independent Update Controller",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "При недоступном старом Controller и отсутствии ручного доказательного протокола изоляции новый экземпляр остаётся `READ_ONLY_RECOVERY`; ложный ответ оператора, один SSH timeout или смена DNS не включают `ACTIVE`. Тест без API провайдера.",
+      "evidence_path": "evidence/tests/ac-40.json",
+      "id": "AC-40",
+      "linked_requirements": [
+        "FR-024.1",
+        "P0-1"
+      ],
+      "owner": "Architecture/Security",
+      "stage": "Stage0",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Штатный перенос с доступного старого Controller допускает ручную остановку/mask Worker и Scheduler и отзыв старых credentials без выключения VPS с посторонними сервисами. Если невозможно подтвердить прекращение опасных операций или изолировать недоступный старый экземпляр, только `READ_ONLY_RECOVERY`, без `force active` и удаления VPS.",
+      "evidence_path": "evidence/tests/ac-41.json",
+      "id": "AC-41",
+      "linked_requirements": [
+        "FR-024.1"
+      ],
+      "owner": "Recovery/Rescue CLI",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Rate limits срабатывают независимо для login, approval и API; spoofed X-Forwarded-For из недоверенного peer не меняет identity источника.",
+      "evidence_path": "evidence/tests/ac-42.json",
+      "id": "AC-42",
+      "linked_requirements": [
+        "FR-002.1"
+      ],
+      "owner": "Auth",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Установщик при занятом публичном порту 443 не заменяет чужой listener/Nginx Stream и предлагает непубличный localhost endpoint, не портит сайты.",
+      "evidence_path": "evidence/tests/ac-43.json",
+      "id": "AC-43",
+      "linked_requirements": [
+        "FR-011.1"
+      ],
+      "owner": "Nginx Manager",
+      "stage": "Stage2",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Read-only restore после потери Controller сохраняет прежние jobs/schedules выключенными; каждый ресурс с неотозванными old-controller credentials помечен QUARANTINED до проверки и ротации.",
+      "evidence_path": "evidence/tests/ac-44.json",
+      "id": "AC-44",
+      "linked_requirements": [
+        "FR-024.1"
+      ],
+      "owner": "Recovery/Rescue CLI",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "На стенде 25 VPS/200 services соблюдаются оговорённые ограничения concurrency и p95 API; журнал не содержит паролей и приватных SSH-ключей даже при ошибках.",
+      "evidence_path": "evidence/tests/ac-45.json",
+      "id": "AC-45",
+      "linked_requirements": [
+        "FR-016.1",
+        "FR-030.1"
+      ],
+      "owner": "Diagnostics Log Sanitizer",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Подтверждённая ручная изоляция старого Controller + отзыв старых credentials допускают отдельную активацию новой VPS. При повторном запуске старого Worker с отозванными SSH credentials он не может выполнять mutating операции на доступных тестовых VPS; недоступные при ротации VPS остаются `QUARANTINED`.",
+      "evidence_path": "evidence/tests/ac-46.json",
+      "id": "AC-46",
+      "linked_requirements": [
+        "FR-024.1",
+        "P0-1"
+      ],
+      "owner": "Architecture/Security",
+      "stage": "Stage0",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Оба независимых офлайн-носителя recovery identity проходят ручную проверку и test-restore с локальной offline-дешифровкой; потеря/неверный ключ приводит к `DR_NOT_READY`, процедура ротации не удаляет прежний доступ до проверки новых зашифрованных архивов. На новую VPS передаётся только зашифрованный recovery bundle.",
+      "evidence_path": "evidence/tests/ac-47.json",
+      "id": "AC-47",
+      "linked_requirements": [
+        "FR-015.1",
+        "FR-017.1",
+        "FR-024.1",
+        "FR-029.1"
+      ],
+      "owner": "Secrets Broker",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "При рассинхронизации локальных часов более 5 секунд или отсутствии надёжной синхронизации Scheduler и новые mutating jobs блокируются; восстановление синхронизации не запускает старый SSH side-effect автоматически.",
+      "evidence_path": "evidence/tests/ac-48.json",
+      "id": "AC-48",
+      "linked_requirements": [
+        "FR-013.1"
+      ],
+      "owner": "Operations/Worker",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "UI и API честно маркируют неподдерживаемые действия как `READ_ONLY/UNSUPPORTED`, включая Caddy manage и Firewall/SSH changes в MVP; отсутствует скрытый обход запрета через прямой API.",
+      "evidence_path": "evidence/tests/ac-49.json",
+      "id": "AC-49",
+      "linked_requirements": [
+        "FR-012.1",
+        "FR-018.1"
+      ],
+      "owner": "Network/Firewall Manager",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Компрометированный Backend не может отправить произвольный shell в Independent Update Controller, подменить подписанный выпуск, записать A/B slots напрямую или получить доступ к Docker Socket вне разрешённого брокера.",
+      "evidence_path": "evidence/tests/ac-50.json",
+      "id": "AC-50",
+      "linked_requirements": [
+        "FR-022.1"
+      ],
+      "owner": "Independent Update Controller",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Установка, штатное управление, тест миграции и восстановление не требуют API хостера, его credentials или вызова облачного control API. На тестовом стенде с заблокированными внешними API эти сценарии сохраняют заявленную функциональность при подтверждённой ручной изоляции.",
+      "evidence_path": "evidence/tests/ac-51.json",
+      "id": "AC-51",
+      "linked_requirements": [
+        "FR-024.1"
+      ],
+      "owner": "Recovery/Rescue CLI",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "UX для `UNKNOWN_OUTCOME` показывает последний checkpoint, результаты максимум трёх read-only сверок и следующий допустимый шаг, не предлагая автоматический повтор mutating команды; тест с обрывом SSH не создаёт второй побочный эффект.",
+      "evidence_path": "evidence/tests/ac-52.json",
+      "id": "AC-52",
+      "linked_requirements": [
+        "FR-013.1"
+      ],
+      "owner": "Operations/Worker",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "На полностью выключенном старом ACTIVE новый Controller не выполняет обычный restart. Внешний ручной runbook отзывает old keys и устанавливает new restricted keys на доступных VPS, недоступный хост остаётся QUARANTINED; Owner активирует только проверенные цели. Ни один обычный Job не получает исключение в READ_ONLY_RECOVERY.",
+      "evidence_path": "evidence/tests/ac-a01.json",
+      "id": "AC-A01",
+      "linked_requirements": [
+        "FR-024.1",
+        "P0-1"
+      ],
+      "owner": "Architecture/Security",
+      "stage": "Stage0",
+      "status": "PASS"
+    },
+    {
+      "assertion": "Удалить old host credential store и системный диск; извлечь archive на иной машине с offline Owner age identity; reencrypt под одноразовый recipient; восстановить все активные и необходимые старые версии секретов. Подмена одним OS-wrapped DEK проваливает тест.",
+      "evidence_path": "evidence/tests/ac-a02.json",
+      "id": "AC-A02",
+      "linked_requirements": [
+        "FR-015.1",
+        "FR-017.1",
+        "FR-024.1",
+        "P0-2"
+      ],
+      "owner": "Architecture/Security",
+      "stage": "Stage0",
+      "status": "PASS"
+    },
+    {
+      "assertion": "Во время непрерывной Vault rotation/revoke и изменения ресурсов создавать backup; kill/powerfail каждой фазы PREPARE/PIN/SNAPSHOT/SEAL/SIGN/PUBLISH. Все COMPLETED архивы восстанавливают все reference/key_versions/audit head; INCOMPLETE не предлагаются к восстановлению.",
+      "evidence_path": "evidence/tests/ac-a03.json",
+      "id": "AC-A03",
+      "linked_requirements": [
+        "FR-015.1",
+        "NFR-03",
+        "P0-2"
+      ],
+      "owner": "Architecture/Security",
+      "stage": "Stage0",
+      "status": "PASS"
+    },
+    {
+      "assertion": "В тестовом Backend RCE попытаться подделать plan/approval, перезаписать DB, вызвать Broker IPC, запросить secret и Docker operation; ожидать отказ для shell/несоответствующего scope/невалидного IPC. Если тест демонстрирует злоупотребление разрешённым выглядит approval в пределах TCB, это **показывается как остаточный риск, не маскируется фразой «RCE защищён»**; разработчик подтверждает заявленную границу доверия.",
+      "evidence_path": "evidence/tests/ac-a04.json",
+      "id": "AC-A04",
+      "linked_requirements": [
+        "FR-002.1",
+        "FR-003.1",
+        "FR-017.1"
+      ],
+      "owner": "Auth",
+      "stage": "Stage0",
+      "status": "PASS"
+    },
+    {
+      "assertion": "Запустить transient unit с задержанным побочным эффектом, оборвать SSH, выключить прежний Controller, отозвать key. Новый не снимает conflict lock и не запускает вторую мутацию пока unit не завершён/не остановлен и не проверены postconditions или VPS не изолирована. Запущенный process tree проверяется через cgroup/systemd.",
+      "evidence_path": "evidence/tests/ac-a05.json",
+      "id": "AC-A05",
+      "linked_requirements": [
+        "FR-008.1",
+        "FR-013.1",
+        "FR-024.1",
+        "P0-1"
+      ],
+      "owner": "Architecture/Security",
+      "stage": "Stage0",
+      "status": "PASS"
+    },
+    {
+      "assertion": "Сравнить normal reboot, restore/import и full snapshot clone. Новая восстановленная установка стартует READ_ONLY; old key отвергается VPS после ротации. Не заявляется универсальная детекция скрытого клона; возможный злоумышленный full clone описан в Threat Model как недоказуемый без внешнего anchor.",
+      "evidence_path": "evidence/tests/ac-a06.json",
+      "id": "AC-A06",
+      "linked_requirements": [
+        "FR-024.1"
+      ],
+      "owner": "Recovery/Rescue CLI",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Украденным dedicated hostorbit key попытаться открыть shell, PTY/port forwarding, изменить helper, получить docker.sock, выполнить чужой project, подставить shell metacharacters. Все выходы за типизированные allowlist отказываются на самой VPS. Проверен root-owned helper package/version и new SSH fingerprint.",
+      "evidence_path": "evidence/tests/ac-a07.json",
+      "id": "AC-A07",
+      "linked_requirements": [
+        "FR-005.1",
+        "FR-007.1"
+      ],
+      "owner": "SSH/OS Manager",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "После Approval изменить remote file, inode/symlink, Docker project/container identity, ownership и policy. Apply прекращается ДО первого эффекта со `STALE_BASELINE`, не перетирая ручную правку. Проверить повторные guards перед последующими шагами.",
+      "evidence_path": "evidence/tests/ac-a08.json",
+      "id": "AC-A08",
+      "linked_requirements": [
+        "FR-011.1",
+        "FR-013.1",
+        "FR-014.1",
+        "P0-3"
+      ],
+      "owner": "Architecture/Security",
+      "stage": "Stage0",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Одновременно запросить два vhost своего Nginx instance и изменение общего Docker project/network. Один глобальный mutator предотвращает конкурентное исполнение. После UNKNOWN lock удерживается; read-only observation идёт; deadlock и промежуточное «Healthy» не возникают.",
+      "evidence_path": "evidence/tests/ac-a09.json",
+      "id": "AC-A09",
+      "linked_requirements": [
+        "FR-013.1"
+      ],
+      "owner": "Operations/Worker",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Inject kill/powerfail/ENOSPC/SQLITE_BUSY на границах `job accepted → intent committed → remote send → receipt → verify → audit+outbox`. Принятый Job не исчезает; возможно выполненный эффект отражается UNKNOWN; SSE не показывает неподтверждённый SUCCEEDED. Стартовые PRAGMA проверены.",
+      "evidence_path": "evidence/tests/ac-a10.json",
+      "id": "AC-A10",
+      "linked_requirements": [
+        "FR-013.1",
+        "FR-016.1",
+        "NFR-02",
+        "P0-4"
+      ],
+      "owner": "Architecture/Security",
+      "stage": "Stage0",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Полностью удалить тестовый HostOrbit-owned Nginx instance config и остановленный Docker named volume с исходной VPS. Восстановить заявленный supported data scope на чистую Ubuntu, проверить права/содержимое/health приложения. Live DB/unknown bind mount должны вернуть UNSUPPORTED.",
+      "evidence_path": "evidence/tests/ac-a11.json",
+      "id": "AC-A11",
+      "linked_requirements": [
+        "FR-015.1"
+      ],
+      "owner": "Backup/Recovery",
+      "stage": "Stage2",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Новый pre-change backup без ручного restore каждого экземпляра допускается лишь с актуальной restore procedure attestation и нужным scope; просроченная аттестация, SFTP failure и неверный scope блокируют Apply. RPO считается от завершённой off-host копии.",
+      "evidence_path": "evidence/tests/ac-a12.json",
+      "id": "AC-A12",
+      "linked_requirements": [
+        "FR-015.1"
+      ],
+      "owner": "Backup/Recovery",
+      "stage": "Stage2",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Полностью заменить age ciphertext/SFTP manifest на корректно пересчитанную, но не подписанную доверенным ключом пару — отказ. Старый bundle, чужой target recipient и повторный challenge — отказ. Идентифицированы границы при скомпрометированном signing key/full snapshot.",
+      "evidence_path": "evidence/tests/ac-a13.json",
+      "id": "AC-A13",
+      "linked_requirements": [
+        "FR-015.1"
+      ],
+      "owner": "Backup/Recovery",
+      "stage": "Stage2",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Изменить owner/ACL/state в DB, переставить ciphertext, отозвать секрет после Approval до Apply, сделать DEK rotation во время backup и выполнить in-flight job. Неавторизованный Use невозможен, запрещённые новые потребители блокируются; старые поколения ключей сохраняют расшифровку архива.",
+      "evidence_path": "evidence/tests/ac-a14.json",
+      "id": "AC-A14",
+      "linked_requirements": [
+        "FR-017.1"
+      ],
+      "owner": "Secrets Broker",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Kill/self-update после каждой фазы A/B switch и до/после DB migration; повтор IPC, валидная старая подпись, ошибочный Vault smoke test. Существует один durable journal и trusted authority; downgrade несовместимого DB запрещён, Rescue доступна.",
+      "evidence_path": "evidence/tests/ac-a15.json",
+      "id": "AC-A15",
+      "linked_requirements": [
+        "FR-022.1",
+        "NFR-06"
+      ],
+      "owner": "Independent Update Controller",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "На VPS с чужими vhost/shared nginx создать отдельный owned instance; проверить старые routing/TLS/health до и после. Duplicate server_name, IPv6 dual-stack, default_server, опасный include, занятый socket и partial reload не воздействуют на system master.",
+      "evidence_path": "evidence/tests/ac-a16.json",
+      "id": "AC-A16",
+      "linked_requirements": [
+        "FR-011.1",
+        "FR-032.1",
+        "P0-3"
+      ],
+      "owner": "Architecture/Security",
+      "stage": "Stage0",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Canary token в stderr/stdout, URL, multiline, traceback и SSH output. В SQLite, structured logs, audit, SSE, браузере и экспорте нет canary; сырой third-party stdout отвергается отдельным unsupported capability, а не «волшебным redaction».",
+      "evidence_path": "evidence/tests/ac-a17.json",
+      "id": "AC-A17",
+      "linked_requirements": [
+        "FR-008.1",
+        "FR-016.1",
+        "FR-030.1"
+      ],
+      "owner": "Diagnostics Log Sanitizer",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "DNS rebinding, ipv6 link-local zone, нестандартная IPv4 нотация, redirect-to-metadata, изменение A/AAAA после preflight и Operator-register-privileged-target — deny; разрешённая по policy RFC1918 VPS при этом работает.",
+      "evidence_path": "evidence/tests/ac-a18.json",
+      "id": "AC-A18",
+      "linked_requirements": [
+        "FR-003.1",
+        "FR-005.1",
+        "FR-010.1"
+      ],
+      "owner": "RBAC/Policy",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Два конкурентных запроса с одним key и различным payload создают один Job и один 409. Повтор APPROVED plan через 25 часов и после cleanup job history не создаёт новой mutating execution.",
+      "evidence_path": "evidence/tests/ac-a19.json",
+      "id": "AC-A19",
+      "linked_requirements": [
+        "FR-013.1",
+        "P0-4"
+      ],
+      "owner": "Architecture/Security",
+      "stage": "Stage0",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Автоматически проверить, что каждый активный FR/subrequirement имеет stage, owner, хотя бы один AC и evidence path; каждый AC ссылается на доступный этап и capability. Проверить невозможные state transition и отсутствие Stage0 dependency на Stage2 Web, отдельное handling UNKNOWN incident.",
+      "evidence_path": "evidence/tests/ac-a20.json",
+      "id": "AC-A20",
+      "linked_requirements": [
+        "NFR-07"
+      ],
+      "owner": "Architecture/QA",
+      "stage": "Stage0",
+      "status": "PASS"
+    },
+    {
+      "assertion": "Проверить host NTP time-health при offline network holdover, clock step, sample age и large skew; неподтверждённое время блокирует mutation. Offline Rescue с необработанным swap/core dump/hibernation отказывает в decrypt и не копирует owner identity на новую VPS.",
+      "evidence_path": "evidence/tests/ac-a21.json",
+      "id": "AC-A21",
+      "linked_requirements": [
+        "FR-024.1"
+      ],
+      "owner": "Recovery/Rescue CLI",
+      "stage": "Stage1",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "На фиксированном аппаратном стенде провести 8h mixed soak после 30m warmup на 30d dataset. Приложить нагрузку, p95/p99 отдельных endpoint, WAL/transaction/writer metrics, full quota test, error accounting с исключением ожидаемых 4xx. Решение PostgreSQL не выводится автоматически из числа VPS/событий.",
+      "evidence_path": "evidence/tests/ac-a22.json",
+      "id": "AC-A22",
+      "linked_requirements": [
+        "NFR-08"
+      ],
+      "owner": "Architecture/QA",
+      "stage": "Stage2",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Artificially delay daemon restart after typed helper receipt; kill SSH/helper/systemd; verify late daemon effect cannot produce false quiescence, and closure stays blocked until proven completion/manual isolation.",
+      "evidence_path": "evidence/tests/ac-b01.json",
+      "id": "AC-B01",
+      "linked_requirements": [
+        "NFR-02",
+        "P0-4",
+        "CTRL-B01"
+      ],
+      "owner": "Architecture/Security",
+      "stage": "Stage0",
+      "status": "PASS"
+    },
+    {
+      "assertion": "Long Job and Vault rotation during backup; SFTP unreachable, ENOSPC and coordinator kill in every phase; verify bounded business admission block, checkpoint/audit progress, self-contained immutable snapshot and safe pin GC.",
+      "evidence_path": "evidence/tests/ac-b02.json",
+      "id": "AC-B02",
+      "linked_requirements": [
+        "NFR-03",
+        "NFR-08",
+        "P0-2",
+        "CTRL-B02"
+      ],
+      "owner": "Architecture/Security",
+      "stage": "Stage0",
+      "status": "PASS"
+    },
+    {
+      "assertion": "Build wrong age payload with correct source-hash/recipient/challenge but altered DB/DEK; Rescue must require independent exact Owner digest and reject substitution/replay/other target.",
+      "evidence_path": "evidence/tests/ac-b03.json",
+      "id": "AC-B03",
+      "linked_requirements": [
+        "NFR-03",
+        "P0-2",
+        "CTRL-B03"
+      ],
+      "owner": "Architecture/Security",
+      "stage": "Stage0",
+      "status": "PASS"
+    },
+    {
+      "assertion": "Unknown Docker A shares Compose network/volume with B; B blocked, truly independent VPS may proceed after durable closure; updater blocked while any OPEN unknown.",
+      "evidence_path": "evidence/tests/ac-b04.json",
+      "id": "AC-B04",
+      "linked_requirements": [
+        "P0-1",
+        "CTRL-B04"
+      ],
+      "owner": "Architecture/Security",
+      "stage": "Stage0",
+      "status": "PASS"
+    },
+    {
+      "assertion": "Restore valid previous-day source archive into new empty volume; success after compatibility/origin/attestation; refuse restore on occupied target regardless of age.",
+      "evidence_path": "evidence/tests/ac-b05.json",
+      "id": "AC-B05",
+      "linked_requirements": [
+        "CTRL-B05"
+      ],
+      "owner": "Backup/Resource Restore",
+      "stage": "Stage2",
+      "status": "NOT_RUN"
+    },
+    {
+      "assertion": "Validator rejects missing descriptions, stage, release, assertion, AC owner, dependency; test session idle/absolute expiry, logout/revocation, role change, CSRF denial and Stage0/MVP gates derived from registry.",
+      "evidence_path": "evidence/tests/ac-b06.json",
+      "id": "AC-B06",
+      "linked_requirements": [
+        "NFR-05",
+        "NFR-07",
+        "CTRL-B06"
+      ],
+      "owner": "Requirements/Auth",
+      "stage": "Stage0",
+      "status": "PASS"
+    },
+    {
+      "assertion": "Static checker finds single normative Plan/Job/Incident/Gate definitions and Stage0 gate, no promise to detect knowingly false Owner attestation; ADR amendment allows design changes.",
+      "evidence_path": "evidence/tests/ac-b07.json",
+      "id": "AC-B07",
+      "linked_requirements": [
+        "NFR-07",
+        "CTRL-B07"
+      ],
+      "owner": "Architecture/QA",
+      "stage": "Stage0",
+      "status": "PASS"
+    },
+    {
+      "assertion": "Fresh Ubuntu forced-command with /bin/sh and root-owned authorized_keys; valid typed request succeeds; shell/PTY/forwarding/sudo wildcard/writable key and helper paths fail.",
+      "evidence_path": "evidence/tests/ac-b08.json",
+      "id": "AC-B08",
+      "linked_requirements": [
+        "CTRL-B08"
+      ],
+      "owner": "SSH/OS",
+      "stage": "Stage0",
+      "status": "PASS"
+    },
+    {
+      "assertion": "Race Docker restart, app update and self-update with kill/crash before/after quiesce, schema migration and supervisor restart; no two permits, open unknown blocks update, host gate recovers fail closed.",
+      "evidence_path": "evidence/tests/ac-b09.json",
+      "id": "AC-B09",
+      "linked_requirements": [
+        "NFR-02",
+        "NFR-06",
+        "P0-4",
+        "CTRL-B09"
+      ],
+      "owner": "Architecture/Security",
+      "stage": "Stage0",
+      "status": "PASS"
+    },
+    {
+      "assertion": "Real container UID/GID mapping with 0660 dedicated group and SO_PEERCRED; Worker scoped RPC succeeds, Backend/stranger uid denied, JSON consumer spoof rejected.",
+      "evidence_path": "evidence/tests/ac-b10.json",
+      "id": "AC-B10",
+      "linked_requirements": [
+        "NFR-01",
+        "CTRL-B10"
+      ],
+      "owner": "Secrets Broker",
+      "stage": "Stage0",
+      "status": "PASS"
+    }
+  ]
+}
