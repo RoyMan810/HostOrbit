@@ -16,6 +16,14 @@ _MACHINES = {
     "Host Admission Gate": "NORMAL → QUIESCING → MAINTENANCE → RESUMING → NORMAL",
 }
 
+# These are explicit security bounds of the v2.3 baseline, not a semantic
+# classifier for arbitrary prose. Removing or changing one requires ADR review.
+_SECURITY_BOUNDS = (
+    "Root/managed Docker daemon и сознательно ложная Owner attestation не входят в полную защитную гарантию.",
+    "умышленно ложное Owner attestation или скрытый полный snapshot не обнаруживаются гарантированно.",
+    "провал или контрпример → ADR_CHANGE_REQUEST",
+)
+
 
 def _stage0_ids(declaration):
     result = set()
@@ -57,11 +65,15 @@ def check_baseline(markdown: str, data: dict) -> dict:
         raise InvalidRegistry("baseline: Stage0 criteria differ from the registry")
     if registry.tests.get("AC-28", {}).get("stage") != "Stage2":
         raise InvalidRegistry("baseline: AC-28 must be accepted at Stage2")
+    for boundary in _SECURITY_BOUNDS:
+        if boundary not in markdown:
+            raise InvalidRegistry("baseline: Owner trust boundary or ADR amendment clause changed; review an ADR")
     return {
         "outcome": "PASS", "spec_sha256": hashlib.sha256(markdown.encode("utf-8")).hexdigest(),
         "normative_section": 40, "machines": _MACHINES,
         "stage0_required_tests": sorted(required),
         "job_unknown_is_terminal": True, "incident_is_separate": True,
+        "owner_attestation_exclusion_present": True, "adr_amendment_clause_present": True,
         "scope": "Document and trace validation; does not certify runtime transitions or Owner truthfulness",
     }
 
