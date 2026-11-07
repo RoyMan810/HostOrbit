@@ -6,6 +6,7 @@ import unittest
 from unittest.mock import patch
 
 from hostorbit.errors import Denied
+from hostorbit.admission import Admission
 from hostorbit.runtime import recovery_install
 from hostorbit.runtime.policy import Policy
 from hostorbit.runtime.protocol import canonical
@@ -26,6 +27,7 @@ class RecoveryInstallationTests(unittest.TestCase):
         self.enterContext(patch.object(recovery_install, "_trusted_path", side_effect=lambda p: Path(p)))
         self.enterContext(patch.object(recovery_install, "_read", side_effect=lambda p, maximum=65536:
             protected_bytes(p, owner=os.geteuid(), maximum=maximum, exact_mode=0o600)))
+        self.enterContext(patch.object(recovery_install, "Admission", side_effect=lambda p: Admission(p, owner=os.geteuid())))
         load = Policy.load
         self.enterContext(patch.object(Policy, "load", side_effect=lambda p, **_: load(p, owner=os.geteuid())))
         self.enterContext(patch.object(recovery_install.subprocess, "run", return_value=SimpleNamespace(returncode=0, stdout=self.fixture.fixture.dek)))
@@ -55,12 +57,18 @@ class RecoveryInstallationTests(unittest.TestCase):
         with self.assertRaisesRegex(Denied, "RECOVERY_AUTHORITY_INVALID"):
             recovery_install.check(self.state)
 
-    def test_missing_readonly_profile_and_changed_receipt_refuse(self):
+    def test_changed_receipt_refuses(self):
         path = self.data / "recovery.json"
         receipt = json.loads(path.read_bytes())
         receipt["bundle_sha256"] = "0" * 64
         path.write_bytes(canonical(receipt))
         with self.assertRaisesRegex(Denied, "RECOVERY_RECEIPT_INVALID"):
+            recovery_install.check(self.state)
+
+    def test_missing_permanent_readonly_profile_refuses(self):
+        (self.data / "writer-admission/recovery-profile.json").unlink()
+        (self.data / "writer-admission/state.json").write_bytes(canonical({"v": 1, "phase": "OPEN", "snapshot_id": None}))
+        with self.assertRaisesRegex(Denied, "RECOVERY_PROFILE_REQUIRED"):
             recovery_install.check(self.state)
 
     def test_wrong_new_host_os_seal_cannot_initialize_a_new_vault(self):

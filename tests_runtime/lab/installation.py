@@ -583,6 +583,7 @@ def recovery_installation(args, base, foreign):
     This is service integration, not physical host independence or a manual
     fencing/restore attestation. Never expose this cleanup as a product command.
     """
+    global PORT
     units = ("hostorbit-compose.service", "hostorbit-broker.socket", "hostorbit-supervisor.socket",
              "hostorbit-broker.service", "hostorbit-supervisor.service")
     run("/usr/bin/systemctl", "stop", *units, timeout=80)
@@ -601,6 +602,11 @@ def recovery_installation(args, base, foreign):
     for name in ("ho-api", "ho-worker", "ho-broker", "ho-app-db", "ho-broker-rpc", "ho-gate-rpc"):
         run("/usr/sbin/groupdel", name, check=False)
     print("Disposable fixture removed its source installation; only the separately imported private recovery layout remains.", flush=True)
+    # Use a fresh high port on this same VM rather than depending on the old
+    # source listener's TCP TIME_WAIT lifetime. Production port checks stay strict.
+    PORT = 18081
+    base = list(base)
+    base[base.index("--port") + 1] = str(PORT)
     state = "/var/lib/hostorbit-rescue-lab/target-state"
     restore = [*base, "--recovery-state", state]
     checked = json.loads(run(*restore, "--check", timeout=180).stdout)
@@ -858,7 +864,7 @@ print('VERIFIED_HOST_TIME')
             foreign.close()
             # This job owns the entire disposable VM. Preserve failed install
             # state/logs until the runner is discarded; never wipe a user VPS.
-            if installed:
+            if installed and Path("/etc/hostorbit/compose.json").exists():
                 run("/usr/bin/systemctl", "stop", "hostorbit-compose.service", check=False, timeout=80)
                 docker(args.docker_host, "compose", "--project-name", "hostorbit", "--file",
                        "/etc/hostorbit/compose.json", "down", timeout=60)
