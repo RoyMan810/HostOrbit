@@ -12,6 +12,7 @@ dependencies = ["fastapi==0.162.0", "uvicorn==0.54.0", "argon2-cffi==25.1.0", "P
 [project.scripts]
 hostorbit = "hostorbit.cli:main"
 hostorbit-runtime = "hostorbit.runtime.cli:main"
+hostorbit-backup = "hostorbit.runtime.backup_cli:main"
 
 [tool.setuptools.packages.find]
 include = ["hostorbit*"]

@@ -125,6 +125,13 @@ def preflight(args):
         raise ArtifactError("PLATFORM_UNSUPPORTED")
     if sys.version_info[:2] != (3, 13) or sqlite3.sqlite_version_info < (3, 45):
         raise ArtifactError("HOST_PYTHON_SQLITE_UNSUPPORTED")
+    # A root-owned child can still be replaced when its permanent parent is
+    # writable by another account. Refuse; never chmod/chown foreign host dirs.
+    for base in (APP.parent, CONFIG.parent, DATA.parent, RUN.parent):
+        for parent in (base, *base.parents):
+            info = parent.lstat()
+            if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+                raise ArtifactError("INSTALLATION_PARENT_UNTRUSTED")
     memory = next(int(line.split()[1]) * 1024 for line in Path("/proc/meminfo").read_text().splitlines() if line.startswith("MemTotal:"))
     disk = shutil.disk_usage("/var/lib")
     if (os.cpu_count() or 0) < 2 or memory < 4 * 1024**3 or disk.total < 40 * 1024**3 or disk.free < 2 * 1024**3:

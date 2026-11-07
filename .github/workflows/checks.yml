@@ -112,6 +112,13 @@ jobs:
         run: python -m pip install -r requirements-dev.txt
       - name: Verify authentication boundaries and atomic audit delivery
         run: |
+          age_dir="$RUNNER_TEMP/hostorbit-runtime-age"
+          mkdir -p "$age_dir"
+          curl --proto '=https' --proto-redir '=https' --fail --silent --show-error --location --retry 2 \
+            -o "$age_dir/age.tar.gz" https://github.com/FiloSottile/age/releases/download/v1.3.2/age-v1.3.2-linux-amd64.tar.gz
+          echo "cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10  $age_dir/age.tar.gz" | sha256sum -c -
+          tar --no-same-owner -xzf "$age_dir/age.tar.gz" -C "$age_dir" -- age/age age/age-keygen
+          export HOSTORBIT_TEST_AGE_DIR="$age_dir/age"
           python -m unittest discover -s tests_app -v
           python -m unittest discover -s tests_runtime -v
       - name: Build the Controller package and check its manifest

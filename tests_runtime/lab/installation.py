@@ -281,6 +281,76 @@ print('INSTALLED_VAULT_PIN_VERIFIED')
     print("Sandboxed Broker-UID helper pinned active/revoked ciphertext and both SQLite journals under the Root barrier; portable DEK export and Backup Gate remained disabled.", flush=True)
 
 
+def controller_archive(root, bundle):
+    """One-VM crypto fixture, not an independent workstation/DR attestation."""
+    # This binary stays in CI's fixture area, outside the Controller installation.
+    keygen = bundle.parent / "hostorbit-install-age/age/age-keygen"
+    identity = run(keygen).stdout
+    recipient = run(keygen, "-y", input=identity).stdout.decode().strip()
+    anchor = root / "independent-controller.pub"
+    anchor.write_bytes(Path("/etc/hostorbit/gate.pub").read_bytes())
+    anchor.chmod(0o600)
+    result = json.loads(run("/opt/hostorbit/venv/bin/hostorbit-backup", "create", "--recipient", recipient, timeout=210).stdout)
+    if (result["status"] != "LOCAL_SIGNED_ONLY" or result["portable_keys_exported"] is not True
+            or result["off_host"] is not False or result["restore_verified"] is not False or result["backup_gate"] != "DENIED"):
+        raise RuntimeError("Local archive falsely reported completed recovery/Backup Gate")
+    verified = json.loads(run("/opt/hostorbit/venv/bin/hostorbit-backup", "verify", "--ciphertext", result["ciphertext"],
+                              "--provenance", result["provenance"], "--trusted-key", anchor).stdout)
+    if verified["status"] != "PROVENANCE_VERIFIED" or verified["payload_integrity"] != "NOT_DECRYPTED":
+        raise RuntimeError("Installed provenance verifier reported false payload verification")
+    read, write = os.pipe()
+    try:
+        os.write(write, identity)
+        os.close(write)
+        write = None
+        decrypted = subprocess.run(["/opt/hostorbit/tools/age", "--decrypt", "--identity", f"/dev/fd/{read}", result["ciphertext"]],
+                                   pass_fds=(read,), capture_output=True, timeout=20)
+        if decrypted.returncode:
+            raise RuntimeError("Fixture Owner could not decrypt the installed native stream")
+    finally:
+        os.close(read)
+        if write is not None:
+            os.close(write)
+    # Validate only in-memory members. No extractall or plaintext DEK/identity
+    # file is created by this fixture or by the Controller.
+    import io
+    import tarfile
+    import base64
+    from nacl.secret import Aead
+    with tarfile.open(fileobj=io.BytesIO(decrypted.stdout)) as tar:
+        names = tar.getnames()
+        if "vault/portable-keys.json" not in names or any("signing.key" in n or "broker-dek" in n for n in names):
+            raise RuntimeError("Portable archive omitted keys or included a host-bound/private authority key")
+        keyset = json.load(tar.extractfile("vault/portable-keys.json"))
+        if len(keyset["generations"]) != 1 or keyset["generations"][0]["version"] != 1:
+            raise RuntimeError("Portable archive omitted its supported working key generation")
+        pin = json.load(tar.extractfile("vault/pin.json"))
+        if {ref["state"] for ref in pin["references"]} != {"ACTIVE", "REVOKED"}:
+            raise RuntimeError("Archive lost the revoked version")
+        for record in pin["files"]:
+            data = tar.extractfile("vault/" + record["path"]).read()
+            if len(data) != record["size"] or hashlib.sha256(data).hexdigest() != record["sha256"]:
+                raise RuntimeError("Decrypted pinned object differs from its manifest")
+        # Recover the working key solely from the encrypted portable member;
+        # neither source OS wrapping key nor source runtime credential is read.
+        aead = Aead(base64.b64decode(keyset["generations"][0]["key"], validate=True))
+        with sqlite3.connect(":memory:") as db:
+            db.deserialize(tar.extractfile("vault/vault.sqlite3").read())
+            for ref in pin["references"]:
+                metadata, state = db.execute("SELECT metadata,state FROM secrets WHERE ref=?", (ref["ref"],)).fetchone()
+                raw = tar.extractfile("vault/objects/" + ref["object_digest"]).read()
+                plaintext = aead.decrypt(raw, metadata.encode())
+                if state != ref["state"] or not plaintext.startswith(b"-----BEGIN OPENSSH PRIVATE KEY-----\n"):
+                    raise RuntimeError("Portable working DEK did not recover the pinned SSH fixture version")
+                del plaintext
+        source = json.load(tar.extractfile("controller/manifest.json"))
+        for record in source["files"]:
+            data = tar.extractfile("controller/" + record["path"]).read()
+            if len(data) != record["size"] or hashlib.sha256(data).hexdigest() != record["sha256"]:
+                raise RuntimeError("Decrypted Controller member differs from its pinned source")
+    print("Installed Broker streamed portable DEK into age without a plaintext key file; saved public anchor verified ciphertext/provenance and fixture Owner decrypted the full Controller/Vault archive.", flush=True)
+
+
 def credential_binding(root, source):
     """A second host-key domain in a private mount namespace, not a real VPS."""
     other = root / "other-host"
@@ -401,7 +471,17 @@ def main():
         foreign.listen()
         foreign_identity = foreign.fileno()
         installed = False
+        opt_mode = Path("/opt").stat().st_mode & 0o7777
         try:
+            # Hosted runners intentionally expose /opt as 0777. A real native
+            # Controller must not trust a replaceable installation parent.
+            # Modify it only in this explicitly disposable VM and restore it.
+            Path("/opt").chmod(0o777)
+            unsafe = run(*base, "--check", check=False, timeout=30)
+            if unsafe.returncode == 0 or b"INSTALLATION_PARENT_UNTRUSTED" not in unsafe.stderr:
+                raise RuntimeError("Installer trusted a world-writable permanent parent")
+            Path("/opt").chmod(0o755)
+            print("Unsafe installation parent refused before changes; disposable fixture now uses root-owned 0755 parents.", flush=True)
             # Complete cryptographic preflight must not create an installation.
             run(*base, "--check", timeout=90)
             if Path("/opt/hostorbit").exists():
@@ -493,6 +573,7 @@ print('VERIFIED_HOST_TIME')
             print("First web visitor had no bootstrap authority; hidden-input local Owner setup and HTTPS login passed.", flush=True)
             writer_barrier(args.docker_host, ids)
             vault_pin()
+            controller_archive(root, args.bundle)
             migration_rehearsal(root)
             before = {name: hashlib.sha256(Path(path).read_bytes()).hexdigest() for name, path in (
                 ("credential", "/etc/hostorbit/credentials/broker-dek.cred"),
@@ -528,6 +609,7 @@ print('VERIFIED_HOST_TIME')
                 docker(args.docker_host, "compose", "--project-name", "hostorbit", "--file",
                        "/etc/hostorbit/compose.json", "down", timeout=60)
             run("/usr/bin/umount", daemon_socket, check=False)
+            Path("/opt").chmod(opt_mode)
 
 
 if __name__ == "__main__":
