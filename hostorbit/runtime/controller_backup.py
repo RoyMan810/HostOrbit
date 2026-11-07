@@ -97,11 +97,24 @@ def seal_with_systemd(config, directory, manifest, public_recipient, ciphertext)
             "/opt/hostorbit/venv/bin/hostorbit-runtime", "--config", "/etc/hostorbit/runtime.json", "seal-controller",
             "--snapshot-id", manifest["snapshot_id"]]
     new_private_file(ciphertext, b"")
-    errors, process, feeder = [], None, None
+    errors, diagnostics, process, feeder, diagnostic_reader = [], [], None, None, None
     with Path(ciphertext).open("wb") as output:
         try:
-            process = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=output, stderr=subprocess.DEVNULL,
+            process = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=output, stderr=subprocess.PIPE,
                                        env={"PATH": "/usr/bin:/bin", "LC_ALL": "C"})
+
+            def read_diagnostic():
+                retained = bytearray()
+                while chunk := process.stderr.read(4096):
+                    if len(retained) < 4096:
+                        retained.extend(chunk[:4096 - len(retained)])
+                # Do not forward arbitrary subprocess/system-manager text.
+                allowed = {b"ARCHIVE_KEYSET_UNAVAILABLE", b"ARCHIVE_PIN_CHANGED", b"ARCHIVE_PIN_INCOMPLETE",
+                           b"ARCHIVE_MANIFEST_INVALID", b"ARCHIVE_INPUT_TRUNCATED", b"ARCHIVE_SOURCE_CHANGED",
+                           b"ARCHIVE_INPUT_TRAILING_DATA", b"ARCHIVE_ENCRYPTION_FAILED", b"AGE_TOOL_PERMISSIONS",
+                           b"AGE_TOOL_DIGEST_INVALID", b"SYSTEMD_CREDENTIAL_INVALID", b"PROTECTED_FILE_INVALID",
+                           b"RPC_INVALID_REQUEST", b"RUNTIME_UNAVAILABLE"}
+                diagnostics.extend(line.decode("ascii") for line in bytes(retained).splitlines() if line in allowed)
 
             def send():
                 try:
@@ -112,10 +125,17 @@ def seal_with_systemd(config, directory, manifest, public_recipient, ciphertext)
                     process.stdin.close()
 
             feeder = Thread(target=send, daemon=True)
+            diagnostic_reader = Thread(target=read_diagnostic, daemon=True)
+            diagnostic_reader.start()
             feeder.start()
             code = process.wait(timeout=145)
             feeder.join(timeout=2)
+            diagnostic_reader.join(timeout=2)
             if code or errors or feeder.is_alive():
+                if errors and isinstance(errors[0], Denied):
+                    raise errors[0]
+                if diagnostics:
+                    raise Denied(diagnostics[-1], 503)
                 raise Denied("ARCHIVE_SEAL_HELPER_FAILED", 503)
             output.flush()
             os.fsync(output.fileno())
@@ -131,6 +151,8 @@ def seal_with_systemd(config, directory, manifest, public_recipient, ciphertext)
                     process.wait(timeout=2)
                 if feeder is not None:
                     feeder.join(timeout=2)
+                if diagnostic_reader is not None:
+                    diagnostic_reader.join(timeout=2)
     directory_sync(Path(ciphertext).parent)
 
 
