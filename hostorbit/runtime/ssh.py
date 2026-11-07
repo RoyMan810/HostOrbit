@@ -44,7 +44,8 @@ async def exchange(target, key, known_hosts):
         known_hosts=str(known_hosts), host_key_alias=f"ho-{target.id}",
         x509_trusted_certs=None, x509_trusted_cert_paths=[],
         preferred_auth=["publickey"], password_auth=False, kbdint_auth=False,
-        gss_auth=False, agent_forwarding=False, connect_timeout=4, login_timeout=5,
+        gss_auth=False, gss_kex=False, host_based_auth=False, server_host_key_algs=["ssh-ed25519"],
+        agent_forwarding=False, connect_timeout=4, login_timeout=5,
     )
     try:
         process = await connection.create_process(PROBE_COMMAND, input=PROBE_REQUEST, encoding=None, request_pty=False)

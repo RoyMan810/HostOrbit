@@ -25,3 +25,9 @@ class ProtocolPolicyTests(unittest.TestCase):
         for change in ({"capabilities": ["shell"]}, {"capabilities": ["host.probe"], "command": "sh"}, {"secret_ref": "../../key"}):
             with self.subTest(change=change), self.assertRaises(Denied):
                 Target.parse({**original, **change})
+
+    def test_mapped_ipv4_and_ipv6_metadata_do_not_bypass_an_ipv6_cidr(self):
+        original = policy().targets[TARGET].value
+        for address in ("::ffff:7f00:1", "::ffff:a9fe:a9fe", "fd00:ec2::254"):
+            with self.subTest(address=address), self.assertRaises(Denied):
+                Target.parse({**original, "ip": address, "allowed_cidrs": ["::/0"]})

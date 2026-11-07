@@ -104,6 +104,18 @@ class BootstrapTests(unittest.TestCase):
         self.assertNotIn(token, output.getvalue())
         self.assertNotIn(PASSWORD, output.getvalue())
 
+    def test_new_passwords_require_fourteen_characters_and_api_cli_refuses_root(self):
+        token = self.auth.issue_bootstrap()
+        with self.assertRaisesRegex(Denied, "PASSWORD_POLICY"):
+            self.auth.create_owner(token, "roman", "x" * 13)
+        import io
+        from contextlib import redirect_stderr
+        message = io.StringIO()
+        with patch("os.geteuid", return_value=0), redirect_stderr(message):
+            result = main(["--database", str(self.store.path), "serve", "--origin", ORIGIN])
+        self.assertEqual(result, 1)
+        self.assertIn("UNPRIVILEGED_API_USER_REQUIRED", message.getvalue())
+
 
 class AuthenticationTests(Fixture):
     def test_cookie_security_rotation_csrf_and_plaintext_absence(self):

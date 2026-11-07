@@ -15,7 +15,7 @@ class QueueApiTests(Fixture):
 
     def test_enqueue_requires_idempotency_and_commits_job_audit_outbox_before_202(self):
         endpoint = f"/api/v1/resources/{SCOPE}/observations"
-        self.assertEqual(self.client.post(endpoint, json={}, headers=self.headers()).status_code, 403)
+        self.assertEqual(self.client.post(endpoint, json={}, headers=self.headers()).status_code, 400)
         response = self.client.post(endpoint, json={}, headers=self.headers(**{"Idempotency-Key": "fixture-request-0001"}))
         self.assertEqual(response.status_code, 202)
         result = response.json()
@@ -48,3 +48,15 @@ class QueueApiTests(Fixture):
         auditor = self.other_client("auditor")
         headers["X-CSRF-Token"] = auditor.get("/api/v1/auth/session").json()["csrf_token"]
         self.assertEqual(auditor.post(f"/api/v1/resources/{SCOPE}/observations", json={}, headers=headers).status_code, 403)
+
+    def test_schema_one_keeps_auth_and_blocks_queue_without_automatic_migration(self):
+        with self.store.connect() as db:
+            db.execute("PRAGMA user_version=1")
+        self.assertEqual(self.client.get("/api/v1/users").status_code, 200)
+        response = self.client.post(f"/api/v1/resources/{SCOPE}/observations", json={},
+                                    headers=self.headers(**{"Idempotency-Key": "legacy-request-0001"}))
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json()["code"], "QUEUE_SCHEMA_REQUIRES_VERIFIED_MIGRATION")
+        with self.store.connect() as db:
+            self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 1)
+            self.assertEqual(db.execute("SELECT count(*) FROM users").fetchone()[0], 1)

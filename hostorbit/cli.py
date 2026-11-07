@@ -28,6 +28,8 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         import os
+        if args.command == "serve" and os.geteuid() == 0:
+            raise Denied("UNPRIVILEGED_API_USER_REQUIRED")
         access = DataAccess(args.database_owner if args.database_owner is not None else os.geteuid(), args.database_group)
         if args.command == "init":
             Store.initialize(args.database, access=access)

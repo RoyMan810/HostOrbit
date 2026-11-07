@@ -1,5 +1,6 @@
 [Unit]
 Description=HostOrbit scoped Broker socket
+After=systemd-tmpfiles-setup.service
 
 [Socket]
 ListenStream=/run/hostorbit/broker/broker.sock

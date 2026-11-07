@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 import json
+import re
 import secrets
 import time
 
@@ -65,7 +66,8 @@ class JobQueue:
 
     def enqueue_probe(self, auth, token, csrf, resource, request_key):
         text(resource, ULID, "RESOURCE_NOT_FOUND")
-        text(request_key, r"[A-Za-z0-9_-]{16,128}", "IDEMPOTENCY_KEY_REQUIRED")
+        if not isinstance(request_key, str) or re.fullmatch(r"[A-Za-z0-9_-]{16,128}", request_key) is None:
+            raise Denied("IDEMPOTENCY_KEY_REQUIRED", 400)
         payload_hash = checksum({"resource_id": resource, "action": "host.probe"})
         with self.store.write() as db:
             self._schema(db)

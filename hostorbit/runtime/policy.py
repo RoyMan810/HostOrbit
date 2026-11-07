@@ -33,12 +33,13 @@ class Target:
         integer(value["policy_revision"], 1, 2**31 - 1)
         try:
             address = ipaddress.ip_address(value["ip"])
-            if str(address) != value["ip"] or address.is_loopback or address.is_link_local or address.is_multicast or address.is_unspecified or "%" in value["ip"]:
+            if (str(address) != value["ip"] or address.is_loopback or address.is_link_local or address.is_multicast or address.is_unspecified
+                    or (isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None) or "%" in value["ip"]):
                 raise ValueError
             if not isinstance(value["allowed_cidrs"], list) or not 1 <= len(value["allowed_cidrs"]) <= 16:
                 raise ValueError
             networks = [ipaddress.ip_network(cidr, strict=True) for cidr in value["allowed_cidrs"]]
-            if not any(address in net for net in networks) or str(address) in ("169.254.169.254", "100.100.100.200"):
+            if not any(address in net for net in networks) or str(address) in ("169.254.169.254", "100.100.100.200", "fd00:ec2::254"):
                 raise ValueError
             host_key = value["host_key"].split()
             if len(host_key) != 2 or host_key[0] != "ssh-ed25519" or len(base64.b64decode(host_key[1], validate=True)) != 51:

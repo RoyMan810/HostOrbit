@@ -155,8 +155,10 @@ def main():
                     "root": dict(user=0, group=0, extra_groups=[])}[role]
         config_path = lab / "runtime.json"
         def service_env(role):
-            return {**os.environ, "PYTHONPATH": str(code), "HOME": "/nonexistent" if role != "root" else "/root",
-                    "USER": {"api": "ho-api", "worker": "ho-worker", "broker": "ho-broker", "root": "root", "stranger": "nobody"}[role]}
+            # A foreign launcher HOME must not enable implicit SSH trust/key discovery in Broker.
+            name = {"api": "ho-api", "worker": "ho-worker", "broker": "ho-broker", "root": "root", "stranger": "nobody"}[role]
+            return {**os.environ, "PYTHONPATH": str(code), "HOME": "/root" if role in ("root", "broker") else "/nonexistent",
+                    "USER": name, "LOGNAME": name}
         def invoke(mode, role, *extra, input=None):
             return command(sys.executable, str(child_script), "--child", mode, "--config", str(config_path), *extra,
                            input=input, cwd=code, env=service_env(role), **role_options(role))
@@ -196,6 +198,15 @@ def main():
                     pass
                 command("useradd", "--uid", str(uid), "--gid", str(gid), "--home-dir", "/nonexistent", "--no-create-home", "--shell", "/usr/sbin/nologin", name)
                 service_users.append(name)
+            unit_dir = lab / "verified-units"
+            unit_dir.mkdir()
+            for unit in (REPO / "deploy/systemd").glob("*"):
+                # Verify unit syntax without requiring an installed /opt/hostorbit entry point.
+                content = unit.read_text().replace("/opt/hostorbit/venv/bin/hostorbit-runtime", sys.executable)
+                (unit_dir / unit.name).write_text(content)
+            command("systemd-analyze", "--man=no", "verify", *(str(p) for p in unit_dir.iterdir()),
+                    env={**os.environ, "SYSTEMD_UNIT_PATH": f"{unit_dir}:/usr/lib/systemd/system:/lib/systemd/system"})
+            print("Systemd service/socket profiles passed the systemd syntax verifier.", flush=True)
             (lab / "remote-home").mkdir(mode=0o555)
             command("useradd", "--system", "--user-group", "--shell", "/bin/sh", "--home-dir", str(lab / "remote-home"), "--no-create-home", account)
             user_created = True
