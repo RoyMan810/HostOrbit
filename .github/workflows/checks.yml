@@ -43,9 +43,14 @@ jobs:
           PY
       - name: Build the signed wheel bundle without placing its private signer inside
         run: |
+          docker pull python:3.13.18-slim-trixie
+          resolved=$(docker image inspect python:3.13.18-slim-trixie --format '{{index .RepoDigests 0}}')
+          python_image="docker.io/library/python@${resolved##*@}"
+          echo "Resolved installation runtime: $python_image"
+          docker run --rm --network none "$python_image" python -c 'import sys,sqlite3; print(sys.version); print(sqlite3.sqlite_version); assert sys.version_info[:2]==(3,13) and sqlite3.sqlite_version_info>=(3,45)'
           python deploy/build_bundle.py --output "$RUNNER_TEMP/hostorbit-install-bundle" \
             --signing-key "$RUNNER_TEMP/hostorbit-lab-signer.seed" \
-            --python-image "$HOSTORBIT_LAB_PYTHON_IMAGE"
+            --python-image "$python_image"
       - name: Install and verify the actual host services and container namespaces
         run: |
           sudo -n /usr/bin/env GITHUB_ACTIONS=true "RUNNER_ENVIRONMENT=$RUNNER_ENVIRONMENT" \
