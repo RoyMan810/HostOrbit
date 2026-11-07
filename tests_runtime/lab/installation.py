@@ -602,6 +602,7 @@ def recovery_installation(args, base, foreign):
     for name in ("ho-api", "ho-worker", "ho-broker", "ho-app-db", "ho-broker-rpc", "ho-gate-rpc"):
         run("/usr/sbin/groupdel", name, check=False)
     print("Disposable fixture removed its source installation; only the separately imported private recovery layout remains.", flush=True)
+    isolated_at = int(time.time())
     # Use a fresh high port on this same VM rather than depending on the old
     # source listener's TCP TIME_WAIT lifetime. Production port checks stay strict.
     PORT = 18081
@@ -703,6 +704,96 @@ print('RECOVERY_JOURNALS_VERIFIED')
     if again.returncode == 0:
         raise RuntimeError("Repeated recovery overwrote its installation")
     print("Signed recovery installation passed restored HTTPS Owner/Audit, stable idle Worker, fresh inactive Gate/Broker, persistent read-only after latch loss/restart, and blocked business/jobs/reinstall; physical DR remains unattested.", flush=True)
+    activation_fixture(state, isolated_at)
+
+
+def activation_terminal(arguments, answers=()):
+    master, slave = pty.openpty()
+    process = subprocess.Popen(["/opt/hostorbit/venv/bin/hostorbit-activate", *arguments], stdin=slave, stdout=slave,
+                               stderr=slave, start_new_session=True)
+    os.close(slave)
+    output, sent = bytearray(), 0
+    try:
+        deadline = time.monotonic() + 240
+        while process.poll() is None and time.monotonic() < deadline:
+            ready, _, _ = select.select([master], [], [], 0.2)
+            if ready:
+                try:
+                    output.extend(os.read(master, 4096))
+                except OSError:
+                    break
+            if sent < len(answers) and answers[sent][0] in output:
+                os.write(master, (answers[sent][1] + "\n").encode())
+                sent += 1
+        process.wait(timeout=5)
+        while select.select([master], [], [], 0)[0]:
+            try:
+                output.extend(os.read(master, 4096))
+            except OSError:
+                break
+        if process.returncode or sent != len(answers) or PASSWORD.encode() in output:
+            # Do not print captured terminal content containing authentication.
+            raise RuntimeError("Installed activation console failed or echoed its password")
+        return next(json.loads(line) for line in bytes(output).splitlines() if line.startswith(b"{") and line.endswith(b"}"))
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=5)
+        os.close(master)
+
+
+def activation_fixture(state, isolated_at):
+    """Simulated local operator on the disposable VM, no independent DR claim."""
+    source = Path(state).parent / "target-data"
+    receipt = json.loads((source / "recovery.json").read_bytes())
+    if (source / "source/gate.pub").read_bytes() == Path("/etc/hostorbit/gate.pub").read_bytes():
+        raise RuntimeError("Recovered instance reused the removed source identity")
+    old_host = run("/usr/bin/ssh-keygen", "-lf", "/etc/ssh/ssh_host_ed25519_key.pub", "-E", "sha256").stdout.decode().split()[1]
+    while int(time.time()) - isolated_at < 10:
+        time.sleep(0.2)
+    report = {"v": 1, "type": "hostorbit.manual-isolation", "source_instance": receipt["source_instance"],
+        "target_instance": receipt["target_id"], "source_backup_hash": receipt["source_backup_hash"], "dependencies_reviewed": True,
+        "isolation": {"method": "verified_local_stop", "console": "CI/root-console/source-installation-removal",
+            "operator": "CI-simulated-Owner-not-human-attestation", "old_host_key": old_host,
+            "worker_stopped": True, "scheduler_stopped": True, "autostart_blocked": True,
+            "old_permissions_revoked": True, "dangerous_operations_stopped": True,
+            "observations": [{"source": "CI/source-units-and-keys-removed", "at_utc": isolated_at, "isolated": True},
+                {"source": "CI/independent-instance-key-comparison", "at_utc": int(time.time()), "isolated": True}]}, "targets": {}}
+    path = Path(state).parent / "manual-isolation.json"
+    path.write_text(json.dumps(report, sort_keys=True, separators=(",", ":")))
+    path.chmod(0o600)
+    base = ["--state", state, "--old-host-key", old_host]
+    review = activation_terminal([*base, "prepare", "--report", str(path), "--policy", "/etc/hostorbit/targets.json"])
+    result = activation_terminal([*base, "activate", "--plan-id", review["plan_id"]],
+        [(b"Exact confirmation SHA-256", review["confirmation_sha256"]), (b"Owner username:", "roman"), (b"Owner password:", PASSWORD)])
+    if result["status"] != "ACTIVE" or result["allowed_targets"] or result["restore_verified"]:
+        raise RuntimeError("Fixture activation broadened its empty inventory or claimed DR attestation")
+    for unit in ("hostorbit-compose.service", "hostorbit-supervisor.service", "hostorbit-broker.service"):
+        run("/usr/bin/systemctl", "is-active", unit)
+    run("/usr/bin/systemctl", "restart", "hostorbit-supervisor.service", timeout=30)
+    verify = """import json
+from hostorbit.admission import Admission
+from hostorbit.database import DataAccess,Store
+from hostorbit.runtime.authority import Authority
+from hostorbit.runtime.policy import Policy
+c=json.load(open('/etc/hostorbit/runtime.json'))
+w=Admission(c['writer_directory'])
+assert w.state()['phase']=='OPEN'
+a=Authority(c['supervisor_directory'],Policy.load(c['targets']),writers=w)
+with a.journal.connect() as db:
+ r=a._gate(db)
+ assert r['activated']==1 and r['state']=='NORMAL'
+assert a.recovery_authorization['allowed_targets']==[]
+a.close()
+s=Store(c['database'],access=DataAccess(c['app_uid'],c['app_gid']),writers=w)
+s.verify_audit()
+with s.write() as db:
+ s.event(db,at=1,actor='fixture',kind='fixture.after_activation',target='controller',outcome='SUCCEEDED',correlation='native-activation')
+print('ACTIVATION_RECORD_VERIFIED')
+"""
+    if run("/opt/hostorbit/venv/bin/python", "-c", verify).stdout.strip() != b"ACTIVATION_RECORD_VERIFIED":
+        raise RuntimeError("Signed activation record did not survive supervisor restart")
+    print("Installed local Owner activation console passed separate digest/password, durable signed empty-inventory authorization, business admission and supervisor restart; manual isolation was simulated and VPS rotation/physical DR are not attested by this fixture.", flush=True)
 
 
 def main():

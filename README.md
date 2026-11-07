@@ -8,7 +8,9 @@ Self-hosted система управления Linux-серверами. Раз
 
 [Установка Stage1](docs/stage1-installation.md) использует подписанный development bundle с offline wheelhouse, Compose API/Worker и системными Broker/supervisor. Это свежая установка; существующие базы и ключи не заменяются.
 
-[Rescue Stage1](docs/stage1-rescue.md) проверяет ControllerBackup в памяти, перепаковывает на одноразовый recipient и импортирует данные с отдельным Owner digest/auth. [Recovery installer](docs/stage1-recovery-installation.md) запускает из них подписанные службы в устойчивом READ_ONLY_RECOVERY; ручная активация и независимая DR-приёмка остаются открытыми.
+[Rescue Stage1](docs/stage1-rescue.md) проверяет ControllerBackup в памяти, перепаковывает на одноразовый recipient и импортирует данные с отдельным Owner digest/auth. [Recovery installer](docs/stage1-recovery-installation.md) запускает из них подписанные службы в устойчивом READ_ONLY_RECOVERY; независимая DR-приёмка остаётся открытой.
+
+[Локальная activation](docs/stage1-recovery-activation.md) проверяет Owner isolation report, новые Broker credentials и dependency quarantine перед отдельным подтверждением через терминал. Подписанная activation сохраняется при reboot; полноценная ручная и независимая DR-приёмка остаётся открытой.
 
 [Репетиция миграции БД](docs/stage1-migrations.md) проверяет историческую схему 1 → 2 на приватных WAL-согласованных копиях. Рабочая БД открывается read-only; live apply остаётся закрытым до связывания maintenance, backup и TimeHealth gates.
 

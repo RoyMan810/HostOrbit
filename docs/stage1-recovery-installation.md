@@ -31,7 +31,7 @@ sudo python3.13 deploy/installer.py install \
 
 Root-owned persistent writer profile остаётся `READ_ONLY_RECOVERY` при запуске, потере заменяемого latch и restart. API разрешает Auth и чтение Audit; business writes и новые jobs получают `WRITER_ADMISSION_CLOSED`. Worker остаётся живым, но не вызывает startup reconciliation или claim и корректно обрабатывает SIGTERM. Это также позволяет оставить историческую App schema 1 для Auth/Audit без скрытой DDL migration; schema-2 queue endpoints при schema 1 по-прежнему недоступны. Authority не выдаёт и не consumes permits при `activated=0`.
 
-Возвращается `recovery=READ_ONLY_RECOVERY`, `owner_setup=RESTORED_OWNER`. Эти поля не означают active Controller, manual fencing/rotation, restore attestation или Backup Gate. Activation manager, отдельное Owner подтверждение изоляции/ротации/quarantine, независимый DR и signed Rescue kit остаются открытыми. Stage1/MVP acceptance не повышается автоматически.
+Возвращается `recovery=READ_ONLY_RECOVERY`, `owner_setup=RESTORED_OWNER`. Эти поля не означают active Controller, manual fencing/rotation, restore attestation или Backup Gate. [Локальная Owner activation](stage1-recovery-activation.md) требует отдельного подтверждения изоляции/ротации/quarantine. Независимый DR, ручная приёмка и signed Rescue kit остаются открытыми. Stage1/MVP acceptance не повышается автоматически.
 
 ## Evidence
 
