@@ -5,13 +5,17 @@ import hashlib
 import os
 from pathlib import Path
 import sys
+import stat
+import struct
 import tempfile
+from types import SimpleNamespace
 import unittest
 
 from nacl.signing import SigningKey
 
 from hostorbit.errors import Denied
 from hostorbit.runtime.policy import Policy
+from hostorbit.runtime.storage import _credential_permissions
 
 DEPLOY = Path(__file__).resolve().parents[1] / "deploy"
 sys.path.insert(0, str(DEPLOY))
@@ -20,6 +24,28 @@ from installer import compose_document, origin
 
 
 class InstallationTests(unittest.TestCase):
+    def test_systemd_credential_allows_only_readonly_exact_broker_acl_or_owner_fallback(self):
+        owner = 23103
+        entries = [(1, 4, 0xffffffff), (2, 4, owner), (4, 0, 0xffffffff),
+                   (16, 4, 0xffffffff), (32, 0, 0xffffffff)]
+        acl = struct.pack("<I", 2) + b"".join(struct.pack("<HHI", *entry) for entry in entries)
+        info = SimpleNamespace(st_mode=stat.S_IFREG | 0o440, st_uid=0, st_size=32, st_nlink=1)
+        self.assertTrue(_credential_permissions(info, acl, owner, True))
+        self.assertFalse(_credential_permissions(info, acl, owner, False))
+        self.assertFalse(_credential_permissions(info, acl, owner + 1, True))
+        self.assertFalse(_credential_permissions(info, None, owner, True))
+        for position in (1, 2, 4):
+            changed = list(entries)
+            tag, _, uid = changed[position]
+            changed[position] = (tag, 5 if position == 1 else 4, uid)
+            broad_acl = struct.pack("<I", 2) + b"".join(struct.pack("<HHI", *entry) for entry in changed)
+            self.assertFalse(_credential_permissions(info, broad_acl, owner, True))
+        info.st_uid, info.st_mode = owner, stat.S_IFREG | 0o400
+        self.assertTrue(_credential_permissions(info, None, owner, True))
+        for field, value in (("st_mode", stat.S_IFREG | 0o600), ("st_uid", owner + 1), ("st_nlink", 2), ("st_size", 31)):
+            altered = SimpleNamespace(**{**vars(info), field: value})
+            self.assertFalse(_credential_permissions(altered, None, owner, True))
+
     def setUp(self):
         self.directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
         self.bundle = self.directory / "bundle"

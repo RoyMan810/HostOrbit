@@ -80,12 +80,13 @@ def run(config, command, *, once=False, listener=None, import_args=None):
                         Client(config["broker_socket"], server_uids={0, config["broker_uid"]}),
                         secret_refs={t.id: t.value["secret_ref"] for t in policy.targets.values()})
         return worker.run(once=once)
-    credential = Path(os.environ["CREDENTIALS_DIRECTORY"]) / "broker-dek" if "CREDENTIALS_DIRECTORY" in os.environ else Path(config["vault_credential"])
+    managed_credential = "CREDENTIALS_DIRECTORY" in os.environ
+    credential = Path(os.environ["CREDENTIALS_DIRECTORY"]) / "broker-dek" if managed_credential else Path(config["vault_credential"])
     if command == "initialize-broker":
-        Vault.initialize(config["vault_directory"], credential)
+        Vault.initialize(config["vault_directory"], credential, systemd_credential=managed_credential)
         Broker.initialize(config["broker_directory"], policy)
         return
-    vault = Vault(config["vault_directory"], credential)
+    vault = Vault(config["vault_directory"], credential, systemd_credential=managed_credential)
     if command == "import-key":
         key = protected_bytes(import_args.key_file, owner=config["broker_uid"], maximum=8192, private=True)
         reference = vault.import_ssh(import_args.secret_id, import_args.version, key, owner_id=import_args.owner_id,

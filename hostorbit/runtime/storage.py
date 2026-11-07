@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import sqlite3
 import stat
+import struct
 
 from ..errors import Denied
 
@@ -33,6 +34,43 @@ def protected_bytes(path, *, owner, maximum=16384, exact_mode=None, private=Fals
             data = stream.read(maximum + 1)
         if len(data) > maximum:
             raise Denied("PROTECTED_FILE_INVALID")
+        return data
+    finally:
+        os.close(fd)
+
+
+def _credential_permissions(info, acl, owner, readonly):
+    """Accept systemd's root-owned named-user ACL or its chown fallback."""
+    if (not readonly or not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
+            or info.st_size != 32 or owner <= 0):
+        return False
+    mode = stat.S_IMODE(info.st_mode)
+    if info.st_uid == owner and mode == 0o400:
+        return True
+    # Linux POSIX ACL xattr v2: root read, exactly this user read, no group or
+    # other access. The group mode bits represent the ACL mask, not group access.
+    expected = struct.pack("<I", 2) + b"".join(struct.pack("<HHI", *entry) for entry in (
+        (1, 4, 0xffffffff), (2, 4, owner), (4, 0, 0xffffffff),
+        (16, 4, 0xffffffff), (32, 0, 0xffffffff)))
+    return info.st_uid == 0 and mode == 0o440 and acl == expected
+
+
+def systemd_credential_bytes(path, *, owner):
+    """Read a 32-byte credential without treating a root-owned ACL as public."""
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    try:
+        info = os.fstat(fd)
+        acl = None
+        if info.st_uid == 0:
+            try:
+                acl = os.getxattr(fd, "system.posix_acl_access")
+            except OSError:
+                pass
+        if not _credential_permissions(info, acl, owner, bool(os.fstatvfs(fd).f_flag & os.ST_RDONLY)):
+            raise Denied("SYSTEMD_CREDENTIAL_INVALID")
+        data = os.read(fd, 33)
+        if len(data) != 32:
+            raise Denied("SYSTEMD_CREDENTIAL_INVALID")
         return data
     finally:
         os.close(fd)
