@@ -16,7 +16,9 @@ Self-hosted система управления Linux-серверами. Раз
 
 [Vault pin](docs/stage1-vault-pins.md) фиксирует private metadata, Broker receipts и referenced ciphertext отдельным Broker-UID helper под Root barrier. Active/revoked версии и committed WAL сохраняются; plaintext keys не записываются. Это локальный staging без portable DEK, публикации и допуска Backup Gate.
 
-[Controller archive](docs/stage1-controller-archive.md) собирает App/Gate/config/dependency metadata, передаёт portable DEK из памяти Broker прямо в age и подписывает ciphertext/manifest. Writer admission открывается до encryption. Это локальный подписанный архив с проверкой public anchor; off-host publication, restore и live migration gate пока закрыты.
+[Controller archive](docs/stage1-controller-archive.md) собирает App/Gate/config/dependency metadata, передаёт portable DEK из памяти Broker прямо в age и подписывает ciphertext/manifest. Writer admission открывается до encryption. Создание локального архива отделено от SFTP publication; restore и live migration gate пока закрыты.
+
+[SFTP publication](docs/stage1-sftp-publication.md) публикует signed ciphertext на protected target с отдельным Vault purpose, fsync/readback и финальным marker/rename без overwrite. Root фиксирует completion только после verified receipt; restore/freshness/independent failure-domain gates ещё не закрыты.
 
 [Приёмка Stage0](evidence/acceptance/stage0-2026-11-07/README.md): 15 обязательных лабораторных критериев имеют проверенные отчёты `PASS`. Рецензирование выполнено автоматической самопроверкой Codex с явными ограничениями стенда. Остальные 69 AC сохраняют `NOT_RUN`; Stage1 и выпуск MVP остаются открытыми.
 

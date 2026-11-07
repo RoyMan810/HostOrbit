@@ -67,6 +67,8 @@ jobs:
       - name: Install fixed builder dependencies and generate an ephemeral lab signer
         run: |
           python -m pip install -r requirements-dev.txt
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends openssh-server iproute2
           python - <<'PY'
           import os, pathlib
           from nacl.signing import SigningKey

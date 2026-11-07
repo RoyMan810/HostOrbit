@@ -30,6 +30,7 @@ AGE_PATH = Path("/opt/hostorbit/tools/age")
 CONTROLLER_FILES = frozenset({"app.sqlite3", "gate.sqlite3", "runtime.json", "targets.json", "gate.pub",
                               "installation.json", "release-manifest.json", "release.sig", "release.pub",
                               "requirements-install.txt", "sbom.cdx.json", "compose.json"})
+OPTIONAL_CONTROLLER_FILES = frozenset({"backup-target.json"})
 MAX_FILE = 512 * 1024 * 1024
 
 
@@ -88,16 +89,18 @@ def validate_source(value, snapshot_id):
     for name in ("gate_epoch", "audit_sequence", "monotonic_ns", "captured_utc"):
         integer(value[name], 0, 2**63 - 1)
     integer(value["schema"], 1, 2)
-    if not isinstance(value["files"], list) or len(value["files"]) != len(CONTROLLER_FILES):
+    if not isinstance(value["files"], list) or not len(CONTROLLER_FILES) <= len(value["files"]) <= len(CONTROLLER_FILES | OPTIONAL_CONTROLLER_FILES):
         raise Denied("ARCHIVE_MANIFEST_INVALID")
     names = set()
     for item in value["files"]:
         fields(item, ("path", "size", "sha256"))
-        if not isinstance(item["path"], str) or item["path"] not in CONTROLLER_FILES or item["path"] in names:
+        if not isinstance(item["path"], str) or item["path"] not in CONTROLLER_FILES | OPTIONAL_CONTROLLER_FILES or item["path"] in names:
             raise Denied("ARCHIVE_MANIFEST_INVALID")
         names.add(item["path"])
         integer(item["size"], 1, MAX_FILE)
         text(item["sha256"], SHA256)
+    if not CONTROLLER_FILES.issubset(names):
+        raise Denied("ARCHIVE_MANIFEST_INVALID")
     return value
 
 

@@ -16,18 +16,25 @@ def main(argv=None):
     commands = parser.add_subparsers(dest="command", required=True)
     create = commands.add_parser("create", help="Root local signed archive; no off-host completion/Backup Gate")
     create.add_argument("--recipient", required=True, help="Owner public native age X25519 recipient; never a private identity")
+    publication = commands.add_parser("publish", help="Root publication of an existing signed snapshot to the protected SFTP target")
+    publication.add_argument("--snapshot-id", required=True)
     verify = commands.add_parser("verify", help="Verify ciphertext/provenance using an independently saved public anchor")
     verify.add_argument("--ciphertext", type=Path, required=True)
     verify.add_argument("--provenance", type=Path, required=True)
     verify.add_argument("--trusted-key", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
-        if args.command == "create":
+        if args.command in {"create", "publish"}:
             import os
             if os.geteuid() != 0:
                 raise Denied("LOCAL_ROOT_REQUIRED")
             from .cli import configuration
-            result = ControllerBackup(configuration(Path("/etc/hostorbit/runtime.json"))).create(args.recipient)
+            config = configuration(Path("/etc/hostorbit/runtime.json"))
+            if args.command == "create":
+                result = ControllerBackup(config).create(args.recipient)
+            else:
+                from .publication import Publisher
+                result = Publisher(config).publish(args.snapshot_id)
         else:
             with args.provenance.open("rb") as stream:
                 envelope = parse_manifest(stream.read(16385))

@@ -324,6 +324,7 @@ def install(args):
         folder(RUN / "supervisor", 0o710, 0, cfg["gate_rpc_gid"])
         targets = args.targets.read_bytes() if args.targets else canonical({"v": 1, "targets": []})
         write(CONFIG / "targets.json", targets)
+        write(CONFIG / "backup-target.json", canonical({"v": 1, "enabled": False}))
         write(CONFIG / "runtime.json", canonical(cfg))
         write(CONFIG / "release-trust.pub", key)
         runtime = APP / "venv/bin/hostorbit-runtime"

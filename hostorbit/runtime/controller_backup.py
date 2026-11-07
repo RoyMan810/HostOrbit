@@ -243,6 +243,8 @@ class ControllerBackup:
                          "release-manifest.json": self.layout.app / "bundle/manifest.json", "release.sig": self.layout.app / "bundle/manifest.sig",
                          "release.pub": self.layout.config / "release-trust.pub", "requirements-install.txt": self.layout.app / "bundle/requirements-install.txt",
                          "sbom.cdx.json": self.layout.app / "bundle/sbom.cdx.json", "compose.json": self.layout.config / "compose.json"}
+                if (self.layout.config / "backup-target.json").exists():
+                    paths["backup-target.json"] = self.layout.config / "backup-target.json"
                 for name, path in paths.items():
                     check()
                     new_private_file(directory / name, protected_bytes(path, owner=self.owner, maximum=4 * 1024 * 1024))
@@ -258,6 +260,11 @@ class ControllerBackup:
                 pinned_refs = {ref["ref"] for ref in parse_manifest(raw_pin)["references"]}
                 if any(target.value["secret_ref"] not in pinned_refs for target in policy.targets.values()):
                     raise Denied("ARCHIVE_REFERENCE_INCOMPLETE")
+                if "backup-target.json" in paths:
+                    from .backup_target import BackupTarget
+                    destination = BackupTarget.load(directory / "backup-target.json", owner=self.owner)
+                    if destination is not None and destination.value["secret_ref"] not in pinned_refs:
+                        raise Denied("ARCHIVE_REFERENCE_INCOMPLETE")
                 with closing(sqlite3.connect((directory / "app.sqlite3").as_uri() + "?mode=ro", uri=True, autocommit=True)) as db:
                     db.row_factory = sqlite3.Row
                     audit_head = Store.verify_audit_connection(db)
@@ -272,7 +279,7 @@ class ControllerBackup:
                          "boot_id": Path("/proc/sys/kernel/random/boot_id").read_text().strip(), "monotonic_ns": time.monotonic_ns(),
                          "captured_utc": int(time.time()), "time_trusted": False, "source_commit": install["source_commit"],
                          "pin_sha256": pin["manifest_sha256"],
-                         "files": [file_record(directory / name, name, self.owner) for name in sorted(CONTROLLER_FILES)]}
+                         "files": [file_record(directory / name, name, self.owner) for name in sorted({"app.sqlite3", "gate.sqlite3", *paths})]}
                 validate_source(value, snapshot_id)
                 if self.gate_row()["epoch"] != baseline["epoch"]:
                     raise Denied("ARCHIVE_DRAIN_OR_EPOCH_CHANGED")

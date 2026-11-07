@@ -72,6 +72,7 @@ def run(config, command, *, once=False, listener=None, import_args=None):
     expected = {"supervisor": 0, "initialize-supervisor": 0, "api": config["app_uid"], "worker": config["worker_uid"],
                 "broker": config["broker_uid"], "initialize-broker": config["broker_uid"], "import-key": config["broker_uid"],
                 "pin-vault": config["broker_uid"], "seal-controller": config["broker_uid"],
+                "import-backup-key": config["broker_uid"], "publish-controller": config["broker_uid"],
                 "register-observations": 0, "initialize-time-health": 0, "time-health": 0,
                 "initialize-credential": 0, "initialize-writers": 0}[command]
     if os.geteuid() != expected:
@@ -165,6 +166,10 @@ def run(config, command, *, once=False, listener=None, import_args=None):
         Broker.initialize(config["broker_directory"], policy)
         return
     vault = Vault(config["vault_directory"], credential, systemd_credential=managed_credential, writers=writers)
+    if command == "publish-controller":
+        from .publication import receive_and_publish
+        print(json.dumps(receive_and_publish(config, import_args.snapshot_id, sys.stdin.buffer)))
+        return
     if command == "seal-controller":
         from .archive_stream import seal
         seal(vault, config["broker_directory"], import_args.snapshot_id, sys.stdin.buffer, sys.stdout.buffer)
@@ -175,10 +180,14 @@ def run(config, command, *, once=False, listener=None, import_args=None):
         from .pins import pin_vault
         print(json.dumps(pin_vault(vault, config["broker_directory"], writers, import_args.snapshot_id)))
         return
-    if command == "import-key":
+    if command in {"import-key", "import-backup-key"}:
         key = protected_bytes(import_args.key_file, owner=config["broker_uid"], maximum=8192, private=True)
-        reference = vault.import_ssh(import_args.secret_id, import_args.version, key, owner_id=import_args.owner_id,
-                                     worker_uid=config["worker_uid"], target=import_args.target)
+        if command == "import-key":
+            reference = vault.import_ssh(import_args.secret_id, import_args.version, key, owner_id=import_args.owner_id,
+                                         worker_uid=config["worker_uid"], target=import_args.target)
+        else:
+            reference = vault.import_backup_ssh(import_args.secret_id, import_args.version, key, owner_id=import_args.owner_id,
+                                                broker_uid=config["broker_uid"], target=import_args.target, policy_revision=import_args.policy_revision)
         print(reference)
         return
     gate = Client(config["gate_socket"], server_uids={0})
@@ -204,6 +213,15 @@ def main(argv=None):
     key.add_argument("--owner-id", required=True)
     key.add_argument("--target", required=True)
     key.add_argument("--version", type=int, default=1)
+    backup_key = commands.add_parser("import-backup-key", help="Broker-local SFTP-only credential provisioning")
+    backup_key.add_argument("--key-file", type=Path, required=True)
+    backup_key.add_argument("--secret-id", required=True)
+    backup_key.add_argument("--owner-id", required=True)
+    backup_key.add_argument("--target", required=True)
+    backup_key.add_argument("--version", type=int, default=1)
+    backup_key.add_argument("--policy-revision", type=int, default=1)
+    publication = commands.add_parser("publish-controller", help="Broker-only fixed SFTP publication; signed encrypted stdin only")
+    publication.add_argument("--snapshot-id", required=True)
     pin = commands.add_parser("pin-vault", help="Private local pin under an active Root snapshot barrier; never an off-host backup")
     pin.add_argument("--snapshot-id", required=True)
     seal = commands.add_parser("seal-controller", help="Broker-only one-way age stream; ciphertext stdout only")

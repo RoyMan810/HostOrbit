@@ -349,6 +349,151 @@ def controller_archive(root, bundle):
             if len(data) != record["size"] or hashlib.sha256(data).hexdigest() != record["sha256"]:
                 raise RuntimeError("Decrypted Controller member differs from its pinned source")
     print("Installed Broker streamed portable DEK into age without a plaintext key file; saved public anchor verified ciphertext/provenance and fixture Owner decrypted the full Controller/Vault archive.", flush=True)
+    return result, identity
+
+
+def sftp_publication(root, local_archive, identity):
+    """Real SSH/SFTP; same hosted VM with a separate network/storage namespace."""
+    from sftp_receiver import receiver
+    cfg = json.loads(Path("/etc/hostorbit/runtime.json").read_bytes())
+    target_id, secret_id = "01JCYQZ4T9V8MNVYEH3D2M7Q1F", "01JCYQZ4T9V8MNVYEH3D2M7Q1E"
+    folder = Path("/run/hostorbit/sftp-client")
+    folder.mkdir(mode=0o700)
+    run("/usr/bin/ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", folder / "client")
+    public = (folder / "client.pub").read_text()
+    os.chown(folder / "client", cfg["broker_uid"], cfg["broker_gid"])
+    os.chown(folder, cfg["broker_uid"], cfg["broker_gid"])
+    with sqlite3.connect(cfg["database"]) as db:
+        owner = db.execute("SELECT id FROM users WHERE role='Owner'").fetchone()[0]
+    run("/usr/bin/systemd-run", "--quiet", "--wait", "--pipe", "--collect", "--unit=hostorbit-sftp-import-fixture",
+        "--property=User=" + str(cfg["broker_uid"]), "--property=Group=" + str(cfg["broker_gid"]),
+        "--property=UMask=0077", "--property=LimitCORE=0",
+        "--property=LoadCredentialEncrypted=broker-dek:" + cfg["vault_credential"],
+        "/opt/hostorbit/venv/bin/hostorbit-runtime", "--config", "/etc/hostorbit/runtime.json", "import-backup-key",
+        "--key-file", folder / "client", "--secret-id", secret_id, "--owner-id", owner, "--target", target_id)
+    (folder / "client").unlink()
+    provenance = json.loads(Path(local_archive["provenance"]).read_bytes())
+    recipient = provenance["claims"]["recipient"]
+    target_file = Path("/etc/hostorbit/backup-target.json")
+
+    def create():
+        return json.loads(run("/opt/hostorbit/venv/bin/hostorbit-backup", "create", "--recipient", recipient, timeout=210).stdout)
+
+    def phase(snapshot_id):
+        with sqlite3.connect(Path(cfg["supervisor_directory"]) / "snapshots/snapshots.sqlite3") as db:
+            return db.execute("SELECT phase FROM snapshots WHERE id=?", (snapshot_id,)).fetchone()[0]
+
+    def publish(archive, expected=None):
+        response = run("/opt/hostorbit/venv/bin/hostorbit-backup", "publish", "--snapshot-id", archive["snapshot_id"], check=False, timeout=180)
+        if expected is not None:
+            if response.returncode == 0 or expected.encode() not in response.stderr or phase(archive["snapshot_id"]) != "FAILED":
+                raise RuntimeError("SFTP negative path failed: " + response.stderr.decode(errors="replace")[-300:])
+            return
+        if response.returncode:
+            raise RuntimeError("SFTP publication failed: " + response.stderr.decode(errors="replace")[-300:])
+        result = json.loads(response.stdout)
+        if result["status"] != "PUBLISHED" or result["backup_gate"] != "DENIED" or result["restore_verified"] is not False or phase(archive["snapshot_id"]) != "PUBLISHED":
+            raise RuntimeError("SFTP publisher falsely reported completion or restore readiness")
+
+    with receiver(root, public) as remote:
+        target = {"v": 1, "enabled": True, "id": target_id, "ip": "10.241.0.2", "port": 2223,
+                  "allowed_cidrs": ["10.241.0.0/30"], "host_key": remote.host_key, "username": remote.account,
+                  "directory": "/store", "secret_ref": secret_id + ":v1", "policy_revision": 1}
+        def configure(value):
+            target_file.write_text(json.dumps(value, sort_keys=True, separators=(",", ":")))
+            target_file.chmod(0o644)
+        configure(target)
+        first = create()
+        publish(first)
+        final = remote.store / first["snapshot_id"]
+        expected_cipher = Path(first["ciphertext"]).read_bytes()
+        if (final / "controller.age").read_bytes() != expected_cipher or not (final / "COMPLETE").is_file():
+            raise RuntimeError("SFTP final bytes/marker differ from the signed source")
+        before = {p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in final.iterdir()}
+        publish(first)
+        after = {p.name: (p.read_bytes(), p.stat().st_mtime_ns) for p in final.iterdir()}
+        if before != after:
+            raise RuntimeError("Idempotent publication overwrote final data")
+        # Ciphertext survived independently of the local publisher's staging;
+        # verify its signed origin with the separately saved public anchor.
+        run("/opt/hostorbit/venv/bin/hostorbit-backup", "verify", "--ciphertext", final / "controller.age",
+            "--provenance", final / "provenance.json", "--trusted-key", root / "independent-controller.pub")
+        read, write = os.pipe()
+        try:
+            os.write(write, identity)
+            os.close(write)
+            write = None
+            recovered = subprocess.run(["/opt/hostorbit/tools/age", "--decrypt", "--identity", f"/dev/fd/{read}", str(final / "controller.age")],
+                                       pass_fds=(read,), capture_output=True, timeout=20)
+            if recovered.returncode:
+                raise RuntimeError("Published SFTP archive did not decrypt with the fixture Owner identity")
+        finally:
+            os.close(read)
+            if write is not None:
+                os.close(write)
+        import io, tarfile, base64
+        from nacl.secret import Aead
+        with tarfile.open(fileobj=io.BytesIO(recovered.stdout)) as tar:
+            keys = json.load(tar.extractfile("vault/portable-keys.json"))
+            aead = Aead(base64.b64decode(keys["generations"][0]["key"], validate=True))
+            with sqlite3.connect(":memory:") as db:
+                db.deserialize(tar.extractfile("vault/vault.sqlite3").read())
+                metadata, digest = db.execute("SELECT metadata,object_digest FROM secrets WHERE ref=?", (secret_id + ":v1",)).fetchone()
+                raw = tar.extractfile("vault/objects/" + digest).read()
+                if json.loads(metadata)["purpose"] != "backup.sftp" or not aead.decrypt(raw, metadata.encode()).startswith(b"-----BEGIN OPENSSH PRIVATE KEY-----\n"):
+                    raise RuntimeError("Published archive lost its purpose-bound SFTP credential")
+        run("/usr/bin/ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", remote.root / "wrong-host")
+        wrong = {**target, "host_key": " ".join((remote.root / "wrong-host.pub").read_text().split()[:2])}
+        configure(wrong)
+        bad_host = create()
+        publish(bad_host, "SFTP_HOST_KEY_MISMATCH")
+        configure(target)
+        outage = create()
+        remote.stop()
+        publish(outage, "SFTP_NETWORK_OR_STORAGE_UNAVAILABLE")
+        if json.load(urlopen(f"http://127.0.0.1:{PORT}/healthz", timeout=5))["status"] != "alive":
+            raise RuntimeError("SFTP outage interrupted the Controller API")
+        remote.start()
+        publish(outage)
+        full = create()
+        filler = remote.store / "filler"
+        try:
+            with filler.open("wb") as stream:
+                while True:
+                    stream.write(b"x" * 65536)
+        except OSError as error:
+            import errno
+            if error.errno != errno.ENOSPC:
+                raise
+        publish(full, "SFTP_REMOTE_FAILED")
+        if (remote.store / full["snapshot_id"]).exists():
+            raise RuntimeError("ENOSPC exposed an eligible final archive")
+        filler.unlink()
+        publish(full)
+        # A corrupted existing final archive is detected and not repaired by
+        # overwriting the old recovery point.
+        damaged = final / "controller.age"
+        damaged.write_bytes(b"corrupted fixture archive")
+        publish(first, "SFTP_READBACK_MISMATCH")
+        if damaged.read_bytes() != b"corrupted fixture archive":
+            raise RuntimeError("Publisher overwrote corrupted existing backup")
+        revoked = create()
+        revoke = '''import json,os
+from pathlib import Path
+from hostorbit.admission import Admission
+from hostorbit.runtime.vault import Vault
+c=json.load(open('/etc/hostorbit/runtime.json'))
+v=Vault(c['vault_directory'],Path(os.environ['CREDENTIALS_DIRECTORY'])/'broker-dek',systemd_credential=True,writers=Admission(c['writer_directory']))
+v.revoke('01JCYQZ4T9V8MNVYEH3D2M7Q1E:v1')
+'''
+        run("/usr/bin/systemd-run", "--quiet", "--wait", "--pipe", "--collect", "--unit=hostorbit-sftp-revoke-fixture",
+            "--property=User=" + str(cfg["broker_uid"]), "--property=Group=" + str(cfg["broker_gid"]),
+            "--property=UMask=0077", "--property=LimitCORE=0", "--property=LoadCredentialEncrypted=broker-dek:" + cfg["vault_credential"],
+            "/opt/hostorbit/venv/bin/python", "-c", revoke)
+        publish(revoked, "SECRET_NOT_ACTIVE")
+        if (remote.store / revoked["snapshot_id"]).exists():
+            raise RuntimeError("Revoked SFTP identity published a new archive")
+    print("Real pinned OpenSSH SFTP publication passed fsync/readback/final marker, no-overwrite replay, wrong-host refusal, outage/ENOSPC recovery, corruption and revoked-key rejection; API stayed available.", flush=True)
 
 
 def credential_binding(root, source):
@@ -573,7 +718,8 @@ print('VERIFIED_HOST_TIME')
             print("First web visitor had no bootstrap authority; hidden-input local Owner setup and HTTPS login passed.", flush=True)
             writer_barrier(args.docker_host, ids)
             vault_pin()
-            controller_archive(root, args.bundle)
+            local_archive, fixture_identity = controller_archive(root, args.bundle)
+            sftp_publication(root, local_archive, fixture_identity)
             migration_rehearsal(root)
             before = {name: hashlib.sha256(Path(path).read_bytes()).hexdigest() for name, path in (
                 ("credential", "/etc/hostorbit/credentials/broker-dek.cred"),

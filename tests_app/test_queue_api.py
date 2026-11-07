@@ -18,7 +18,7 @@ class QueueApiTests(Fixture):
         self.queue.register_resource(OTHER, "b" * 64, 1)
 
     def test_closing_returns_retryable_503_for_new_jobs_but_keeps_authenticated_reads(self):
-        writers = Admission.initialize(self.store.path.parent.parent / "writers", owner=os.geteuid())
+        writers = Admission.initialize(self.directory / "writers", owner=os.geteuid())
         self.store.writers = writers
         writers.publish("CLOSING_ADMISSION", identifier())
         self.assertEqual(self.client.get("/api/v1/users").status_code, 200)
