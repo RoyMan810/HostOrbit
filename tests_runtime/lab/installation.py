@@ -225,6 +225,62 @@ print('WATCHDOG_RECOVERY_VERIFIED')
     print("Installed root latch stayed read-only in both containers; checkpoints drained, all critical writers paused, and supervisor recovered a SIGKILL without restart.", flush=True)
 
 
+def vault_pin():
+    """Fixture SSH keys only; no Owner age identity or user server is involved."""
+    cfg = json.loads(Path("/etc/hostorbit/runtime.json").read_bytes())
+    folder = Path("/run/hostorbit/pin-fixture")
+    folder.mkdir(mode=0o700)
+    run("/usr/bin/ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", folder / "ssh-key")
+    os.chown(folder / "ssh-key", cfg["broker_uid"], cfg["broker_gid"])
+    os.chown(folder, cfg["broker_uid"], cfg["broker_gid"])
+    with sqlite3.connect(cfg["database"]) as db:
+        owner, = db.execute("SELECT id FROM users WHERE role='Owner'").fetchone()
+    provision = '''import json, os, sys
+from pathlib import Path
+from hostorbit.admission import Admission
+from hostorbit.runtime.storage import protected_bytes
+from hostorbit.runtime.vault import Vault
+c=json.load(open('/etc/hostorbit/runtime.json'))
+v=Vault(c['vault_directory'],Path(os.environ['CREDENTIALS_DIRECTORY'])/'broker-dek',systemd_credential=True,writers=Admission(c['writer_directory']))
+key=protected_bytes(sys.argv[1],owner=os.geteuid(),maximum=8192,private=True)
+for version in (1,2):
+ ref=v.import_ssh('01JCYQZ4T9V8MNVYEH3D2M7Q1C',version,key,owner_id=sys.argv[2],worker_uid=c['worker_uid'],target='01JCYQZ4T9V8MNVYEH3D2M7Q1A')
+ if version==1: v.revoke(ref)
+print('FIXTURE_VERSIONS_IMPORTED')
+'''
+    imported = run("/usr/bin/systemd-run", "--quiet", "--wait", "--pipe", "--collect", "--unit=hostorbit-pin-fixture",
+                   "--property=User=" + str(cfg["broker_uid"]), "--property=Group=" + str(cfg["broker_gid"]),
+                   "--property=UMask=0077", "--property=LimitCORE=0",
+                   "--property=LoadCredentialEncrypted=broker-dek:" + cfg["vault_credential"],
+                   "/opt/hostorbit/venv/bin/python", "-c", provision, folder / "ssh-key", owner)
+    if imported.stdout.strip() != b"FIXTURE_VERSIONS_IMPORTED":
+        raise RuntimeError("Broker fixture provisioning failed")
+    capture = '''import hashlib, json
+from pathlib import Path
+from hostorbit.admission import Admission
+from hostorbit.runtime.coordinator import Coordinator
+from hostorbit.runtime.pins import capture_with_systemd
+c=json.load(open('/etc/hostorbit/runtime.json'))
+co=Coordinator(Path(c['supervisor_directory'])/'snapshots',Admission(c['writer_directory']))
+snapshot_id,result=co.snapshot(lambda:True,capture_with_systemd)
+assert result['secrets']==2 and result['objects']==2 and result['portable_keys_exported'] is False and result['backup_gate']=='DENIED'
+root=Path(c['broker_directory'])/'snapshot-pins'/snapshot_id
+raw=(root/'pin.json').read_bytes()
+assert hashlib.sha256(raw).hexdigest()==result['manifest_sha256']
+manifest=json.loads(raw)
+assert manifest['key_generations']==[1] and {r['state'] for r in manifest['references']}=={'ACTIVE','REVOKED'}
+for f in manifest['files']:
+ data=(root/f['path']).read_bytes()
+ assert len(data)==f['size'] and hashlib.sha256(data).hexdigest()==f['sha256']
+ assert b'-----BEGIN OPENSSH PRIVATE KEY-----' not in data
+print('INSTALLED_VAULT_PIN_VERIFIED')
+'''
+    result = run("/opt/hostorbit/venv/bin/python", "-c", capture, timeout=35)
+    if result.stdout.strip() != b"INSTALLED_VAULT_PIN_VERIFIED":
+        raise RuntimeError("Installed Vault pin helper failed")
+    print("Sandboxed Broker-UID helper pinned active/revoked ciphertext and both SQLite journals under the Root barrier; portable DEK export and Backup Gate remained disabled.", flush=True)
+
+
 def credential_binding(root, source):
     """A second host-key domain in a private mount namespace, not a real VPS."""
     other = root / "other-host"
@@ -430,6 +486,7 @@ print('VERIFIED_HOST_TIME')
                 login.close()
             print("First web visitor had no bootstrap authority; hidden-input local Owner setup and HTTPS login passed.", flush=True)
             writer_barrier(args.docker_host, ids)
+            vault_pin()
             migration_rehearsal(root)
             before = {name: hashlib.sha256(Path(path).read_bytes()).hexdigest() for name, path in (
                 ("credential", "/etc/hostorbit/credentials/broker-dek.cred"),

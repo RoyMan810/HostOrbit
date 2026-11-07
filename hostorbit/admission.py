@@ -195,3 +195,25 @@ class Admission:
             if fd is not None:
                 os.close(fd)
             os.close(parent)
+
+    def verify_barrier(self, snapshot_id):
+        """A Broker capture helper must see both the root latch and exclusion.
+
+        This does not grant eligibility: the independent Coordinator must still
+        bind the local result to its own completed capture and provenance.
+        """
+        parent, fd = self._directory(), None
+        try:
+            fd = self._file(parent, "writers.lock")
+            state = self._state(parent)
+            if state["phase"] != "SHORT_BARRIER" or state["snapshot_id"] != snapshot_id:
+                raise Denied("SNAPSHOT_BINDING_INVALID", 503)
+            try:
+                fcntl.flock(fd, fcntl.LOCK_SH | fcntl.LOCK_NB)
+            except BlockingIOError:
+                return
+            raise Denied("SNAPSHOT_EXCLUSION_REQUIRED", 503)
+        finally:
+            if fd is not None:
+                os.close(fd)
+            os.close(parent)

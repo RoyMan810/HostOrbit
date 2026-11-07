@@ -6,6 +6,7 @@ import os
 import json
 from pathlib import Path
 import signal
+import sqlite3
 import sys
 from threading import Event
 
@@ -70,6 +71,7 @@ def configuration(path):
 def run(config, command, *, once=False, listener=None, import_args=None):
     expected = {"supervisor": 0, "initialize-supervisor": 0, "api": config["app_uid"], "worker": config["worker_uid"],
                 "broker": config["broker_uid"], "initialize-broker": config["broker_uid"], "import-key": config["broker_uid"],
+                "pin-vault": config["broker_uid"],
                 "register-observations": 0, "initialize-time-health": 0, "time-health": 0,
                 "initialize-credential": 0, "initialize-writers": 0}[command]
     if os.geteuid() != expected:
@@ -163,6 +165,12 @@ def run(config, command, *, once=False, listener=None, import_args=None):
         Broker.initialize(config["broker_directory"], policy)
         return
     vault = Vault(config["vault_directory"], credential, systemd_credential=managed_credential, writers=writers)
+    if command == "pin-vault":
+        if writers is None:
+            raise Denied("WRITER_CONFIGURATION_REQUIRED")
+        from .pins import pin_vault
+        print(json.dumps(pin_vault(vault, config["broker_directory"], writers, import_args.snapshot_id)))
+        return
     if command == "import-key":
         key = protected_bytes(import_args.key_file, owner=config["broker_uid"], maximum=8192, private=True)
         reference = vault.import_ssh(import_args.secret_id, import_args.version, key, owner_id=import_args.owner_id,
@@ -192,10 +200,12 @@ def main(argv=None):
     key.add_argument("--owner-id", required=True)
     key.add_argument("--target", required=True)
     key.add_argument("--version", type=int, default=1)
+    pin = commands.add_parser("pin-vault", help="Private local pin under an active Root snapshot barrier; never an off-host backup")
+    pin.add_argument("--snapshot-id", required=True)
     args = parser.parse_args(argv)
     try:
         run(configuration(args.config), args.command, once=getattr(args, "once", False), import_args=args)
-    except (Denied, OSError, RuntimeError, ValueError) as error:
+    except (Denied, OSError, RuntimeError, ValueError, sqlite3.Error) as error:
         print(error.code if isinstance(error, Denied) else "RUNTIME_UNAVAILABLE", file=sys.stderr)
         return 1
     return 0
