@@ -46,6 +46,8 @@ class Vault:
                 or not key.startswith(b"-----BEGIN OPENSSH PRIVATE KEY-----\n")
                 or not key.endswith(b"-----END OPENSSH PRIVATE KEY-----\n")):
             raise Denied("SSH_KEY_FORMAT_UNSUPPORTED")
+        from .ssh import validate_private_key
+        validate_private_key(key)
         reference = f"{secret_id}:v{version}"
         metadata = {"secret_id": secret_id, "version": version, "kind": "ssh.ed25519", "purpose": "host.probe",
                     "owner_id": owner_id, "allowed_consumers": [worker_uid], "allowed_consumers_digest": checksum([worker_uid]), "target": target,

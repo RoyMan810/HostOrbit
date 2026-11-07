@@ -89,13 +89,18 @@ def child(args):
         except Denied as error:
             print(json.dumps({"ok": False, "code": error.code}))
         return
-    listener = socket.socket(fileno=args.listener_fd) if args.listener_fd is not None else None
+    if args.listener_fd is not None:
+        if args.listener_fd != 3:
+            os.dup2(args.listener_fd, 3)
+            os.close(args.listener_fd)
+        os.environ["LISTEN_PID"] = str(os.getpid())
+        os.environ["LISTEN_FDS"] = "1"
     if args.child == "import-key":
         from hostorbit.runtime.vault import Vault
         vault = Vault(config["vault_directory"], config["vault_credential"])
         vault.import_ssh(SECRET, 1, Path(args.key).read_bytes(), owner_id=args.owner, worker_uid=UID_WORKER, target=TARGET)
         return
-    return run(config, args.child, once=args.once, listener=listener)
+    return run(config, args.child, once=args.once)
 
 
 def main():
@@ -130,6 +135,7 @@ def main():
     processes = []
     logs = []
     user_created = network_created = helper_created = sudoers_created = False
+    service_users, service_groups = [], []
     with tempfile.TemporaryDirectory(prefix="hostorbit-runtime-", dir="/run") as temp:
         lab = Path(temp)
         lab.chmod(0o755)
@@ -170,6 +176,23 @@ def main():
                     os.killpg(process.pid, signal.SIGKILL)
                     process.wait(timeout=5)
         try:
+            for name, gid in (("ho-app-db", GID_APP), ("ho-broker-rpc", GID_BROKER_RPC), ("ho-gate-rpc", GID_GATE_RPC),
+                              ("ho-worker", UID_WORKER), ("ho-broker", UID_BROKER)):
+                try:
+                    grp.getgrnam(name)
+                    raise RuntimeError("Fixture group already exists")
+                except KeyError:
+                    pass
+                command("groupadd", "--gid", str(gid), name)
+                service_groups.append(name)
+            for name, uid, gid in (("ho-api", UID_API, GID_APP), ("ho-worker", UID_WORKER, UID_WORKER), ("ho-broker", UID_BROKER, UID_BROKER)):
+                try:
+                    pwd.getpwnam(name)
+                    raise RuntimeError("Fixture service account already exists")
+                except KeyError:
+                    pass
+                command("useradd", "--uid", str(uid), "--gid", str(gid), "--home-dir", "/nonexistent", "--no-create-home", "--shell", "/usr/sbin/nologin", name)
+                service_users.append(name)
             (lab / "remote-home").mkdir(mode=0o555)
             command("useradd", "--system", "--user-group", "--shell", "/bin/sh", "--home-dir", str(lab / "remote-home"), "--no-create-home", account)
             user_created = True
@@ -270,7 +293,7 @@ Match User {account}
             os.chown(lab / "client", UID_BROKER, UID_BROKER)
             invoke("import-key", "broker", "--key", str(lab / "client"), "--owner", owner)
             (lab / "client").unlink()
-            invoke("register-observations", "api")
+            invoke("register-observations", "root")
             listeners = []
             for name, owner_uid, gid in (("gate_socket", 0, GID_GATE_RPC), ("broker_socket", UID_BROKER, GID_BROKER_RPC)):
                 listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -395,6 +418,10 @@ Match User {account}
                 helper_dir.rmdir()
             if user_created:
                 subprocess.run(["userdel", account], capture_output=True)
+            for name in reversed(service_users):
+                subprocess.run(["userdel", name], capture_output=True)
+            for name in reversed(service_groups):
+                subprocess.run(["groupdel", name], capture_output=True)
 
 
 if __name__ == "__main__":

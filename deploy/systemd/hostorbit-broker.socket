@@ -1,0 +1,13 @@
+[Unit]
+Description=HostOrbit scoped Broker socket
+
+[Socket]
+ListenStream=/run/hostorbit/broker/broker.sock
+SocketUser=ho-broker
+SocketGroup=ho-broker-rpc
+SocketMode=0660
+DirectoryMode=0710
+RemoveOnStop=true
+
+[Install]
+WantedBy=sockets.target

@@ -177,6 +177,9 @@ class JobQueue:
                    (outcome, canonical(result).decode() if result else None, reason, int(self.clock()), row["id"]))
         if outcome == "UNKNOWN_OUTCOME":
             db.execute("INSERT INTO job_incidents VALUES(?,?,'OPEN',?)", (identifier(), row["id"], int(self.clock())))
+        if reason == "SSH_HOST_KEY_MISMATCH":
+            self.store.event(db, at=int(self.clock()), actor=row["actor_id"], kind="security.ssh_host_key_mismatch",
+                             target=row["resource_id"], outcome="DENIED", correlation=row["id"], details={"job_id": row["id"]})
         self._event(db, db.execute("SELECT * FROM jobs WHERE id=?", (row["id"],)).fetchone(), "job.finished", reason=reason)
 
     def finish(self, claim, outcome, reason, *, result=None):

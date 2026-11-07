@@ -43,13 +43,15 @@ def configuration(path):
 def run(config, command, *, once=False, listener=None, import_args=None):
     expected = {"supervisor": 0, "initialize-supervisor": 0, "api": config["app_uid"], "worker": config["worker_uid"],
                 "broker": config["broker_uid"], "initialize-broker": config["broker_uid"], "import-key": config["broker_uid"],
-                "register-observations": config["app_uid"]}[command]
+                "register-observations": 0}[command]
     if os.geteuid() != expected:
         raise Denied("LOCAL_SERVICE_IDENTITY_INVALID")
     access = DataAccess(config["app_uid"], config["app_gid"])
     if command == "api":
         from ..api import create_app
         import uvicorn
+        with Store(config["database"], access=access).connect():
+            pass
         settings = Settings(Path(config["database"]), config["public_origin"], tuple(config["trusted_proxies"]), access.owner_uid, access.shared_gid)
         uvicorn.run(create_app(settings), host="127.0.0.1", port=config["api_port"], proxy_headers=False, access_log=False)
         return

@@ -1,0 +1,24 @@
+[Unit]
+Description=HostOrbit independent admission authority
+Requires=hostorbit-supervisor.socket
+After=hostorbit-supervisor.socket
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+ExecStart=/opt/hostorbit/venv/bin/hostorbit-runtime --config /etc/hostorbit/runtime.json supervisor
+User=root
+Group=root
+UMask=0077
+Restart=on-failure
+RestartSec=2
+KillMode=control-group
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+RestrictAddressFamilies=AF_UNIX
+ReadWritePaths=/var/lib/hostorbit/control-gate
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
