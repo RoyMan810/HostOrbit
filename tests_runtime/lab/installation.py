@@ -290,6 +290,12 @@ def controller_archive(root, bundle):
     anchor = root / "independent-controller.pub"
     anchor.write_bytes(Path("/etc/hostorbit/gate.pub").read_bytes())
     anchor.chmod(0o600)
+    # Public executable metadata only: never inspect credentials or dump helper
+    # stderr. This also makes platform ownership assumptions reviewable in CI.
+    tool = Path("/opt/hostorbit/tools/age")
+    print("age trust-path metadata: " + json.dumps([{ "path": str(p), "uid": p.lstat().st_uid,
+          "mode": oct(p.lstat().st_mode & 0o7777), "links": p.lstat().st_nlink}
+          for p in (tool, *tool.parents)]), flush=True)
     result = json.loads(run("/opt/hostorbit/venv/bin/hostorbit-backup", "create", "--recipient", recipient, timeout=210).stdout)
     if (result["status"] != "LOCAL_SIGNED_ONLY" or result["portable_keys_exported"] is not True
             or result["off_host"] is not False or result["restore_verified"] is not False or result["backup_gate"] != "DENIED"):
