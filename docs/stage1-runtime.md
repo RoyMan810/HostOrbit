@@ -24,6 +24,8 @@ TTL не освобождает mutating reservation в gate engine. Смерт�
 
 Worker держит kernel flock на весь срок жизни процесса. Только после получения этого lock он восстанавливает свои незавершённые claims. Для pre-dispatch отмены он проверяет authority и отзывает ещё не потреблённый permit. После возможного send сохраняются прежний Job ID, `UNKNOWN_OUTCOME` и отдельный OPEN incident. Поздний успешный receipt Broker не переписывает такой Job и не вызывает повторный SSH.
 
+Runtime Worker явно обрабатывает SIGTERM/SIGINT, в том числе как PID 1 контейнера. Он завершает текущую итерацию с принятым заданием, затем выходит с освобождением lifetime lock; idle ожидание прерывается сразу. Compose даёт до 60 секунд на штатную остановку. Это не доказательство завершения remote effect: если процесс всё же убит или reply потерян, действует прежнее восстановление с `UNKNOWN_OUTCOME`, без автоматического повтора.
+
 ## UID и SQLite
 
 API и Worker имеют разные UID и общую отдельную группу `ho-app-db`. Shared Store требует точного владельца API, GID этой группы, directory mode 2770 и database mode 0660. Setgid сохраняет группу WAL/SHM и Worker lock. Runtime configuration задаёт эти значения явно. Приватный режим разработки с mode 0700/0600 остаётся доступен.

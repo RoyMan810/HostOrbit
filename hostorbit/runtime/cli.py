@@ -1,9 +1,12 @@
 """Host-installed service entry points driven by root-owned configuration."""
 
 import argparse
+from contextlib import contextmanager
 import os
 from pathlib import Path
+import signal
 import sys
+from threading import Event
 
 from ..auth import AuthService
 from ..config import Settings
@@ -18,6 +21,19 @@ from .policy import Policy
 from .protocol import fields, integer, text, decode
 from .storage import new_private_file, process_lock, protected_bytes
 from .vault import Vault
+
+
+@contextmanager
+def worker_shutdown():
+    """PID 1 must handle TERM explicitly; release its lock only after the job."""
+    stop, previous = Event(), {}
+    try:
+        for number in (signal.SIGTERM, signal.SIGINT):
+            previous[number] = signal.signal(number, lambda *_: stop.set())
+        yield stop
+    finally:
+        for number, handler in previous.items():
+            signal.signal(number, handler)
 
 
 def configuration(path):
@@ -79,7 +95,8 @@ def run(config, command, *, once=False, listener=None, import_args=None):
         worker = Worker(JobQueue(Store(config["database"], access=access)), Client(config["gate_socket"], server_uids={0}),
                         Client(config["broker_socket"], server_uids={0, config["broker_uid"]}),
                         secret_refs={t.id: t.value["secret_ref"] for t in policy.targets.values()})
-        return worker.run(once=once)
+        with worker_shutdown() as stop:
+            return worker.run(once=once, stop=stop)
     managed_credential = "CREDENTIALS_DIRECTORY" in os.environ
     credential = Path(os.environ["CREDENTIALS_DIRECTORY"]) / "broker-dek" if managed_credential else Path(config["vault_credential"])
     if command == "initialize-broker":

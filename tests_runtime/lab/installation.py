@@ -291,7 +291,12 @@ print(json.dumps(out))
                 ("gate", "/var/lib/hostorbit/control-gate/signing.key"))}
             if before != after:
                 raise RuntimeError("Second install changed private keys")
-            run("/usr/bin/systemctl", "restart", "hostorbit-compose.service", timeout=150)
+            run("/usr/bin/systemctl", "stop", "hostorbit-compose.service", timeout=80)
+            stopped = json.loads(docker(args.docker_host, "inspect", ids["worker"]))[0]["State"]
+            if stopped["Running"] or stopped["ExitCode"] != 0 or stopped["OOMKilled"]:
+                raise RuntimeError("Idle Worker did not handle SIGTERM and exit cleanly")
+            print("Container PID 1 Worker handled SIGTERM, released its lock and exited with code 0.", flush=True)
+            run("/usr/bin/systemctl", "start", "hostorbit-compose.service", timeout=150)
             if json.load(urlopen(f"http://127.0.0.1:{PORT}/healthz", timeout=5))["status"] != "alive":
                 raise RuntimeError("Compose service did not recover after restart")
             print("Repeated install was denied without key replacement; systemd Compose restart preserved the installation.", flush=True)
@@ -305,7 +310,7 @@ print(json.dumps(out))
             # This job owns the entire disposable VM. Preserve failed install
             # state/logs until the runner is discarded; never wipe a user VPS.
             if installed:
-                run("/usr/bin/systemctl", "stop", "hostorbit-compose.service", check=False, timeout=40)
+                run("/usr/bin/systemctl", "stop", "hostorbit-compose.service", check=False, timeout=80)
                 docker(args.docker_host, "compose", "--project-name", "hostorbit", "--file",
                        "/etc/hostorbit/compose.json", "down", timeout=60)
             run("/usr/bin/umount", daemon_socket, check=False)

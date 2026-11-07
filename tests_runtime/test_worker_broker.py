@@ -2,6 +2,7 @@ import json
 import os
 from pathlib import Path
 import tempfile
+from threading import Event
 import time
 import unittest
 
@@ -76,6 +77,33 @@ class RuntimeTests(unittest.TestCase):
             raw = "\n".join(db.iterdump())
         self.assertNotIn(private_key().decode(), raw)
         self.assertNotIn("PRIVATE KEY", json.dumps(result))
+
+    def test_stopped_worker_does_not_claim_a_waiting_job_and_releases_its_lifetime_lock(self):
+        queued = self.enqueue()
+        stop = Event()
+        stop.set()
+        self.assertFalse(self.worker.run(stop=stop))
+        self.assertEqual(self.job(queued["id"])["status"], "QUEUED")
+        self.assertEqual(self.executions, [])
+        self.worker.run(once=True)
+        self.assertEqual(self.job(queued["id"])["status"], "SUCCEEDED")
+
+    def test_stop_during_an_accepted_job_finishes_it_without_claiming_the_next(self):
+        first, second = self.enqueue(), self.enqueue("fixture-request-0002")
+        with self.store.write() as db:
+            db.execute("UPDATE jobs SET created_at=created_at+1 WHERE id=?", (second["id"],))
+        stop = Event()
+        def stopping(phase):
+            if phase == "INTENT_PREPARED":
+                stop.set()
+        self.worker.observe = stopping
+        self.worker.run(stop=stop)
+        self.assertEqual(self.job(first["id"])["status"], "SUCCEEDED")
+        self.assertEqual(self.job(second["id"])["status"], "QUEUED")
+        self.assertEqual(self.executions, [TARGET])
+        self.store.verify_audit()
+        self.worker.run(once=True)
+        self.assertEqual(self.job(second["id"])["status"], "SUCCEEDED")
 
     def test_permit_replay_and_revoke_before_use_never_repeat_ssh(self):
         queued = self.enqueue()

@@ -192,7 +192,7 @@ def bind(source, target, *, read_only=True):
 def compose_document(config, image, port):
     common = {"image": image, "pull_policy": "never", "read_only": True,
               "cap_drop": ["ALL"], "security_opt": ["no-new-privileges=true"], "userns_mode": "host",
-              "restart": "unless-stopped", "pids_limit": 128, "mem_limit": "512m", "cpus": 1,
+              "restart": "unless-stopped", "stop_grace_period": "60s", "pids_limit": 128, "mem_limit": "512m", "cpus": 1,
               "tmpfs": ["/tmp:rw,nosuid,nodev,noexec,size=16m,mode=1777"],
               "environment": {"HOME": "/nonexistent", "PYTHONNOUSERSITE": "1", "PYTHONDONTWRITEBYTECODE": "1"},
               "logging": {"driver": "json-file", "options": {"max-size": "10m", "max-file": "2"}}}
@@ -350,8 +350,8 @@ def install(args):
         unit = ("[Unit]\nDescription=HostOrbit API and Worker containers\nRequires=hostorbit-broker.socket hostorbit-supervisor.socket\n"
                 "After=docker.service hostorbit-broker.socket hostorbit-supervisor.socket\n\n[Service]\nType=oneshot\nRemainAfterExit=yes\n"
                 f"ExecStartPre={python} {bundle}/deploy/installer.py verify-image\n"
-                f"ExecStart={cli} up --detach --no-build --wait\nExecStop={cli} stop --timeout 10\n"
-                "TimeoutStartSec=120\nTimeoutStopSec=30\nUser=root\nGroup=root\nUMask=0077\nNoNewPrivileges=true\n"
+                f"ExecStart={cli} up --detach --no-build --wait\nExecStop={cli} stop --timeout 60\n"
+                "TimeoutStartSec=120\nTimeoutStopSec=75\nUser=root\nGroup=root\nUMask=0077\nNoNewPrivileges=true\n"
                 "CapabilityBoundingSet=\nLimitCORE=0\n\n[Install]\nWantedBy=multi-user.target\n")
         write(UNITS / COMPOSE_UNIT, unit.encode())
         admin = f"#!/bin/sh\nexec {python} {bundle}/deploy/installer.py \"$@\"\n"
