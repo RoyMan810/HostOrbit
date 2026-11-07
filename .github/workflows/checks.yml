@@ -78,11 +78,12 @@ jobs:
         run: |
           python -m pip wheel --no-deps --wheel-dir "$RUNNER_TEMP/hostorbit-wheels" .
           python - <<'PY'
-          import json, os, pathlib, zipfile
+          import hashlib, json, os, pathlib, zipfile
           wheel, = pathlib.Path(os.environ["RUNNER_TEMP"], "hostorbit-wheels").glob("hostorbit-*.whl")
           with zipfile.ZipFile(wheel) as archive:
               manifest = json.loads(archive.read("hostorbit/release-manifest.json"))
               assert manifest["remote_mutation_enabled"] is False
+              assert hashlib.sha256(archive.read("hostorbit/schema_v1.sql")).hexdigest() == "825d6b23d2ac197fa0e62fd7a649ce8563ef84a5f0cdee3135817dd619894db3"
               assert not any(name.startswith(("stage0/", "tests/", "tests_app/")) for name in archive.namelist())
           PY
 

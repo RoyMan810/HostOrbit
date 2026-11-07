@@ -17,4 +17,4 @@ hostorbit-runtime = "hostorbit.runtime.cli:main"
 include = ["hostorbit*"]
 
 [tool.setuptools.package-data]
-hostorbit = ["release-manifest.json"]
+hostorbit = ["release-manifest.json", "schema_v1.sql"]

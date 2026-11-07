@@ -8,6 +8,8 @@ Self-hosted система управления Linux-серверами. Раз
 
 [Установка Stage1](docs/stage1-installation.md) использует подписанный development bundle с offline wheelhouse, Compose API/Worker и системными Broker/supervisor. Это свежая установка; существующие базы и ключи не заменяются.
 
+[Репетиция миграции БД](docs/stage1-migrations.md) проверяет историческую схему 1 → 2 на приватных WAL-согласованных копиях. Рабочая БД открывается read-only; live apply остаётся закрытым до связывания maintenance, backup и TimeHealth gates.
+
 [Приёмка Stage0](evidence/acceptance/stage0-2026-11-07/README.md): 15 обязательных лабораторных критериев имеют проверенные отчёты `PASS`. Рецензирование выполнено автоматической самопроверкой Codex с явными ограничениями стенда. Остальные 69 AC сохраняют `NOT_RUN`; Stage1 и выпуск MVP остаются открытыми.
 
 ## Допуск к изменениям

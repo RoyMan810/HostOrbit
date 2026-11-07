@@ -156,14 +156,18 @@ class Store:
         return store
 
     @contextmanager
-    def connect(self, *, initializing=False):
+    def connect(self, *, initializing=False, readonly=False):
+        if initializing and readonly:
+            raise ValueError("DATABASE_READONLY_INITIALIZATION")
         self._permissions()
         if sqlite3.sqlite_version_info < (3, 45):
             raise RuntimeError("SQLITE_VERSION_UNSUPPORTED")
-        with closing(sqlite3.connect(self.path.as_uri() + "?mode=rw", uri=True, autocommit=True, timeout=5)) as db:
+        with closing(sqlite3.connect(self.path.as_uri() + ("?mode=ro" if readonly else "?mode=rw"), uri=True, autocommit=True, timeout=5)) as db:
             db.row_factory = sqlite3.Row
             db.execute("PRAGMA synchronous=FULL")
             db.execute("PRAGMA foreign_keys=ON")
+            if readonly:
+                db.execute("PRAGMA query_only=ON")
             if initializing:
                 db.execute("PRAGMA journal_mode=WAL")
             for name, expected in {"journal_mode": "wal", "synchronous": 2, "foreign_keys": 1, "busy_timeout": 5000,
@@ -214,14 +218,19 @@ class Store:
 
     def verify_audit(self):
         with self.read() as db:
-            previous = "0" * 64
-            for row in db.execute("SELECT * FROM audit ORDER BY seq"):
-                value = {key: row[key] for key in ("id", "at", "actor_id", "event", "target_id", "outcome", "correlation_id", "previous_hash")}
-                value["details"] = json.loads(row["details"])
-                if value["previous_hash"] != previous or hashlib.sha256(canonical(value).encode()).hexdigest() != row["digest"]:
-                    raise RuntimeError("AUDIT_INTEGRITY")
-                outbox = db.execute("SELECT payload FROM outbox WHERE seq=?", (row["seq"],)).fetchone()
-                if outbox is None or outbox[0] != canonical({**value, "digest": row["digest"]}):
-                    raise RuntimeError("OUTBOX_INTEGRITY")
-                previous = row["digest"]
-            return previous
+            return self.verify_audit_connection(db)
+
+    @staticmethod
+    def verify_audit_connection(db):
+        """Verify a caller's already pinned transaction, including migration copies."""
+        previous = "0" * 64
+        for row in db.execute("SELECT * FROM audit ORDER BY seq"):
+            value = {key: row[key] for key in ("id", "at", "actor_id", "event", "target_id", "outcome", "correlation_id", "previous_hash")}
+            value["details"] = json.loads(row["details"])
+            if value["previous_hash"] != previous or hashlib.sha256(canonical(value).encode()).hexdigest() != row["digest"]:
+                raise RuntimeError("AUDIT_INTEGRITY")
+            outbox = db.execute("SELECT payload FROM outbox WHERE seq=?", (row["seq"],)).fetchone()
+            if outbox is None or outbox[0] != canonical({**value, "digest": row["digest"]}):
+                raise RuntimeError("OUTBOX_INTEGRITY")
+            previous = row["digest"]
+        return previous

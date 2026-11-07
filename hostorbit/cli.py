@@ -21,6 +21,8 @@ def main(argv=None):
     commands.add_parser("bootstrap-token", help="Issue or rotate the local one-time 10-minute Owner token")
     owner = commands.add_parser("create-owner", help="Consume the bootstrap token locally")
     owner.add_argument("--username", required=True)
+    rehearsal = commands.add_parser("migration-rehearsal", help="Verify schema 1 → 2 on private copies; never apply to the source")
+    rehearsal.add_argument("--output", type=Path, required=True, help="New private directory for snapshots and report")
     serve = commands.add_parser("serve", help="Serve the foundation API on loopback behind a configured HTTPS proxy")
     serve.add_argument("--origin", required=True)
     serve.add_argument("--trusted-proxy", action="append", default=[])
@@ -36,6 +38,13 @@ def main(argv=None):
             print("Database initialized")
             return 0
         store = Store(args.database, access=access)
+        if args.command == "migration-rehearsal":
+            if os.geteuid() != 0:
+                raise Denied("LOCAL_ROOT_REQUIRED")
+            import json
+            from .migrations import rehearse
+            print(json.dumps(rehearse(store, args.output)))
+            return 0
         with store.connect():
             pass
         service = AuthService(store)
