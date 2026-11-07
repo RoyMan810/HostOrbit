@@ -290,7 +290,7 @@ def install(args):
                "trusted_proxies": ["127.0.0.1/32"], "api_port": 8000, "api_bind": "0.0.0.0",
                "targets": str(CONFIG / "targets.json"), "supervisor_directory": str(DATA / "control-gate"),
                "broker_directory": str(DATA / "broker"), "vault_directory": str(DATA / "vault"),
-               "vault_credential": str(CONFIG / "credentials/broker-dek"), "public_verify_key": str(CONFIG / "gate.pub"),
+               "vault_credential": str(CONFIG / "credentials/broker-dek.cred"), "public_verify_key": str(CONFIG / "gate.pub"),
                "gate_socket": str(RUN / "supervisor/gate.sock"), "broker_socket": str(RUN / "broker/broker.sock")}
         for role, name in (("app", "ho-api"), ("worker", "ho-worker"), ("broker", "ho-broker")):
             user = pwd.getpwnam(name)
@@ -311,15 +311,15 @@ def install(args):
         write(CONFIG / "targets.json", targets)
         write(CONFIG / "runtime.json", canonical(cfg))
         write(CONFIG / "release-trust.pub", key)
-        write(CONFIG / "credentials/broker-dek", os.urandom(32), mode=0o600)
         runtime = APP / "venv/bin/hostorbit-runtime"
+        command(runtime, "--config", CONFIG / "runtime.json", "initialize-credential")
         command(APP / "venv/bin/hostorbit", "--database", cfg["database"], "--database-owner", cfg["app_uid"],
                 "--database-group", cfg["app_gid"], "init")
         command(runtime, "--config", CONFIG / "runtime.json", "initialize-supervisor")
         # systemd gives just this UID a private copy of the OS credential.
         command("/usr/bin/systemd-run", "--unit=hostorbit-vault-initialize", "--quiet", "--wait", "--collect", "--property=User=ho-broker",
                 "--property=Group=ho-broker", "--property=SupplementaryGroups=ho-gate-rpc",
-                "--property=UMask=0077", "--property=LoadCredential=broker-dek:" + cfg["vault_credential"],
+                "--property=UMask=0077", "--property=LoadCredentialEncrypted=broker-dek:" + cfg["vault_credential"],
                 runtime, "--config", CONFIG / "runtime.json", "initialize-broker")
         command(runtime, "--config", CONFIG / "runtime.json", "register-observations")
         compose = compose_document(cfg, image, args.port)
