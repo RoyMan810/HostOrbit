@@ -19,7 +19,7 @@ from hostorbit.runtime.storage import _credential_permissions
 
 DEPLOY = Path(__file__).resolve().parents[1] / "deploy"
 sys.path.insert(0, str(DEPLOY))
-from artifact import ArtifactError, FIXED_FILES, canonical, manifest, snapshot, trusted_key
+from artifact import AGE_SHA256, ArtifactError, FIXED_FILES, canonical, manifest, snapshot, trusted_key
 from installer import compose_document, origin
 
 
@@ -95,6 +95,18 @@ class InstallationTests(unittest.TestCase):
         (self.bundle / "wheelhouse/hostorbit-0.1.0.dev1-py3-none-any.whl").write_bytes(b"tampered")
         with self.assertRaisesRegex(ArtifactError, "DIGEST_MISMATCH"):
             snapshot(self.bundle, self.directory / "bad", self.key, allow_development=True)
+
+    def test_even_a_signed_manifest_cannot_substitute_the_pinned_age_binary(self):
+        self.value["files"].append({"path": "tools/age", "size": 7, "sha256": hashlib.sha256(b"foreign").hexdigest()})
+        self.sign()
+        with self.assertRaisesRegex(ArtifactError, "AGE_TOOL_DIGEST_UNSUPPORTED"):
+            manifest(self.bundle, self.key, allow_development=True)
+        self.value["files"][-1]["sha256"] = AGE_SHA256
+        (self.bundle / "tools").mkdir()
+        (self.bundle / "tools/age").write_bytes(b"foreign")
+        self.sign()
+        with self.assertRaisesRegex(ArtifactError, "ARTIFACT_DIGEST_MISMATCH"):
+            snapshot(self.bundle, self.directory / "foreign-tool", self.key, allow_development=True)
 
     def test_signed_paths_duplicates_unsupported_schema_and_mutation_cannot_expand_the_bootstrap(self):
         original = copy.deepcopy(self.value)
