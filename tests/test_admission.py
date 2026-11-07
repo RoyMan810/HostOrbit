@@ -281,6 +281,28 @@ class AdmissionTests(unittest.TestCase):
         with self.assertRaises(FileExistsError):
             HostGate.create(self.path, TOPOLOGY)
 
+    def test_application_schema_replacement_cannot_clear_the_supervisor_journal(self):
+        application = self.path.with_name("application.sqlite3")
+        with sqlite3.connect(application) as db:
+            db.execute("CREATE TABLE jobs(id TEXT PRIMARY KEY, outcome TEXT)")
+            db.execute("PRAGMA user_version = 1")
+        process = self.start_process(crash_at, self.path, "remote")
+        process.join(WAIT)
+        self.assertEqual(process.exitcode, -signal.SIGKILL)
+        application.unlink()
+        with sqlite3.connect(application) as db:
+            db.execute("CREATE TABLE jobs(id TEXT PRIMARY KEY, outcome TEXT)")
+            db.execute("PRAGMA user_version = 2")
+            db.execute("INSERT INTO jobs VALUES('interrupted', 'SUCCEEDED')")
+        restarted = HostGate(self.path)
+        self.assertEqual(restarted.recover_after_restart(), GateState.RECOVERY_HOLD)
+        self.assertEqual(restarted.outcome("interrupted"), Outcome.UNKNOWN)
+        with self.assertRaisesRegex(Denied, "^GATE_CLOSED$"):
+            restarted.admit_remote("independent", "after-migration")
+        for kind in UpdateKind:
+            with self.assertRaisesRegex(Denied, "^GATE_CLOSED$"):
+                restarted.request_update(kind)
+
 
 class RecoveryAdmissionTests(unittest.TestCase):
     def setUp(self):

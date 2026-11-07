@@ -1,0 +1,75 @@
+{
+  "bomFormat": "CycloneDX",
+  "components": [
+    {
+      "name": "PyNaCl",
+      "purl": "pkg:pypi/pynacl@1.6.2",
+      "type": "library",
+      "version": "1.6.2"
+    },
+    {
+      "name": "cffi",
+      "purl": "pkg:pypi/cffi@2.1.1",
+      "type": "library",
+      "version": "2.1.1"
+    },
+    {
+      "name": "pycparser",
+      "purl": "pkg:pypi/pycparser@3.12",
+      "type": "library",
+      "version": "3.12"
+    },
+    {
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10"
+        }
+      ],
+      "name": "age",
+      "properties": [
+        {
+          "name": "hostorbit:hash_scope",
+          "value": "age-v1.3.2-linux-amd64.tar.gz"
+        }
+      ],
+      "type": "application",
+      "version": "1.3.2"
+    },
+    {
+      "name": "Docker Engine",
+      "type": "application",
+      "version": "29.9.3"
+    },
+    {
+      "name": "Ubuntu GitHub runner",
+      "type": "operating-system",
+      "version": "24.04.5"
+    },
+    {
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "f3dac913ab53b78c64f26d5518fcd7043d5a1a46522d6a493b598c3ed12f62a6"
+        }
+      ],
+      "name": "docker.io/library/python",
+      "type": "container"
+    }
+  ],
+  "metadata": {
+    "component": {
+      "name": "HostOrbit Stage 0 laboratory",
+      "type": "application",
+      "version": "68685ba7fc10c34f6bb16a1cac0910adc082e6a2"
+    },
+    "properties": [
+      {
+        "name": "hostorbit:scope",
+        "value": "Pinned lab dependencies confirmed in CI; not a complete OS/image SBOM or release vulnerability attestation"
+      }
+    ]
+  },
+  "specVersion": "1.6",
+  "version": 1
+}

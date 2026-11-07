@@ -45,7 +45,11 @@ python3.13 -m stage0.requirements /path/to/HostOrbit_Requirements_Registry_v2.3.
 python3.13 -m stage0.requirements /path/to/HostOrbit_Requirements_Registry_v2.3.json --gate Stage0
 ```
 
-Обнаруженное расхождение в карточке AC-28 зафиксировано в [ADR-0001](docs/adr/0001-registry-ac28-stage.md).
+Расхождение в карточке AC-28 исправлено в исходном JSON. Привязка к версии и контрольным суммам сохранена в [ADR-0001](docs/adr/0001-registry-ac28-stage.md). Сверка нормативных state machines и списка Stage0 выполняется отдельно.
+
+```bash
+python3.13 -m stage0.baseline /path/to/HostOrbit_Technical_Spec_v2.3.md /path/to/HostOrbit_Requirements_Registry_v2.3.json
+```
 
 ## Сессии и CSRF
 
