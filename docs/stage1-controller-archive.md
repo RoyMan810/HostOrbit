@@ -2,7 +2,7 @@
 
 Публикация созданного архива теперь доступна отдельным [SFTP transport](stage1-sftp-publication.md); `create` по-прежнему заканчивается локальным `SIGNED` и не выполняет сеть. Restore/freshness gates остаются закрытыми.
 
-`hostorbit-backup create` собирает согласованный снимок поддержанного Controller/Vault, экспортирует working DEK прямо в age encryption stream и подписывает ciphertext вместе с canonical data manifest. Результат — `LOCAL_SIGNED_ONLY`: SFTP publication вызывается отдельно; restore attestation, импорт на новую VPS и Backup Gate ещё не реализованы. Наличие этого файла не разрешает migration/update.
+`hostorbit-backup create` собирает согласованный снимок поддержанного Controller/Vault, экспортирует working DEK прямо в age encryption stream и подписывает ciphertext вместе с canonical data manifest. Результат — `LOCAL_SIGNED_ONLY`. SFTP publication, [Rescue import](stage1-rescue.md), [установка восстановленного Controller](stage1-recovery-installation.md) и [локальная activation](stage1-recovery-activation.md) выполняются отдельно. Независимая restore attestation и Backup Gate остаются открытыми. Наличие архива не разрешает migration/update.
 
 ## Создание и проверка происхождения
 

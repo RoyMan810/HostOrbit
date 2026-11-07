@@ -1,10 +1,10 @@
 # Барьер записи перед согласованным Controller snapshot
 
-Это прикладная основа Coordinator из §33.1 ТЗ v2.3. Новая установка включает её для API, Worker, Broker, Vault и host authority. Сам барьер не открывает Backup Gate: создание локального age archive/signature описано отдельно, off-host publication и проверка восстановления остаются следующими gates.
+Это прикладная основа Coordinator из §33.1 ТЗ v2.3. Новая установка включает её для API, Worker, Broker, Vault и host authority. Сам барьер не открывает Backup Gate. [Controller archive](stage1-controller-archive.md), [SFTP publication](stage1-sftp-publication.md) и [Rescue](stage1-rescue.md) реализуют остальные операции; независимая DR-приёмка и freshness gate остаются открытыми.
 
 [Локальный Vault pin](stage1-vault-pins.md) захватывает private Vault/receipt SQLite и referenced ciphertext отдельным sandboxed Broker helper.
 
-[Controller archive](stage1-controller-archive.md) использует barrier для полного поддержанного data snapshot; после освобождения writer lock выполняет age key export и `SEALED → SIGNED`. Off-host completion и Backup Gate остаются следующими gates.
+[Controller archive](stage1-controller-archive.md) использует barrier для полного поддержанного data snapshot; после освобождения writer lock выполняет age key export и `SEALED → SIGNED`. Публикация завершает отдельный SFTP protocol; Backup Gate остаётся закрытым до остальных обязательных свидетельств.
 
 ## Контракт записи
 

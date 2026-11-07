@@ -21,3 +21,11 @@ include = ["hostorbit*"]
 
 [tool.setuptools.package-data]
 hostorbit = ["release-manifest.json", "schema_v1.sql"]
+
+[tool.ruff]
+required-version = "==0.17.3"
+target-version = "py313"
+
+[tool.ruff.lint]
+# Correctness checks without rewriting the accepted Foundation source.
+select = ["E9", "F63", "F7", "F82"]
