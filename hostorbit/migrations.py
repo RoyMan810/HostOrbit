@@ -166,7 +166,11 @@ def rehearse(store, output, *, clock=time.monotonic):
                     copy.execute("PRAGMA synchronous=FULL")
             source.execute("COMMIT")
         with source_path.open("rb") as stream:
-            snapshot_hash = hashlib.file_digest(stream, "sha256").hexdigest()
+            digest = hashlib.sha256()
+            while chunk := stream.read(256 * 1024):
+                deadline()
+                digest.update(chunk)
+            snapshot_hash = digest.hexdigest()
         copied = Store(migrated_path)
         # The preservation verifier expects sqlite3.Row audit records.
         deadline()
