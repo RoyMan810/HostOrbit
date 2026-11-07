@@ -114,8 +114,11 @@ class Authority:
         report = self.time_health.poll()
         with self.journal.write() as db:
             gate = self._gate(db)
-            if report["state"] == "UNTRUSTED" and gate["state"] in ("QUIESCING", "MAINTENANCE", "RESUMING"):
-                db.execute("UPDATE gate SET state='RECOVERY_HOLD',epoch=epoch+1 WHERE id=1")
+            if gate["state"] in ("QUIESCING", "MAINTENANCE", "RESUMING"):
+                anchor = json.loads(gate["update_ticket"])["time_anchor"]["claims"]
+                if (report["state"] == "UNTRUSTED" or report["generation"] != anchor["generation"]
+                        or report["boot_id"] != anchor["boot_id"]):
+                    db.execute("UPDATE gate SET state='RECOVERY_HOLD',epoch=epoch+1 WHERE id=1")
         return report
 
     def time_report(self):

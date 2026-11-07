@@ -18,6 +18,15 @@ from .protocol import decode
 
 BOOT_ID = r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}"
 NANOSECOND = 10**9
+_CHRONY_QUERY = """import os, stat
+p='/run/chrony/chronyd.sock'
+d=os.lstat('/run/chrony')
+s=os.lstat(p)
+if (not stat.S_ISDIR(d.st_mode) or not stat.S_ISSOCK(s.st_mode)
+    or d.st_uid!=os.geteuid() or s.st_uid!=os.geteuid() or d.st_mode & 0o022):
+ raise SystemExit(1)
+os.execv('/usr/bin/chronyc',['chronyc','-n','-c','-h',p,'tracking'])
+"""
 
 
 def clocks():
@@ -167,23 +176,23 @@ class HostSources:
             raise Denied("TIME_SOURCE_AMBIGUOUS")
         if chrony:
             path = Path("/run/chrony/chronyd.sock")
-            info, parent = path.lstat(), path.parent.lstat()
+            parent = path.parent.lstat()
             account = pwd.getpwnam("_chrony")
-            if (not stat.S_ISSOCK(info.st_mode) or info.st_uid not in (0, account.pw_uid)
-                    or not stat.S_ISDIR(parent.st_mode) or parent.st_uid not in (0, account.pw_uid)
+            if (not stat.S_ISDIR(parent.st_mode) or parent.st_uid not in (0, account.pw_uid)
                     or parent.st_mode & 0o022):
                 raise Denied("TIME_SOURCE_INVALID")
             # chronyc creates its reply socket beside chronyd.sock. PID 1 runs
             # this fixed read-only query as the daemon UID; the supervisor keeps
             # an empty capability set and no access to Broker/Vault private data.
-            user = pwd.getpwuid(info.st_uid)
+            # A 0750 daemon-owned parent is deliberately not traversable by
+            # capability-free root. Check socket type/owner after switching UID.
+            user = pwd.getpwuid(parent.st_uid)
             raw = self._command("/usr/bin/systemd-run", "--quiet", "--wait", "--pipe", "--collect",
                 "--property=User=" + user.pw_name, "--property=Group=" + str(user.pw_gid),
                 "--property=NoNewPrivileges=yes", "--property=CapabilityBoundingSet=",
                 "--property=ProtectSystem=strict", "--property=ProtectHome=yes", "--property=PrivateTmp=yes",
                 "--property=RestrictAddressFamilies=AF_UNIX", "--property=ReadWritePaths=/run/chrony",
-                "--property=RuntimeMaxSec=3", "--property=UMask=0077", "/usr/bin/chronyc",
-                "-n", "-c", "-h", str(path), "tracking")
+                "--property=RuntimeMaxSec=3", "--property=UMask=0077", "/usr/bin/python3", "-I", "-c", _CHRONY_QUERY)
             return chrony_sample(raw.decode("ascii"))
         if timesyncd:
             prefix = ("/usr/bin/busctl", "--system", "--json=short", "--auto-start=no", "get-property",

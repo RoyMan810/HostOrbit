@@ -241,6 +241,13 @@ def main():
             assert report()["gate_state"] == "RECOVERY_HOLD"
             print("Real forward-and-back clock_settime cancelled the timerfd; maintenance entered durable RECOVERY_HOLD across restart.", flush=True)
         except Exception:
+            if (root / "gate.sock").exists():
+                try:
+                    proof = Client(root / "gate.sock", server_uids={0}, timeout=3).call("time.health", {})
+                    diagnostic = verify_host_time(proof, (root / "gate.pub").read_bytes())
+                    print("Fixture TimeHealth report: " + json.dumps(diagnostic), file=sys.stderr)
+                except (Denied, OSError):
+                    pass
             for unit in (source_unit, UNIT + ".service"):
                 logs = run("/usr/bin/journalctl", "--unit", unit, "--no-pager", "--lines", "35", check=False)
                 print(logs.stdout.decode(errors="replace"), file=sys.stderr)

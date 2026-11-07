@@ -291,6 +291,17 @@ class TimeHealthTests(unittest.TestCase):
         with authority.journal.connect() as db:
             self.assertEqual(db.execute("SELECT state FROM gate").fetchone()[0], "RECOVERY_HOLD")
 
+    def test_new_healthy_generation_does_not_reactivate_an_existing_update_ticket(self):
+        authority, _ = self.authority()
+        ticket = authority.update("update.quiesce", self.update_request(authority))
+        authority.update("update.maintenance", ticket)
+        self.health.recover()
+        self.rig.sync()
+        self.assertEqual(self.health.poll(force=True)["state"], "FRESH")
+        authority.poll_time()
+        with authority.journal.connect() as db:
+            self.assertEqual(db.execute("SELECT state FROM gate").fetchone()[0], "RECOVERY_HOLD")
+
 
 class TimeParserTests(unittest.TestCase):
     def test_chrony_csv_uses_current_correction_and_the_full_root_error_bound(self):
