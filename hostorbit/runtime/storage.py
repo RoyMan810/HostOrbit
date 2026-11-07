@@ -1,6 +1,6 @@
 """Private durable journals and lifetime process exclusion on local POSIX storage."""
 
-from contextlib import closing, contextmanager
+from contextlib import closing, contextmanager, nullcontext
 import fcntl
 import os
 from pathlib import Path
@@ -109,9 +109,10 @@ def process_lock(path, *, shared_gid=None):
 
 
 class Journal:
-    def __init__(self, path, *, version=1):
+    def __init__(self, path, *, version=1, writers=None):
         self.path = Path(path).absolute()
         self.version = version
+        self.writers = writers
 
     @classmethod
     def initialize(cls, path, schema, *, version=1):
@@ -153,8 +154,10 @@ class Journal:
                     db.execute("ROLLBACK")
 
     @contextmanager
-    def write(self):
-        with self.connect() as db:
-            db.execute("BEGIN IMMEDIATE")
-            yield db
-            db.execute("COMMIT")
+    def write(self, *, kind="control"):
+        admission = self.writers.writer(kind) if self.writers else nullcontext()
+        with admission:
+            with self.connect() as db:
+                db.execute("BEGIN IMMEDIATE")
+                yield db
+                db.execute("COMMIT")

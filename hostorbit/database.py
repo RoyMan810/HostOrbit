@@ -1,6 +1,6 @@
 """Explicitly initialized application SQLite, audit chain and transactional outbox."""
 
-from contextlib import closing, contextmanager
+from contextlib import closing, contextmanager, nullcontext
 import hashlib
 import json
 import os
@@ -116,9 +116,10 @@ class DataAccess:
 
 
 class Store:
-    def __init__(self, path: Path, *, access: DataAccess | None = None):
+    def __init__(self, path: Path, *, access: DataAccess | None = None, writers=None):
         self.path = Path(path).absolute()
         self.access = access or DataAccess(os.geteuid())
+        self.writers = writers
 
     def _permissions(self):
         parent = self.path.parent.stat()
@@ -182,11 +183,15 @@ class Store:
                     db.execute("ROLLBACK")
 
     @contextmanager
-    def write(self):
-        with self.connect() as db:
-            db.execute("BEGIN IMMEDIATE")
-            yield db
-            db.execute("COMMIT")
+    def write(self, *, kind="business"):
+        # A transaction waiting for admission must never hold a SQLite writer
+        # lock needed by ACK/checkpoint/control transactions during draining.
+        admission = self.writers.writer(kind) if self.writers else nullcontext()
+        with admission:
+            with self.connect() as db:
+                db.execute("BEGIN IMMEDIATE")
+                yield db
+                db.execute("COMMIT")
 
     @contextmanager
     def read(self):

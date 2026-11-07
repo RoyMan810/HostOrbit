@@ -126,6 +126,105 @@ print(s.verify_audit())
     print("Installed wheel CLI rehearsed schema 1 to 2; Owner/session/audit survived and live schema stayed at 1.", flush=True)
 
 
+def writer_barrier(host, ids):
+    """The installed wheel coordinates actual container UIDs and native services."""
+    code = '''import json, os, sys
+from pathlib import Path
+from hostorbit.admission import Admission
+from hostorbit.database import DataAccess, Store
+from hostorbit.errors import Denied
+c=json.load(open('/etc/hostorbit/runtime.json'))
+a=Admission(c['writer_directory'],timeout=0.05)
+s=Store(c['database'],access=DataAccess(c['app_uid'],c['app_gid']),writers=a)
+for target in ('state.json','writers.lock'):
+ try: os.unlink(Path(c['writer_directory'])/target)
+ except OSError: pass
+ else: raise AssertionError('container replaced the root-owned latch')
+expected=sys.argv[1]
+assert a.state()['phase']==expected
+for kind in ('business','dispatch','control'):
+ try:
+  with s.write(kind=kind) as db:
+   assert expected=='CLOSING_ADMISSION' and kind=='control'
+   Store.event(db,at=1,actor='installation-lab',kind='snapshot.checkpoint',target='controller',outcome='SUCCEEDED',correlation='writer-barrier')
+ except Denied as e:
+  assert e.code==('WRITER_BARRIER_TIMEOUT' if expected=='SHORT_BARRIER' else 'WRITER_ADMISSION_CLOSED')
+  assert expected=='SHORT_BARRIER' or kind!='control'
+print('CONTAINER_WRITERS_VERIFIED')
+'''
+    fixture = '''import json, subprocess, sys
+from pathlib import Path
+from hostorbit.admission import Admission
+from hostorbit.database import DataAccess, Store
+from hostorbit.runtime.coordinator import Coordinator
+c=json.load(open('/etc/hostorbit/runtime.json'))
+a=Admission(c['writer_directory'])
+co=Coordinator(Path(c['supervisor_directory'])/'snapshots',a)
+def check(phase):
+ for identity in json.loads(sys.argv[2]):
+  p=subprocess.run(['/usr/bin/docker','--host',sys.argv[1],'exec',identity,'python','-c',sys.argv[3],phase],capture_output=True,timeout=8)
+  assert p.returncode==0, p.stderr.decode()[-2000:]
+  assert p.stdout.strip()==b'CONTAINER_WRITERS_VERIFIED'
+ return True
+def capture(_):
+ check('SHORT_BARRIER')
+ s=Store(c['database'],access=DataAccess(c['app_uid'],c['app_gid']))
+ return s.verify_audit()
+_,result=co.snapshot(lambda:check('CLOSING_ADMISSION'),capture)
+assert result and a.state()['phase']=='OPEN'
+with co.journal.connect() as db:
+ assert [r['phase'] for r in db.execute('SELECT phase FROM transitions ORDER BY seq')][-4:]==['REQUESTED','CLOSING_ADMISSION','SHORT_BARRIER','BARRIER_RELEASED']
+print('INSTALLED_BARRIER_VERIFIED')
+'''
+    result = run("/opt/hostorbit/venv/bin/python", "-c", fixture, host, json.dumps(list(ids.values())), code, timeout=45)
+    if result.stdout.strip() != b"INSTALLED_BARRIER_VERIFIED":
+        raise RuntimeError("Installed writer barrier did not verify")
+    recovery = '''import json, os, select, signal, subprocess, sys
+from pathlib import Path
+from hostorbit.admission import Admission
+from hostorbit.runtime.ipc import Client
+from hostorbit.runtime.coordinator import Coordinator
+c=json.load(open('/etc/hostorbit/runtime.json'))
+child=''' + '"""' + '''import json, time
+from pathlib import Path
+from hostorbit.admission import Admission
+from hostorbit.runtime.coordinator import Coordinator
+c=json.load(open('/etc/hostorbit/runtime.json'))
+co=Coordinator(Path(c['supervisor_directory'])/'snapshots',Admission(c['writer_directory']))
+def capture(_):
+ print('SHORT_BARRIER',flush=True)
+ time.sleep(120)
+co.snapshot(lambda:True,capture)
+''' + '"""' + '''
+p=subprocess.Popen([sys.executable,'-c',child],stdout=subprocess.PIPE,start_new_session=True)
+try:
+ assert select.select([p.stdout],[],[],10)[0]
+ assert p.stdout.readline().strip()==b'SHORT_BARRIER'
+ os.killpg(p.pid,signal.SIGKILL)
+ p.wait(timeout=5)
+ # Authenticated root IPC triggers the independent supervisor watchdog, not
+ # a test-side recover() call or a restart of the controller installation.
+ Client(c['gate_socket'],server_uids={0}).call('time.health',{})
+ assert Admission(c['writer_directory']).state()['phase']=='OPEN'
+ co=Coordinator(Path(c['supervisor_directory'])/'snapshots',Admission(c['writer_directory']))
+ with co.journal.connect() as db:
+  assert db.execute('SELECT phase FROM transitions ORDER BY seq DESC LIMIT 1').fetchone()['phase']=='ABORTED'
+finally:
+ if p.poll() is None:
+  os.killpg(p.pid,signal.SIGKILL)
+  p.wait(timeout=5)
+print('WATCHDOG_RECOVERY_VERIFIED')
+'''
+    if run("/opt/hostorbit/venv/bin/python", "-c", recovery, timeout=20).stdout.strip() != b"WATCHDOG_RECOVERY_VERIFIED":
+        raise RuntimeError("Installed supervisor did not recover the killed snapshot coordinator")
+    for service in ("hostorbit-broker.service", "hostorbit-supervisor.service"):
+        if run("/usr/bin/systemctl", "is-active", service).stdout.strip() != b"active":
+            raise RuntimeError("Barrier interrupted a host service")
+    if json.loads(docker(host, "inspect", ids["worker"]))[0]["RestartCount"] != 0:
+        raise RuntimeError("Closing admission crashed the idle Worker")
+    print("Installed root latch stayed read-only in both containers; checkpoints drained, all critical writers paused, and supervisor recovered a SIGKILL without restart.", flush=True)
+
+
 def credential_binding(root, source):
     """A second host-key domain in a private mount namespace, not a real VPS."""
     other = root / "other-host"
@@ -330,6 +429,7 @@ print('VERIFIED_HOST_TIME')
                     raise RuntimeError("Installed Owner could not authenticate through HTTPS proxy")
                 login.close()
             print("First web visitor had no bootstrap authority; hidden-input local Owner setup and HTTPS login passed.", flush=True)
+            writer_barrier(args.docker_host, ids)
             migration_rehearsal(root)
             before = {name: hashlib.sha256(Path(path).read_bytes()).hexdigest() for name, path in (
                 ("credential", "/etc/hostorbit/credentials/broker-dek.cred"),

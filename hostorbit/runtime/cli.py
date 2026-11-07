@@ -10,6 +10,7 @@ import sys
 from threading import Event
 
 from ..auth import AuthService
+from ..admission import Admission
 from ..config import Settings
 from ..database import DataAccess, Store
 from ..errors import Denied
@@ -24,6 +25,7 @@ from .storage import new_private_file, process_lock, protected_bytes
 from .vault import Vault
 from .timehealth import TimeHealth
 from .credentials import initialize_credential
+from .coordinator import Coordinator
 
 
 @contextmanager
@@ -44,7 +46,7 @@ def configuration(path):
     fields(value, ("v", "database", "app_uid", "app_gid", "worker_uid", "worker_gid", "broker_uid", "broker_gid",
                    "broker_rpc_gid", "gate_rpc_gid", "public_origin", "trusted_proxies", "api_port", "targets",
                    "supervisor_directory", "broker_directory", "vault_directory", "vault_credential", "public_verify_key",
-                   "gate_socket", "broker_socket", *(["api_bind"] if "api_bind" in value else [])))
+                   "gate_socket", "broker_socket", *(name for name in ("api_bind", "writer_directory") if name in value)))
     if type(value["v"]) is not int or value["v"] != 1:
         raise Denied("RUNTIME_CONFIG_INVALID")
     for key in ("app_uid", "app_gid", "worker_uid", "worker_gid", "broker_uid", "broker_gid", "broker_rpc_gid", "gate_rpc_gid"):
@@ -53,6 +55,10 @@ def configuration(path):
         raise Denied("RUNTIME_IDENTITIES_OVERLAP")
     for key in ("database", "targets", "supervisor_directory", "broker_directory", "vault_directory", "vault_credential", "public_verify_key", "gate_socket", "broker_socket"):
         if not isinstance(value[key], str) or not Path(value[key]).is_absolute() or ".." in Path(value[key]).parts:
+            raise Denied("RUNTIME_PATH_INVALID")
+    if "writer_directory" in value:
+        path = value["writer_directory"]
+        if not isinstance(path, str) or not Path(path).is_absolute() or ".." in Path(path).parts:
             raise Denied("RUNTIME_PATH_INVALID")
     integer(value["api_port"], 1024, 65535)
     if value.get("api_bind", "127.0.0.1") not in ("127.0.0.1", "0.0.0.0"):
@@ -65,10 +71,17 @@ def run(config, command, *, once=False, listener=None, import_args=None):
     expected = {"supervisor": 0, "initialize-supervisor": 0, "api": config["app_uid"], "worker": config["worker_uid"],
                 "broker": config["broker_uid"], "initialize-broker": config["broker_uid"], "import-key": config["broker_uid"],
                 "register-observations": 0, "initialize-time-health": 0, "time-health": 0,
-                "initialize-credential": 0}[command]
+                "initialize-credential": 0, "initialize-writers": 0}[command]
     if os.geteuid() != expected:
         raise Denied("LOCAL_SERVICE_IDENTITY_INVALID")
     access = DataAccess(config["app_uid"], config["app_gid"])
+    writers = Admission(config["writer_directory"]) if "writer_directory" in config else None
+    if command == "initialize-writers":
+        if writers is None:
+            raise Denied("WRITER_CONFIGURATION_REQUIRED")
+        writers = Admission.initialize(config["writer_directory"])
+        Coordinator.initialize(Path(config["supervisor_directory"]) / "snapshots", writers)
+        return
     if command == "initialize-credential":
         initialize_credential(config)
         return
@@ -80,9 +93,10 @@ def run(config, command, *, once=False, listener=None, import_args=None):
     if command == "api":
         from ..api import create_app
         import uvicorn
-        with Store(config["database"], access=access).connect():
+        with Store(config["database"], access=access, writers=writers).connect():
             pass
-        settings = Settings(Path(config["database"]), config["public_origin"], tuple(config["trusted_proxies"]), access.owner_uid, access.shared_gid)
+        settings = Settings(Path(config["database"]), config["public_origin"], tuple(config["trusted_proxies"]), access.owner_uid,
+                            access.shared_gid, Path(config["writer_directory"]) if writers else None)
         uvicorn.run(create_app(settings), host=config.get("api_bind", "127.0.0.1"), port=config["api_port"], proxy_headers=False, access_log=False)
         return
     policy = Policy.load(config["targets"], owner=0)
@@ -98,22 +112,46 @@ def run(config, command, *, once=False, listener=None, import_args=None):
         Path(config["public_verify_key"]).chmod(0o644)
         return
     if command == "supervisor":
-        authority = Authority(config["supervisor_directory"], policy)
+        authority = Authority(config["supervisor_directory"], policy, writers=writers)
+        coordinator = Coordinator(Path(config["supervisor_directory"]) / "snapshots", writers) if writers else None
+
+        def dispatch(*args):
+            if coordinator:
+                coordinator.recover_if_idle()
+            return authority.dispatch(*args)
+
+        def poll():
+            if coordinator:
+                coordinator.recover_if_idle()
+                if writers.state()["phase"] == "SHORT_BARRIER":
+                    # Clock continuity has an independent control journal.
+                    # Do not wait for a Gate SQLite writer before the watchdog
+                    # can recover a dead snapshot coordinator on the next poll.
+                    authority.time_health.poll()
+                    return
+            authority.poll_time()
+
         identities = {(config["worker_uid"], config["worker_gid"]): "worker", (config["broker_uid"], config["broker_gid"]): "broker", (0, 0): "updater"}
         with process_lock(Path(config["supervisor_directory"]) / "authority.lock"):
             try:
+                if coordinator:
+                    try:
+                        coordinator.recover()
+                    except Denied as error:
+                        if error.code != "PROCESS_ALREADY_RUNNING":
+                            raise
                 authority.recover()
-                serve(listener or activated_socket(config["gate_socket"]), authority.dispatch, identities, poll=authority.poll_time)
+                serve(listener or activated_socket(config["gate_socket"]), dispatch, identities, poll=poll)
             finally:
                 authority.close()
         return
     if command == "register-observations":
-        queue = JobQueue(Store(config["database"], access=access))
+        queue = JobQueue(Store(config["database"], access=access, writers=writers))
         for target in policy.targets.values():
             queue.register_resource(target.id, target.scope_digest, target.revision)
         return
     if command == "worker":
-        worker = Worker(JobQueue(Store(config["database"], access=access)), Client(config["gate_socket"], server_uids={0}),
+        worker = Worker(JobQueue(Store(config["database"], access=access, writers=writers)), Client(config["gate_socket"], server_uids={0}),
                         Client(config["broker_socket"], server_uids={0, config["broker_uid"]}),
                         secret_refs={t.id: t.value["secret_ref"] for t in policy.targets.values()})
         with worker_shutdown() as stop:
@@ -124,7 +162,7 @@ def run(config, command, *, once=False, listener=None, import_args=None):
         Vault.initialize(config["vault_directory"], credential, systemd_credential=managed_credential)
         Broker.initialize(config["broker_directory"], policy)
         return
-    vault = Vault(config["vault_directory"], credential, systemd_credential=managed_credential)
+    vault = Vault(config["vault_directory"], credential, systemd_credential=managed_credential, writers=writers)
     if command == "import-key":
         key = protected_bytes(import_args.key_file, owner=config["broker_uid"], maximum=8192, private=True)
         reference = vault.import_ssh(import_args.secret_id, import_args.version, key, owner_id=import_args.owner_id,
@@ -133,7 +171,7 @@ def run(config, command, *, once=False, listener=None, import_args=None):
         return
     gate = Client(config["gate_socket"], server_uids={0})
     verify_key = protected_bytes(config["public_verify_key"], owner=0, maximum=32)
-    broker = Broker(config["broker_directory"], policy, vault, gate, verify_key, worker_uid=config["worker_uid"])
+    broker = Broker(config["broker_directory"], policy, vault, gate, verify_key, worker_uid=config["worker_uid"], writers=writers)
     with process_lock(Path(config["broker_directory"]) / "broker.lock"):
         broker.recover()
         serve(listener or activated_socket(config["broker_socket"]), broker.dispatch, {(config["worker_uid"], config["worker_gid"]): "worker"})
@@ -143,7 +181,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(prog="hostorbit-runtime")
     parser.add_argument("--config", type=Path, required=True)
     commands = parser.add_subparsers(dest="command", required=True)
-    for name in ("initialize-supervisor", "initialize-broker", "initialize-credential", "initialize-time-health", "time-health",
+    for name in ("initialize-supervisor", "initialize-broker", "initialize-credential", "initialize-writers", "initialize-time-health", "time-health",
                  "register-observations", "supervisor", "broker", "api"):
         commands.add_parser(name)
     worker = commands.add_parser("worker")

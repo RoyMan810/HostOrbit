@@ -21,9 +21,9 @@ CREATE TABLE secrets(ref TEXT PRIMARY KEY, metadata TEXT NOT NULL, object_digest
 
 
 class Vault:
-    def __init__(self, directory, key_path, *, systemd_credential=False):
+    def __init__(self, directory, key_path, *, systemd_credential=False, writers=None):
         self.directory = Path(directory)
-        self.journal = Journal(self.directory / "vault.sqlite3")
+        self.journal = Journal(self.directory / "vault.sqlite3", writers=writers)
         key = (systemd_credential_bytes(key_path, owner=os.geteuid()) if systemd_credential else
                protected_bytes(key_path, owner=os.geteuid(), maximum=32, private=True))
         if len(key) != Aead.KEY_SIZE:
@@ -56,7 +56,7 @@ class Vault:
                     "state": "ACTIVE", "policy_revision": 1, "key_version": 1}
         ciphertext = bytes(self._aead.encrypt(key, canonical(metadata)))
         object_digest = hashlib.sha256(ciphertext).hexdigest()
-        with self.journal.write() as db:
+        with self.journal.write(kind="business") as db:
             if db.execute("SELECT 1 FROM secrets WHERE ref=?", (reference,)).fetchone():
                 raise Denied("SECRET_VERSION_IMMUTABLE", 409)
             new_private_file(self.directory / "objects" / object_digest, ciphertext)
@@ -85,6 +85,6 @@ class Vault:
                 raise Denied("VAULT_POLICY_OR_OBJECT_CORRUPT") from None
 
     def revoke(self, reference):
-        with self.journal.write() as db:
+        with self.journal.write(kind="business") as db:
             if db.execute("UPDATE secrets SET state='REVOKED' WHERE ref=? AND state='ACTIVE'", (reference,)).rowcount != 1:
                 raise Denied("SECRET_NOT_ACTIVE")

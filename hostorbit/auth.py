@@ -161,7 +161,7 @@ class AuthService:
     def authenticate(self, token, *, ip, csrf=None, mutating=False):
         failure = None
         principal = None
-        with self.store.write() as db:
+        with self.store.write(kind="control") as db:
             try:
                 row = self._session(db, token, csrf=csrf, mutating=mutating)
                 principal = self._principal(row)
@@ -181,7 +181,7 @@ class AuthService:
 
     def reserve_login_request(self, ip, *, correlation):
         failure = None
-        with self.store.write() as db:
+        with self.store.write(kind="control") as db:
             now = int(self.clock())
             db.execute("DELETE FROM login_requests WHERE at<=?", (now - 900,))
             if db.execute("SELECT count(*) FROM login_requests WHERE ip=?", (ip,)).fetchone()[0] >= 20:
@@ -198,7 +198,7 @@ class AuthService:
         account = username(account)
         attempt_id = identifier()
         failure = None
-        with self.store.write() as db:
+        with self.store.write(kind="control") as db:
             now = int(self.clock())
             db.execute("DELETE FROM login_attempts WHERE at<=?", (now - 900,))
             pair_count = db.execute("SELECT count(*) FROM login_attempts WHERE ip=? AND account=? AND failed=1", (ip, account)).fetchone()[0]
@@ -221,7 +221,7 @@ class AuthService:
             replacement_hash = self.hasher.hash(secret)
         session = secrets.token_urlsafe(32)
         tokens = Tokens(session, csrf_for(session))
-        with self.store.write() as db:
+        with self.store.write(kind="control") as db:
             current = db.execute("SELECT * FROM users WHERE username=?", (account,)).fetchone()
             if not valid or row is None or current is None or current["disabled"] or current["password_hash"] != row["password_hash"]:
                 self._event(db, "auth.login_failed", outcome="DENIED", correlation=correlation)
@@ -248,7 +248,7 @@ class AuthService:
         return self._principal(row), csrf
 
     def logout(self, token, csrf, *, correlation):
-        with self.store.write() as db:
+        with self.store.write(kind="control") as db:
             row = self._session(db, token, csrf=csrf, mutating=True)
             db.execute("DELETE FROM sessions WHERE digest=?", (digest(token),))
             self._event(db, "auth.logout", actor=row["id"], target=row["id"], correlation=correlation)
@@ -377,7 +377,7 @@ class AuthService:
         if not re.fullmatch(r"[0-9a-f]{64}", plan_hash):
             raise Denied("PLAN_HASH_INVALID", 422)
         failure = None
-        with self.store.write() as db:
+        with self.store.write(kind="control") as db:
             row = self._session(db, token, csrf=csrf, mutating=True)
             now = int(self.clock())
             db.execute("DELETE FROM critical_attempts WHERE at<=?", (now - 900,))
@@ -393,7 +393,7 @@ class AuthService:
         except (VerificationError, InvalidHashError):
             valid = False
         grant_id = identifier()
-        with self.store.write() as db:
+        with self.store.write(kind="control") as db:
             current = self._session(db, token, csrf=csrf, mutating=True)
             if not valid or row["password_hash"] != current["password_hash"]:
                 self._event(db, "auth.reauth_failed", actor=current["id"], outcome="DENIED", correlation=correlation)

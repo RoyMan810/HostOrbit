@@ -1,4 +1,8 @@
 from concurrent.futures import ThreadPoolExecutor
+import os
+
+from hostorbit.admission import Admission
+from hostorbit.database import identifier
 
 from hostorbit.auth import COOKIE
 from hostorbit.queue import JobQueue
@@ -12,6 +16,20 @@ class QueueApiTests(Fixture):
         self.queue = JobQueue(self.store, clock=lambda: self.now)
         self.queue.register_resource(SCOPE, "a" * 64, 1)
         self.queue.register_resource(OTHER, "b" * 64, 1)
+
+    def test_closing_returns_retryable_503_for_new_jobs_but_keeps_authenticated_reads(self):
+        writers = Admission.initialize(self.store.path.parent.parent / "writers", owner=os.geteuid())
+        self.store.writers = writers
+        writers.publish("CLOSING_ADMISSION", identifier())
+        self.assertEqual(self.client.get("/api/v1/users").status_code, 200)
+        response = self.client.post(f"/api/v1/resources/{SCOPE}/observations", json={},
+                                    headers=self.headers(**{"Idempotency-Key": "closing-request-0001"}))
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.headers["retry-after"], "1")
+        self.assertEqual(response.json()["code"], "WRITER_ADMISSION_CLOSED")
+        with self.store.read() as db:
+            self.assertEqual(db.execute("SELECT count(*) FROM jobs").fetchone()[0], 0)
+        self.store.verify_audit()
 
     def test_enqueue_requires_idempotency_and_commits_job_audit_outbox_before_202(self):
         endpoint = f"/api/v1/resources/{SCOPE}/observations"

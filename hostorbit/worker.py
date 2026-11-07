@@ -32,7 +32,12 @@ class Worker:
         return "UNKNOWN_OUTCOME"
 
     def run_one(self):
-        claimed = self.queue.claim(self.id)
+        try:
+            claimed = self.queue.claim(self.id)
+        except Denied as error:
+            if error.code in {"WRITER_ADMISSION_CLOSED", "WRITER_BARRIER_TIMEOUT"}:
+                return False
+            raise
         if claimed is None:
             return False
         claim, row = claimed

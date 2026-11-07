@@ -65,9 +65,9 @@ def verify_host_time(envelope, verify_key, *, kind="time.health"):
 
 
 class Authority:
-    def __init__(self, directory, policy, *, clock=time.time, time_health=None):
+    def __init__(self, directory, policy, *, clock=time.time, time_health=None, writers=None):
         self.directory, self.policy, self.clock = Path(directory), policy, clock
-        self.journal = Journal(self.directory / "gate.sqlite3")
+        self.journal = Journal(self.directory / "gate.sqlite3", writers=writers)
         self.key = SigningKey(protected_bytes(self.directory / "signing.key", owner=os.geteuid(), maximum=32, exact_mode=0o600))
         self.time_health = time_health if time_health is not None else TimeHealth(self.directory / "time-health")
 
@@ -158,7 +158,7 @@ class Authority:
         text(request["scope_digest"], SHA256)
         target = self.policy.target(request["target"], request["capability"], request["scope_digest"])
         mutating = policy_module.CAPABILITIES[request["capability"]].mutating
-        with self.journal.write() as db:
+        with self.journal.write(kind="dispatch") as db:
             gate = self._gate(db)
             if mutating and (not gate["activated"] or gate["state"] != "NORMAL"):
                 raise Denied("GATE_CLOSED")
@@ -236,7 +236,7 @@ class Authority:
 
     def update(self, operation, request):
         failed_time = False
-        with self.journal.write() as db:
+        with self.journal.write(kind="business" if operation == "update.quiesce" else "control") as db:
             gate = self._gate(db)
             if operation == "update.quiesce":
                 fields(request, ("kind", "plan_id", "revision", "plan_digest", "approval_id", "time_anchor"))
