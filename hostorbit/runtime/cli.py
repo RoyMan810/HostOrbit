@@ -23,6 +23,7 @@ from .protocol import fields, integer, text, decode
 from .storage import new_private_file, process_lock, protected_bytes
 from .vault import Vault
 from .timehealth import TimeHealth
+from .credentials import initialize_credential
 
 
 @contextmanager
@@ -63,10 +64,14 @@ def configuration(path):
 def run(config, command, *, once=False, listener=None, import_args=None):
     expected = {"supervisor": 0, "initialize-supervisor": 0, "api": config["app_uid"], "worker": config["worker_uid"],
                 "broker": config["broker_uid"], "initialize-broker": config["broker_uid"], "import-key": config["broker_uid"],
-                "register-observations": 0, "initialize-time-health": 0, "time-health": 0}[command]
+                "register-observations": 0, "initialize-time-health": 0, "time-health": 0,
+                "initialize-credential": 0}[command]
     if os.geteuid() != expected:
         raise Denied("LOCAL_SERVICE_IDENTITY_INVALID")
     access = DataAccess(config["app_uid"], config["app_gid"])
+    if command == "initialize-credential":
+        initialize_credential(config)
+        return
     if command == "time-health":
         envelope = Client(config["gate_socket"], server_uids={0}).call("time.health", {})
         report = verify_host_time(envelope, protected_bytes(config["public_verify_key"], owner=0, maximum=32))
@@ -138,7 +143,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(prog="hostorbit-runtime")
     parser.add_argument("--config", type=Path, required=True)
     commands = parser.add_subparsers(dest="command", required=True)
-    for name in ("initialize-supervisor", "initialize-broker", "initialize-time-health", "time-health",
+    for name in ("initialize-supervisor", "initialize-broker", "initialize-credential", "initialize-time-health", "time-health",
                  "register-observations", "supervisor", "broker", "api"):
         commands.add_parser(name)
     worker = commands.add_parser("worker")

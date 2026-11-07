@@ -126,6 +126,42 @@ print(s.verify_audit())
     print("Installed wheel CLI rehearsed schema 1 to 2; Owner/session/audit survived and live schema stayed at 1.", flush=True)
 
 
+def credential_binding(root, source):
+    """A second host-key domain in a private mount namespace, not a real VPS."""
+    other = root / "other-host"
+    other.mkdir(mode=0o700)
+    code = """import os, pathlib, subprocess, sys
+other, source = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
+def run(*args, data=None):
+ return subprocess.run(args,input=data,capture_output=True,timeout=15)
+assert run('/usr/bin/mount','--make-rprivate','/').returncode==0
+assert run('/usr/bin/mount','--bind',str(other),'/var/lib/systemd').returncode==0
+assert run('/usr/bin/systemd-creds','setup').returncode==0
+wrong=run('/usr/bin/systemd-creds','decrypt','--name=broker-dek',str(source),'-')
+assert wrong.returncode!=0 and not wrong.stdout
+key=os.urandom(32)
+wrapped=run('/usr/bin/systemd-creds','encrypt','--with-key=host','--name=broker-dek','-','-',data=key)
+assert wrapped.returncode==0 and len(wrapped.stdout)>32
+target=other/'target.cred'
+target.write_bytes(wrapped.stdout)
+target.chmod(0o600)
+opened=run('/usr/bin/systemd-creds','decrypt','--name=broker-dek',str(target),'-')
+assert opened.returncode==0 and opened.stdout==key
+print('HOST_BINDING_VERIFIED')
+"""
+    response = run("/usr/bin/unshare", "--mount", "--fork", "/usr/bin/python3", "-I", "-c", code, other, source)
+    if response.stdout.strip() != b"HOST_BINDING_VERIFIED":
+        raise RuntimeError("Host-bound credential verification failed")
+    # Target-encrypted ciphertext is not valid under the original host's key.
+    denied = run("/usr/bin/systemd-creds", "decrypt", "--name=broker-dek", other / "target.cred", "-", check=False)
+    if denied.returncode == 0 or denied.stdout:
+        raise RuntimeError("Another host's sealed credential was accepted")
+    wrong_name = run("/usr/bin/systemd-creds", "decrypt", "--name=another-credential", source, "-", check=False)
+    if wrong_name.returncode == 0 or wrong_name.stdout:
+        raise RuntimeError("Credential name binding was not enforced")
+    print("Encrypted OS credential rejected another host key and another name; target resealing verified without a plaintext file.", flush=True)
+
+
 @contextmanager
 def tls_proxy(root):
     run("/usr/bin/openssl", "req", "-x509", "-newkey", "ed25519", "-nodes", "-keyout", root / "tls.key",
@@ -255,9 +291,12 @@ print(json.dumps(out))
             denied = json.loads(docker(args.docker_host, "exec", ids["api"], "python", "-c", code))
             if denied != {"gate_socket": "RPC_UNAVAILABLE", "broker_socket": "RPC_UNAVAILABLE"}:
                 raise RuntimeError("Backend reached a host privilege socket")
-            key_path = Path("/etc/hostorbit/credentials/broker-dek")
-            if key_path.stat().st_mode & 0o777 != 0o600 or key_path.stat().st_uid != 0:
+            key_path = Path("/etc/hostorbit/credentials/broker-dek.cred")
+            if key_path.stat().st_mode & 0o777 != 0o600 or key_path.stat().st_uid != 0 or key_path.stat().st_size <= 32:
                 raise RuntimeError("Runtime credential source is not root-private")
+            if Path("/etc/hostorbit/credentials/broker-dek").exists():
+                raise RuntimeError("Installation left a plaintext working DEK file")
+            credential_binding(root, key_path)
             print("Worker container reached scoped IPC; Backend had neither privilege socket nor runtime credential mount.", flush=True)
             time_code = """import json
 from hostorbit.runtime.authority import verify_host_time
@@ -293,13 +332,13 @@ print('VERIFIED_HOST_TIME')
             print("First web visitor had no bootstrap authority; hidden-input local Owner setup and HTTPS login passed.", flush=True)
             migration_rehearsal(root)
             before = {name: hashlib.sha256(Path(path).read_bytes()).hexdigest() for name, path in (
-                ("credential", "/etc/hostorbit/credentials/broker-dek"),
+                ("credential", "/etc/hostorbit/credentials/broker-dek.cred"),
                 ("gate", "/var/lib/hostorbit/control-gate/signing.key"))}
             again = run(*base, check=False, timeout=30)
             if again.returncode == 0:
                 raise RuntimeError("Second install replaced a live installation")
             after = {name: hashlib.sha256(Path(path).read_bytes()).hexdigest() for name, path in (
-                ("credential", "/etc/hostorbit/credentials/broker-dek"),
+                ("credential", "/etc/hostorbit/credentials/broker-dek.cred"),
                 ("gate", "/var/lib/hostorbit/control-gate/signing.key"))}
             if before != after:
                 raise RuntimeError("Second install changed private keys")
