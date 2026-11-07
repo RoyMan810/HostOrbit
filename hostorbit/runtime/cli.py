@@ -25,7 +25,7 @@ def configuration(path):
     fields(value, ("v", "database", "app_uid", "app_gid", "worker_uid", "worker_gid", "broker_uid", "broker_gid",
                    "broker_rpc_gid", "gate_rpc_gid", "public_origin", "trusted_proxies", "api_port", "targets",
                    "supervisor_directory", "broker_directory", "vault_directory", "vault_credential", "public_verify_key",
-                   "gate_socket", "broker_socket"))
+                   "gate_socket", "broker_socket", *(["api_bind"] if "api_bind" in value else [])))
     if type(value["v"]) is not int or value["v"] != 1:
         raise Denied("RUNTIME_CONFIG_INVALID")
     for key in ("app_uid", "app_gid", "worker_uid", "worker_gid", "broker_uid", "broker_gid", "broker_rpc_gid", "gate_rpc_gid"):
@@ -36,6 +36,8 @@ def configuration(path):
         if not isinstance(value[key], str) or not Path(value[key]).is_absolute() or ".." in Path(value[key]).parts:
             raise Denied("RUNTIME_PATH_INVALID")
     integer(value["api_port"], 1024, 65535)
+    if value.get("api_bind", "127.0.0.1") not in ("127.0.0.1", "0.0.0.0"):
+        raise Denied("API_BIND_INVALID")
     Settings(Path(value["database"]), value["public_origin"], tuple(value["trusted_proxies"]), value["app_uid"], value["app_gid"])
     return value
 
@@ -53,7 +55,7 @@ def run(config, command, *, once=False, listener=None, import_args=None):
         with Store(config["database"], access=access).connect():
             pass
         settings = Settings(Path(config["database"]), config["public_origin"], tuple(config["trusted_proxies"]), access.owner_uid, access.shared_gid)
-        uvicorn.run(create_app(settings), host="127.0.0.1", port=config["api_port"], proxy_headers=False, access_log=False)
+        uvicorn.run(create_app(settings), host=config.get("api_bind", "127.0.0.1"), port=config["api_port"], proxy_headers=False, access_log=False)
         return
     policy = Policy.load(config["targets"], owner=0)
     if command == "initialize-supervisor":

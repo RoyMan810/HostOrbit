@@ -14,6 +14,45 @@ env:
   HOSTORBIT_LAB_PYTHON_IMAGE: docker.io/library/python@sha256:f3dac913ab53b78c64f26d5518fcd7043d5a1a46522d6a493b598c3ed12f62a6
 
 jobs:
+  installation:
+    name: Stage 1 signed fresh installation / systemd and Compose
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.13"
+      - uses: docker/setup-docker-action@3f1ab1ab0e29231562e4db4ca600c1a49653bac6 # v5.7.0
+        with:
+          version: v${{ env.HOSTORBIT_LAB_DOCKER_VERSION }}
+          set-host: true
+      - name: Install fixed builder dependencies and generate an ephemeral lab signer
+        run: |
+          python -m pip install -r requirements-dev.txt
+          python - <<'PY'
+          import os, pathlib
+          from nacl.signing import SigningKey
+          root = pathlib.Path(os.environ["RUNNER_TEMP"])
+          signer = SigningKey.generate()
+          (root / "hostorbit-lab-signer.seed").write_bytes(bytes(signer))
+          (root / "hostorbit-lab-signer.seed").chmod(0o600)
+          (root / "hostorbit-lab-signer.pub").write_bytes(bytes(signer.verify_key))
+          PY
+      - name: Build the signed wheel bundle without placing its private signer inside
+        run: |
+          python deploy/build_bundle.py --output "$RUNNER_TEMP/hostorbit-install-bundle" \
+            --signing-key "$RUNNER_TEMP/hostorbit-lab-signer.seed" \
+            --python-image "$HOSTORBIT_LAB_PYTHON_IMAGE"
+      - name: Install and verify the actual host services and container namespaces
+        run: |
+          sudo -n /usr/bin/env GITHUB_ACTIONS=true "RUNNER_ENVIRONMENT=$RUNNER_ENVIRONMENT" \
+            PYTHONDONTWRITEBYTECODE=1 "$(command -v python)" tests_runtime/lab/installation.py --isolated-vm \
+            --bundle "$RUNNER_TEMP/hostorbit-install-bundle" --trust-key "$RUNNER_TEMP/hostorbit-lab-signer.pub" \
+            --docker-host "$DOCKER_HOST"
+
   foundation:
     name: Stage 1 Auth, RBAC and Audit / Python 3.13
     runs-on: ubuntu-24.04

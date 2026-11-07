@@ -73,7 +73,7 @@ class Policy:
     def __init__(self, targets):
         values = [Target.parse(t) for t in targets]
         self.targets = {t.id: t for t in values}
-        if not self.targets or len(self.targets) != len(values):
+        if len(self.targets) != len(values):
             raise Denied("TARGET_POLICY_INVALID")
 
     @classmethod
