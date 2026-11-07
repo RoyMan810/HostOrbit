@@ -160,7 +160,7 @@ class Authority:
         mutating = policy_module.CAPABILITIES[request["capability"]].mutating
         with self.journal.write(kind="dispatch") as db:
             gate = self._gate(db)
-            if mutating and (not gate["activated"] or gate["state"] != "NORMAL"):
+            if not gate["activated"] or (mutating and gate["state"] != "NORMAL"):
                 raise Denied("GATE_CLOSED")
             if mutating and db.execute("SELECT 1 FROM incidents").fetchone():
                 raise Denied("OPEN_INCIDENT")
@@ -181,6 +181,8 @@ class Authority:
         claims = verify_permit(permit, bytes(self.key.verify_key), now=int(self.clock()))
         with self.journal.write() as db:
             gate = self._gate(db)
+            if not gate["activated"]:
+                raise Denied("GATE_CLOSED")
             if claims["epoch"] != gate["epoch"] or (claims["mutating"] and gate["state"] != "NORMAL"):
                 raise Denied("STALE_GATE_EPOCH")
             if claims["mutating"]:

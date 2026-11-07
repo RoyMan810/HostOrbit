@@ -719,6 +719,13 @@ print('VERIFIED_HOST_TIME')
             writer_barrier(args.docker_host, ids)
             vault_pin()
             local_archive, fixture_identity = controller_archive(root, args.bundle)
+            import base64
+            rescue_input = json.dumps({"archive": local_archive, "identity": base64.b64encode(fixture_identity).decode(),
+                "anchor": str(root / "independent-controller.pub"), "password": PASSWORD,
+                "keygen": str(args.bundle.parent / "hostorbit-install-age/age/age-keygen")}).encode()
+            recovered = run("/opt/hostorbit/venv/bin/python", "tests_runtime/lab/rescue.py", "--isolated-vm", input=rescue_input, timeout=120)
+            print(recovered.stdout.decode().strip(), flush=True)
+            del rescue_input
             sftp_publication(root, local_archive, fixture_identity)
             migration_rehearsal(root)
             before = {name: hashlib.sha256(Path(path).read_bytes()).hexdigest() for name, path in (

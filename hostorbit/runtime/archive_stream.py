@@ -27,6 +27,8 @@ from .storage import protected_bytes
 
 AGE_SHA256 = "eb7dd1b518f0a307c99cd97782623c5321da049154b04acd2d98d21aa7bc9b2c"
 AGE_PATH = Path("/opt/hostorbit/tools/age")
+AGE_KEYGEN_SHA256 = "0a0009db842259d6717f7eeb30acb6b90d2a2eb924c6acd0a0db0ca1f1537899"
+AGE_KEYGEN_PATH = Path("/opt/hostorbit-rescue/tools/age-keygen")
 CONTROLLER_FILES = frozenset({"app.sqlite3", "gate.sqlite3", "runtime.json", "targets.json", "gate.pub",
                               "installation.json", "release-manifest.json", "release.sig", "release.pub",
                               "requirements-install.txt", "sbom.cdx.json", "compose.json"})
@@ -155,6 +157,14 @@ def validated_pin(vault, broker_directory, snapshot_id, expected_digest):
 
 
 def trusted_age(path=AGE_PATH, *, owner=0):
+    return _trusted_tool(path, AGE_SHA256, owner)
+
+
+def trusted_keygen(path=AGE_KEYGEN_PATH, *, owner=0):
+    return _trusted_tool(path, AGE_KEYGEN_SHA256, owner)
+
+
+def _trusted_tool(path, expected_digest, owner):
     path = Path(path)
     for parent in path.parents:
         info = parent.lstat()
@@ -171,7 +181,7 @@ def trusted_age(path=AGE_PATH, *, owner=0):
         with os.fdopen(fd, "rb", closefd=False) as stream:
             for chunk in iter(lambda: stream.read(65536), b""):
                 digest.update(chunk)
-        if digest.hexdigest() != AGE_SHA256:
+        if digest.hexdigest() != expected_digest:
             raise Denied("AGE_TOOL_DIGEST_INVALID")
     finally:
         os.close(fd)

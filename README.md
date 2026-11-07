@@ -8,6 +8,8 @@ Self-hosted система управления Linux-серверами. Раз
 
 [Установка Stage1](docs/stage1-installation.md) использует подписанный development bundle с offline wheelhouse, Compose API/Worker и системными Broker/supervisor. Это свежая установка; существующие базы и ключи не заменяются.
 
+[Rescue Stage1](docs/stage1-rescue.md) проверяет ControllerBackup в памяти, перепаковывает на одноразовый recipient и импортирует данные с отдельным Owner digest/auth в устойчивый READ_ONLY_RECOVERY. Подключение импортированного layout к установщику и ручная активация остаются открытыми.
+
 [Репетиция миграции БД](docs/stage1-migrations.md) проверяет историческую схему 1 → 2 на приватных WAL-согласованных копиях. Рабочая БД открывается read-only; live apply остаётся закрытым до связывания maintenance, backup и TimeHealth gates.
 
 [TimeHealth](docs/stage1-time-health.md) проверяет host chrony/timesyncd, clock continuity и подписанные привязки времени к ревизиям планов. Недостоверное время закрывает mutating admission и удерживает прерванное обновление в `RECOVERY_HOLD`; read-only probe остаётся доступен.

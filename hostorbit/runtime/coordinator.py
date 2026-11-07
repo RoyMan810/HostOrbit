@@ -101,6 +101,8 @@ class Coordinator:
                 if error.code != "WRITER_STATE_UNAVAILABLE" or os.path.lexists(self.admission.directory / "state.json"):
                     raise
                 state = {"phase": "RECOVERY_HOLD", "snapshot_id": None}
+            if state["phase"] == "READ_ONLY_RECOVERY":
+                return
             with self.journal.connect() as db:
                 unfinished = [row["id"] for row in db.execute("SELECT id FROM snapshots WHERE phase IN ('REQUESTED','CLOSING_ADMISSION','SHORT_BARRIER')")]
             token = state["snapshot_id"]
@@ -120,7 +122,7 @@ class Coordinator:
     def recover_if_idle(self):
         """Supervisor watchdog: never steal the lock from a live coordinator."""
         try:
-            if self.admission.state()["phase"] == "OPEN":
+            if self.admission.state()["phase"] in {"OPEN", "READ_ONLY_RECOVERY"}:
                 return
         except Denied as error:
             if error.code != "WRITER_STATE_UNAVAILABLE":
