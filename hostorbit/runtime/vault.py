@@ -11,7 +11,7 @@ from nacl.secret import Aead
 
 from ..errors import Denied
 from .protocol import ULID, canonical, checksum, integer, text
-from .storage import Journal, new_private_file, protected_bytes
+from .storage import Journal, new_private_file, protected_bytes, systemd_credential_bytes
 
 
 _SCHEMA = """
@@ -21,18 +21,19 @@ CREATE TABLE secrets(ref TEXT PRIMARY KEY, metadata TEXT NOT NULL, object_digest
 
 
 class Vault:
-    def __init__(self, directory, key_path):
+    def __init__(self, directory, key_path, *, systemd_credential=False):
         self.directory = Path(directory)
         self.journal = Journal(self.directory / "vault.sqlite3")
-        key = protected_bytes(key_path, owner=os.geteuid(), maximum=32, private=True)
+        key = (systemd_credential_bytes(key_path, owner=os.geteuid()) if systemd_credential else
+               protected_bytes(key_path, owner=os.geteuid(), maximum=32, private=True))
         if len(key) != Aead.KEY_SIZE:
             raise Denied("VAULT_KEY_INVALID")
         self._aead = Aead(key)
 
     @classmethod
-    def initialize(cls, directory, key_path):
+    def initialize(cls, directory, key_path, *, systemd_credential=False):
         directory = Path(directory)
-        vault = cls(directory, key_path)
+        vault = cls(directory, key_path, systemd_credential=systemd_credential)
         Journal.initialize(directory / "vault.sqlite3", _SCHEMA)
         (directory / "objects").mkdir(mode=0o700)
         return vault

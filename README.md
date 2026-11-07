@@ -6,6 +6,8 @@ Self-hosted система управления Linux-серверами. Раз
 
 [Runtime Stage1](docs/stage1-runtime.md) связывает read-only SSH observation с durable Job, отдельными UID Worker/Broker и независимым host authority. Проверки контрактов находятся в `tests_runtime`; отдельный CI job проверяет реальные Linux identities и SSH namespace.
 
+[Установка Stage1](docs/stage1-installation.md) использует подписанный development bundle с offline wheelhouse, Compose API/Worker и системными Broker/supervisor. Это свежая установка; существующие базы и ключи не заменяются.
+
 [Приёмка Stage0](evidence/acceptance/stage0-2026-11-07/README.md): 15 обязательных лабораторных критериев имеют проверенные отчёты `PASS`. Рецензирование выполнено автоматической самопроверкой Codex с явными ограничениями стенда. Остальные 69 AC сохраняют `NOT_RUN`; Stage1 и выпуск MVP остаются открытыми.
 
 ## Допуск к изменениям
