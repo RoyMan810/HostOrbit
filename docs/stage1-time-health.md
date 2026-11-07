@@ -55,6 +55,6 @@ Contract tests проверяют freshness, drift, часы назад/впер
 
 NTP fixture не является независимым UTC reference и не удостоверяет физическую точность часов. Работа механизма предполагает корректность доверенных host time daemon/configuration и выбранных ими источников; скомпрометированный root или намеренно ложный time source не превращается в достоверное время благодаря подписи supervisor.
 
-Production mutating adapters остаются отключены. Этот блок не заменяет Owner approval manager, согласованную off-host ControllerBackup, restore attestation или применение schema migration. Stage1 и MVP gate не получают PASS только из-за добавления TimeHealth.
+Production mutating adapters остаются отключены. TimeHealth связывается с отдельно реализованными [ControllerBackup](stage1-controller-archive.md) и [SFTP publication](stage1-sftp-publication.md); он не заменяет Owner approval manager, независимую restore attestation или применение schema migration. Полный MVP принимается по собственному gate.
 
 Форматы проверены по [chronyc 4.5](https://chrony-project.org/doc/4.5/chronyc.html), [chronyd 4.5](https://chrony-project.org/doc/4.5/chronyd.html), [systemd 255 NTPMessage](https://github.com/systemd/systemd/blob/v255/src/timesync/timesyncd-bus.c) и [обработке timestamps systemd](https://github.com/systemd/systemd/blob/v255/src/timesync/timesyncd-manager.c).
