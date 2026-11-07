@@ -20,6 +20,11 @@ FIXED_FILES = {
 }
 IMAGE = r"docker\.io/library/python@sha256:[0-9a-f]{64}"
 MAX_FILE = 64 * 1024 * 1024
+# Official v1.3.2 linux/amd64 binary from the independently checksum-pinned
+# release archive (cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10).
+AGE_FILE = "tools/age"
+AGE_SHA256 = "eb7dd1b518f0a307c99cd97782623c5321da049154b04acd2d98d21aa7bc9b2c"
+AGE_VERSION = "v1.3.2"
 
 
 class ArtifactError(RuntimeError):
@@ -137,11 +142,13 @@ def manifest(bundle, key, *, allow_development=False):
         if not isinstance(item, dict) or item.keys() != {"path", "sha256", "size"}:
             raise ArtifactError("MANIFEST_FILES_INVALID")
         path = item["path"]
-        if (not isinstance(path, str) or path in paths or (path not in FIXED_FILES and
+        if (not isinstance(path, str) or path in paths or (path not in FIXED_FILES and path != AGE_FILE and
                 re.fullmatch(r"wheelhouse/[A-Za-z0-9_.+-]+\.whl", path) is None)
                 or type(item["size"]) is not int or not 0 < item["size"] <= MAX_FILE
                 or not isinstance(item["sha256"], str) or re.fullmatch(r"[0-9a-f]{64}", item["sha256"]) is None):
             raise ArtifactError("MANIFEST_FILES_INVALID")
+        if path == AGE_FILE and item["sha256"] != AGE_SHA256:
+            raise ArtifactError("AGE_TOOL_DIGEST_UNSUPPORTED")
         paths.add(path)
         total += item["size"]
     if not FIXED_FILES.issubset(paths) or total > 384 * 1024 * 1024:

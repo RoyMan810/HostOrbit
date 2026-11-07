@@ -23,7 +23,7 @@ import traceback
 from urllib.parse import urlsplit
 from urllib.request import urlopen
 
-from artifact import ArtifactError, canonical, snapshot, trusted_key
+from artifact import AGE_FILE, ArtifactError, canonical, snapshot, trusted_key
 
 
 APP = Path("/opt/hostorbit")
@@ -263,6 +263,8 @@ def install(args):
     with tempfile.TemporaryDirectory(prefix="hostorbit-install-", dir="/var/tmp") as temporary:
         stage = Path(temporary) / "bundle"
         manifest, digest = snapshot(args.bundle, stage, key, allow_development=args.development)
+        if not (stage / AGE_FILE).is_file():
+            raise ArtifactError("PINNED_AGE_TOOL_REQUIRED")
         if args.check:
             print(json.dumps({"preflight": "PASS", "manifest_sha256": digest, "channel": "development"}))
             return
@@ -276,6 +278,8 @@ def install(args):
         for path in stage.iterdir():
             shutil.move(str(path), APP / "bundle" / path.name)
         bundle = APP / "bundle"
+        folder(APP / "tools", 0o755)
+        write(APP / AGE_FILE, (bundle / AGE_FILE).read_bytes(), mode=0o755)
         write(APP / "install-state.json", canonical({"v": 1, "phase": "INITIALIZING", "manifest_sha256": digest}), mode=0o600)
         command(interpreter, "-m", "venv", APP / "venv")
         python = APP / "venv/bin/python"

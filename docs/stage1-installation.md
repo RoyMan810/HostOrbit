@@ -11,10 +11,13 @@
 ```bash
 python deploy/build_bundle.py --output /path/hostorbit-bundle \
   --signing-key /offline/release-signing.seed \
-  --python-image docker.io/library/python@sha256:<verified-digest>
+  --python-image docker.io/library/python@sha256:<verified-digest> \
+  --age-tool /verified/age-v1.3.2-linux-amd64/age
 ```
 
 Комплект содержит подпись manifest, wheelhouse с закреплёнными зависимостями, их SHA-256 lock, ограниченный CycloneDX SBOM, Dockerfile и host profiles. Bundle builder получает зависимости; установка на Controller выполняет pip с `--no-index --require-hashes` из проверенных локальных wheels. Для OCI base используется digest; pull не обращается к API хостинг-провайдера. Полный SBOM ОС/base image и production release trust-chain пока не приняты.
+
+Builder также требует официальный binary `age` v1.3.2 linux/amd64 с закреплённым SHA-256 `eb7dd1b518f0a307c99cd97782623c5321da049154b04acd2d98d21aa7bc9b2c`. Он входит в подписанный manifest/SBOM и устанавливается как root-owned `/opt/hostorbit/tools/age` (0755). Подмена версии запрещается stdlib verifier даже при корректной подписи bundle; байты проверяются до исполнения. Offline Owner identity и `age-keygen` на Controller не устанавливаются. Предыдущий development bundle без инструмента читается verifier, но новая установка отказывает с `PINNED_AGE_TOOL_REQUIRED`.
 
 Доверенный bootstrap запускается из проверенного checkout. Его stdlib verifier проверяет Ed25519 через системный OpenSSL **до исполнения кода из комплекта**. Сначала проверяется подпись по отдельно предоставленному root-owned public key, затем копируются только разрешённые файлы и проверяются их размеры/SHA-256. Родительские symlinks и hardlinks не допускаются. Копия создаётся в закрытом каталоге root; изменяемый исходный комплект дальше не исполняется.
 

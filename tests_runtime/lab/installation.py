@@ -414,6 +414,12 @@ def main():
             installed = True
             metadata = json.loads(Path("/opt/hostorbit/installation.json").read_bytes())
             cfg = json.loads(Path("/etc/hostorbit/runtime.json").read_bytes())
+            age_tool = Path("/opt/hostorbit/tools/age")
+            if (age_tool.stat().st_uid != 0 or age_tool.stat().st_mode & 0o777 != 0o755
+                    or hashlib.sha256(age_tool.read_bytes()).hexdigest() != "eb7dd1b518f0a307c99cd97782623c5321da049154b04acd2d98d21aa7bc9b2c"
+                    or run(age_tool, "--version").stdout.strip() != b"v1.3.2"):
+                raise RuntimeError("Installed age binary did not match the signed pinned release")
+            print("Signed bundle installed the pinned age v1.3.2 executable as a root-owned host tool.", flush=True)
             ids = {name: docker(args.docker_host, "compose", "--project-name", "hostorbit", "--file",
                                "/etc/hostorbit/compose.json", "ps", "--quiet", name) for name in ("api", "worker")}
             entries = {name: json.loads(docker(args.docker_host, "inspect", identity))[0] for name, identity in ids.items()}

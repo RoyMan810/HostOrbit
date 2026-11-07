@@ -12,7 +12,7 @@ import tomllib
 
 from nacl.signing import SigningKey
 
-from artifact import FIXED_FILES, IMAGE, canonical
+from artifact import AGE_FILE, AGE_SHA256, AGE_VERSION, FIXED_FILES, IMAGE, canonical
 
 
 def main(argv=None):
@@ -20,6 +20,7 @@ def main(argv=None):
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--signing-key", type=Path, required=True, help="32-byte offline Ed25519 seed; never placed in the bundle")
     parser.add_argument("--python-image", required=True)
+    parser.add_argument("--age-tool", type=Path, required=True, help="Official checksum-pinned age v1.3.2 linux/amd64 executable")
     args = parser.parse_args(argv)
     root = Path(__file__).resolve().parents[1]
     if sys.version_info[:2] != (3, 13) or re.fullmatch(IMAGE, args.python_image) is None:
@@ -30,6 +31,9 @@ def main(argv=None):
     seed = args.signing_key.read_bytes()
     if len(seed) != 32:
         parser.error("The Ed25519 seed must be exactly 32 bytes")
+    age = args.age_tool.read_bytes()
+    if hashlib.sha256(age).hexdigest() != AGE_SHA256:
+        parser.error("Unsupported age binary; expected the pinned official linux/amd64 release")
     signer = SigningKey(seed)
     source = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root).decode().strip()
     if subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=no"], cwd=root).strip():
@@ -45,6 +49,8 @@ def main(argv=None):
         path = output / relative
         path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(root / relative, path)
+    (output / AGE_FILE).parent.mkdir(mode=0o755)
+    (output / AGE_FILE).write_bytes(age)
     # The bundle carries exactly the resolved binary distributions. pip on the
     # host and in the image installs these bytes with hashes and no index.
     locked, components = [], []
@@ -59,7 +65,9 @@ def main(argv=None):
     sbom = {"bomFormat": "CycloneDX", "specVersion": "1.6", "version": 1,
             "metadata": {"component": {"type": "application", "name": "HostOrbit", "version": version},
                          "properties": [{"name": "hostorbit:scope", "value": "Installed Python wheels plus the pinned OCI base; excludes full OS/base image inventory"}]},
-            "components": components + [{"type": "container", "name": args.python_image}]}
+            "components": components + [{"type": "container", "name": args.python_image},
+                                         {"type": "application", "name": "age", "version": AGE_VERSION,
+                                          "hashes": [{"alg": "SHA-256", "content": AGE_SHA256}]}]}
     (output / "sbom.cdx.json").write_bytes(canonical(sbom))
     files = [{"path": str(path.relative_to(output)), "size": path.stat().st_size,
               "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
