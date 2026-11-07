@@ -1,6 +1,8 @@
 # Локальный подписанный Controller archive
 
-`hostorbit-backup create` собирает согласованный снимок поддержанного Controller/Vault, экспортирует working DEK прямо в age encryption stream и подписывает ciphertext вместе с canonical data manifest. Результат — `LOCAL_SIGNED_ONLY`: off-host publication, restore attestation, импорт на новую VPS и Backup Gate ещё не реализованы. Наличие этого файла не разрешает migration/update.
+Публикация созданного архива теперь доступна отдельным [SFTP transport](stage1-sftp-publication.md); `create` по-прежнему заканчивается локальным `SIGNED` и не выполняет сеть. Restore/freshness gates остаются закрытыми.
+
+`hostorbit-backup create` собирает согласованный снимок поддержанного Controller/Vault, экспортирует working DEK прямо в age encryption stream и подписывает ciphertext вместе с canonical data manifest. Результат — `LOCAL_SIGNED_ONLY`: SFTP publication вызывается отдельно; restore attestation, импорт на новую VPS и Backup Gate ещё не реализованы. Наличие этого файла не разрешает migration/update.
 
 ## Создание и проверка происхождения
 
@@ -37,6 +39,6 @@ Native sealer имеет readonly filesystem, no capabilities, AF_UNIX only/priv
 
 Working Vault пока имеет только DEK generation 1. Она переносится даже для пустого Vault; другая generation или неподдержанная замена credential дают отказ. Предварительный reserve учитывает staging и ciphertext, предел metadata DB — 512 MiB каждый, до 65 536 secret versions. Нет автоматического retention/GC/release pins; staging/pins остаются private до последующей политики завершения/очистки.
 
-Capture time записывается с `time_trusted=false`. Данные пригодны для проверки выбранной recovery point, но не являются `PRECHANGE_BACKUP_FRESH`. Следующие обязательные части: signed TimeHealth freshness binding, off-host SFTP verified final publication, lifecycle recovery/retention, строгий offline Rescue profile, exact Owner digest нового target bundle, новый read-only Controller и ручная restore attestation. До них update/schema migration и Backup Gate остаются закрытыми.
+Capture time записывается с `time_trusted=false`. Данные пригодны для проверки выбранной recovery point, но не являются `PRECHANGE_BACKUP_FRESH`. После verified SFTP publication остаются обязательные части: signed TimeHealth freshness binding, lifecycle recovery/retention, строгий offline Rescue profile, exact Owner digest нового target bundle, новый read-only Controller и ручная restore attestation. До них update/schema migration и Backup Gate остаются закрытыми.
 
 Unit tests расшифровывают fixture archive, открывают оба Vault objects переносимым DEK, сверяют Owner/audit/state и проверяют запись после barrier, историческую schema 1, wrong anchor/recipient, changed ciphertext/key/config, truncated input и path expansion. Signed-installation CI выполняет тот же native path под реальными UID/systemd credentials, с public anchor, сохранённым до создания. Fixture Owner identity остаётся в памяти внешнего CI driver; age-keygen не устанавливается в Controller. Физически это одна disposable Ubuntu VM: тест не является независимым off-host disaster recovery, production Rescue preflight или Owner attestation и не переводит AC в PASS.

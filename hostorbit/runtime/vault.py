@@ -40,10 +40,20 @@ class Vault:
 
     def import_ssh(self, secret_id, version, key, *, owner_id, worker_uid, target):
         """Local administrative provisioning; never registered as a Web or Worker RPC."""
+        return self._import_ssh(secret_id, version, key, owner_id=owner_id, consumer_uid=worker_uid,
+                                target=target, purpose="host.probe", policy_revision=1)
+
+    def import_backup_ssh(self, secret_id, version, key, *, owner_id, broker_uid, target, policy_revision=1):
+        """Separate Broker-only SFTP purpose, not a managed VPS probe identity."""
+        return self._import_ssh(secret_id, version, key, owner_id=owner_id, consumer_uid=broker_uid,
+                                target=target, purpose="backup.sftp", policy_revision=policy_revision)
+
+    def _import_ssh(self, secret_id, version, key, *, owner_id, consumer_uid, target, purpose, policy_revision):
         for value in (secret_id, owner_id, target):
             text(value, ULID)
         integer(version, 1, 10**9 - 1)
-        integer(worker_uid, 1, 2**31 - 1)
+        integer(consumer_uid, 1, 2**31 - 1)
+        integer(policy_revision, 1, 2**31 - 1)
         if (not isinstance(key, bytes) or not 100 <= len(key) <= 8192
                 or not key.startswith(b"-----BEGIN OPENSSH PRIVATE KEY-----\n")
                 or not key.endswith(b"-----END OPENSSH PRIVATE KEY-----\n")):
@@ -51,9 +61,9 @@ class Vault:
         from .ssh import validate_private_key
         validate_private_key(key)
         reference = f"{secret_id}:v{version}"
-        metadata = {"secret_id": secret_id, "version": version, "kind": "ssh.ed25519", "purpose": "host.probe",
-                    "owner_id": owner_id, "allowed_consumers": [worker_uid], "allowed_consumers_digest": checksum([worker_uid]), "target": target,
-                    "state": "ACTIVE", "policy_revision": 1, "key_version": 1}
+        metadata = {"secret_id": secret_id, "version": version, "kind": "ssh.ed25519", "purpose": purpose,
+                    "owner_id": owner_id, "allowed_consumers": [consumer_uid], "allowed_consumers_digest": checksum([consumer_uid]), "target": target,
+                    "state": "ACTIVE", "policy_revision": policy_revision, "key_version": 1}
         ciphertext = bytes(self._aead.encrypt(key, canonical(metadata)))
         object_digest = hashlib.sha256(ciphertext).hexdigest()
         with self.journal.write(kind="business") as db:
@@ -64,6 +74,12 @@ class Vault:
         return reference
 
     def use_ssh(self, reference, *, worker_uid, target):
+        return self._use_ssh(reference, consumer_uid=worker_uid, target=target, purpose="host.probe")
+
+    def use_backup_ssh(self, reference, *, broker_uid, target, policy_revision):
+        return self._use_ssh(reference, consumer_uid=broker_uid, target=target, purpose="backup.sftp", policy_revision=policy_revision)
+
+    def _use_ssh(self, reference, *, consumer_uid, target, purpose, policy_revision=None):
         text(reference, ULID + r":v[1-9][0-9]{0,8}")
         with self.journal.connect() as db:
             row = db.execute("SELECT * FROM secrets WHERE ref=?", (reference,)).fetchone()
@@ -72,8 +88,9 @@ class Vault:
             metadata = json.loads(row["metadata"])
             if (reference != f'{metadata["secret_id"]}:v{metadata["version"]}' or metadata["kind"] != "ssh.ed25519"
                     or metadata["key_version"] != 1 or metadata["allowed_consumers_digest"] != checksum(metadata["allowed_consumers"])
-                    or metadata["purpose"] != "host.probe" or metadata["target"] != target
-                    or worker_uid not in metadata["allowed_consumers"] or metadata["state"] != "ACTIVE"):
+                    or metadata["purpose"] != purpose or metadata["target"] != target
+                    or consumer_uid not in metadata["allowed_consumers"] or metadata["state"] != "ACTIVE"
+                    or (policy_revision is not None and metadata["policy_revision"] != policy_revision)):
                 raise Denied("SECRET_SCOPE_DENIED")
             digest = text(row["object_digest"], r"[0-9a-f]{64}")
             ciphertext = protected_bytes(self.directory / "objects" / digest, owner=os.geteuid(), maximum=9000, exact_mode=0o600)

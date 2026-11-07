@@ -26,7 +26,7 @@ CREATE TRIGGER transitions_no_update BEFORE UPDATE ON transitions BEGIN SELECT R
 CREATE TRIGGER transitions_no_delete BEFORE DELETE ON transitions BEGIN SELECT RAISE(ABORT,'APPEND_ONLY'); END;
 """
 _NEXT = {"REQUESTED": "CLOSING_ADMISSION", "CLOSING_ADMISSION": "SHORT_BARRIER", "SHORT_BARRIER": "BARRIER_RELEASED",
-         "BARRIER_RELEASED": "SEALED", "SEALED": "SIGNED"}
+         "BARRIER_RELEASED": "SEALED", "SEALED": "SIGNED", "SIGNED": "UPLOADING", "UPLOADING": "PUBLISHED"}
 
 
 class _Expired(BaseException):
@@ -79,7 +79,8 @@ class Coordinator:
             else:
                 if (phase != _NEXT.get(old["phase"]) and not
                         (phase == "ABORTED" and old["phase"] in {"REQUESTED", "CLOSING_ADMISSION", "SHORT_BARRIER", "BARRIER_RELEASED"})
-                        and not (phase == "FAILED" and old["phase"] in {"BARRIER_RELEASED", "SEALED", "SIGNED"})):
+                        and not (phase == "FAILED" and old["phase"] in {"BARRIER_RELEASED", "SEALED", "SIGNED", "UPLOADING", "PUBLISHED"})
+                        and not (phase == "UPLOADING" and old["phase"] == "FAILED")):
                     raise Denied("SNAPSHOT_TRANSITION_DENIED")
                 db.execute("UPDATE snapshots SET phase=?,reason=? WHERE id=?", (phase, reason, snapshot_id))
             db.execute("INSERT INTO transitions(snapshot_id,phase,reason,boot_id,monotonic_ns) VALUES(?,?,?,?,?)",
@@ -110,7 +111,7 @@ class Coordinator:
                 with self.journal.connect() as db:
                     row = db.execute("SELECT phase FROM snapshots WHERE id=?", (snapshot_id,)).fetchone()
                 if row is None or row["phase"] not in {"ABORTED", "FAILED"}:
-                    phase = "FAILED" if row is not None and row["phase"] in {"SEALED", "SIGNED"} else "ABORTED"
+                    phase = "FAILED" if row is not None and row["phase"] in {"SEALED", "SIGNED", "UPLOADING", "PUBLISHED"} else "ABORTED"
                     self._transition(snapshot_id, phase, "COORDINATOR_RESTART", recovering=True)
             # Status is durable before reopening. Existing control transactions
             # are allowed to finish; no snapshot is being taken during recovery.

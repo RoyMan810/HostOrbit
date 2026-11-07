@@ -146,7 +146,7 @@ def _metadata(row):
         raise Denied("VAULT_PIN_METADATA_INVALID")
     if (raw.encode() != canonical(metadata) or row["ref"] != f'{metadata["secret_id"]}:v{metadata["version"]}'
             or row["state"] not in {"ACTIVE", "REVOKED"} or metadata["state"] != "ACTIVE"
-            or metadata["kind"] != "ssh.ed25519" or metadata["purpose"] != "host.probe"
+            or metadata["kind"] != "ssh.ed25519" or metadata["purpose"] not in {"host.probe", "backup.sftp"}
             or metadata["allowed_consumers_digest"] != checksum(consumers)):
         raise Denied("VAULT_PIN_METADATA_INVALID")
     # Runtime Vault currently has one working generation. Silently omitting an
