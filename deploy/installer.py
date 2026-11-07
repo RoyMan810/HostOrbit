@@ -19,6 +19,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import traceback
 from urllib.parse import urlsplit
 from urllib.request import urlopen
 
@@ -384,6 +385,12 @@ def main(argv=None):
         from_code = getattr(error, "code", None)
         code = str(error) if isinstance(error, ArtifactError) else from_code or "INSTALLATION_UNAVAILABLE"
         print("HostOrbit: " + code, file=sys.stderr)
+        if code == "INSTALLATION_UNAVAILABLE":
+            # Code locations and exception classes help diagnose installation
+            # failures without forwarding exception messages or local values.
+            frames = traceback.extract_tb(error.__traceback__)
+            site = next((frame for frame in reversed(frames) if frame.filename == __file__), frames[-1])
+            print(f"failure_site=installer.py:{site.lineno} error_type={type(error).__name__}", file=sys.stderr)
         return 1
     return 0
 
