@@ -61,6 +61,15 @@ def sign_provenance(manifest, public_recipient, ciphertext, key):
 
 def verify_provenance(ciphertext, envelope, trusted_key):
     """No secret identity needed: use an independently saved public anchor."""
+    claims = verify_provenance_claims(envelope, trusted_key)
+    digest, size = digest_file(ciphertext)
+    if digest != claims["ciphertext_sha256"] or size != claims["ciphertext_size"] or size < 200:
+        raise Denied("ARCHIVE_CIPHERTEXT_CHANGED")
+    return claims
+
+
+def verify_provenance_claims(envelope, trusted_key):
+    """Signature/format only. Does not verify ciphertext or payload integrity."""
     fields(envelope, ("claims", "signature"))
     claims = fields(envelope["claims"], ("v", "type", "manifest", "recipient", "ciphertext_sha256", "ciphertext_size",
                                         "age_sha256", "signing_key_sha256"))
@@ -73,9 +82,9 @@ def verify_provenance(ciphertext, envelope, trusted_key):
         raise Denied("ARCHIVE_PROVENANCE_INVALID") from None
     validate_source(claims["manifest"], claims["manifest"]["snapshot_id"])
     recipient(claims["recipient"])
-    digest, size = digest_file(ciphertext)
-    if digest != claims["ciphertext_sha256"] or size != claims["ciphertext_size"] or size < 200:
-        raise Denied("ARCHIVE_CIPHERTEXT_CHANGED")
+    from .protocol import SHA256, integer, text
+    text(claims["ciphertext_sha256"], SHA256)
+    integer(claims["ciphertext_size"], 200, 4 * 1024**3)
     return claims
 
 

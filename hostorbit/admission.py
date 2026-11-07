@@ -17,7 +17,7 @@ import time
 from .errors import Denied
 
 
-_PHASES = {"OPEN", "CLOSING_ADMISSION", "SHORT_BARRIER", "RECOVERY_HOLD"}
+_PHASES = {"OPEN", "CLOSING_ADMISSION", "SHORT_BARRIER", "RECOVERY_HOLD", "READ_ONLY_RECOVERY"}
 _KINDS = {"business", "dispatch", "control"}
 _ID = re.compile(r"[0-9A-HJKMNP-TV-Z]{26}")
 
@@ -58,6 +58,19 @@ class Admission:
         return value
 
     def _state(self, parent):
+        # This profile survives loss of the replaceable snapshot latch. A
+        # watchdog may recover a failed backup, never activate imported data.
+        try:
+            profile = self._file(parent, "recovery-profile.json")
+        except FileNotFoundError:
+            pass
+        else:
+            try:
+                if os.read(profile, 513) != b'{"mode":"READ_ONLY_RECOVERY","v":1}':
+                    raise Denied("WRITER_STATE_INVALID", 503)
+                return {"v": 1, "phase": "READ_ONLY_RECOVERY", "snapshot_id": None}
+            finally:
+                os.close(profile)
         fd = self._file(parent, "state.json")
         try:
             raw = os.read(fd, 513)
@@ -110,6 +123,21 @@ class Admission:
         parent = self._directory()
         name = ".state-" + os.urandom(16).hex()
         try:
+            # Recovery import is a persistent profile, not a failed snapshot.
+            # There is deliberately no activation/force-open bypass here.
+            if os.path.lexists(self.directory / "state.json") or os.path.lexists(self.directory / "recovery-profile.json"):
+                current = self._state(parent)
+                if current["phase"] == "READ_ONLY_RECOVERY" and phase != "READ_ONLY_RECOVERY":
+                    raise Denied("RECOVERY_ACTIVATION_REQUIRED")
+            if phase == "READ_ONLY_RECOVERY" and not os.path.lexists(self.directory / "recovery-profile.json"):
+                profile = os.open("recovery-profile.json", os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644, dir_fd=parent)
+                try:
+                    os.fchmod(profile, 0o644)
+                    os.write(profile, b'{"mode":"READ_ONLY_RECOVERY","v":1}')
+                    os.fsync(profile)
+                    os.fsync(parent)
+                finally:
+                    os.close(profile)
             fd = os.open(name, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644, dir_fd=parent)
             try:
                 os.fchmod(fd, 0o644)
@@ -121,7 +149,9 @@ class Admission:
                 os.close(fd)
             os.rename(name, "state.json", src_dir_fd=parent, dst_dir_fd=parent)
             os.fsync(parent)
-        except BaseException:
+        except BaseException as error:
+            if isinstance(error, Denied) and error.code == "RECOVERY_ACTIVATION_REQUIRED":
+                raise
             # A failed closing publication must not leave an old OPEN latch.
             # Missing state is fail-closed for every writer. Recovery reconstructs
             # it only after the independent control journal is writable again.
