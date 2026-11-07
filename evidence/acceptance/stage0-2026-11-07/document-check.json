@@ -1,0 +1,8 @@
+{
+  "source_pages": 35,
+  "output_pages": 36,
+  "all_existing_pages_pixel_identical": true,
+  "new_page_visual_review": "PASS: appendix text, spacing and margins checked in rendered PNG",
+  "source_document_sha256": "d7f4e31e8ae20ae4c1da47d8e3fbe8cb45a450feefa5bf409c7104cf125ca0ad",
+  "output_document_sha256": "3f4c06ad85561882aa3dd808254732e5d965b5579f9aad45a8c2bf446a3118ee"
+}

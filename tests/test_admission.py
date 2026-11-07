@@ -80,6 +80,21 @@ def crash_before_quarantine_commit(path):
     raise AssertionError("COMMIT hook did not kill the process")
 
 
+def crash_migration(path, application, kind, committed):
+    gate = HostGate(path)
+    ticket = gate.request_update(UpdateKind(kind))
+    gate.enter_maintenance(ticket)
+    # This database belongs to the application, not to the host authority.
+    # Kill both inside an uncommitted migration and after its commit.
+    with sqlite3.connect(application) as db:
+        db.execute("BEGIN IMMEDIATE")
+        db.execute("ALTER TABLE jobs ADD COLUMN result TEXT")
+        db.execute("PRAGMA user_version = 2")
+        if committed:
+            db.commit()
+        kill_self()
+
+
 def crash_before_activation_commit(path, evidence, signature, confirmation):
     CrashBeforeCommitGate(path).activate_recovery(evidence, signature, owner_confirmation=confirmation)
     raise AssertionError("COMMIT hook did not kill the process")
@@ -302,6 +317,31 @@ class AdmissionTests(unittest.TestCase):
         for kind in UpdateKind:
             with self.assertRaisesRegex(Denied, "^GATE_CLOSED$"):
                 restarted.request_update(kind)
+
+    def test_both_updaters_crashing_inside_or_after_schema_migration_recover_closed(self):
+        for kind in UpdateKind:
+            for committed in (False, True):
+                with self.subTest(kind=kind, committed=committed):
+                    path = self.path.with_name(f"gate-{kind}-{committed}.sqlite3")
+                    application = path.with_suffix(".application.sqlite3")
+                    HostGate.create(path, TOPOLOGY)
+                    with sqlite3.connect(application) as db:
+                        db.execute("CREATE TABLE jobs(id TEXT PRIMARY KEY)")
+                        db.execute("PRAGMA user_version = 1")
+                    process = self.start_process(crash_migration, path, application, kind, committed)
+                    process.join(WAIT)
+                    self.assertEqual(process.exitcode, -signal.SIGKILL)
+                    with sqlite3.connect(application) as db:
+                        self.assertEqual(db.execute("PRAGMA integrity_check").fetchall(), [("ok",)])
+                        self.assertEqual(db.execute("PRAGMA user_version").fetchone(), (2 if committed else 1,))
+                    restarted = HostGate(path)
+                    self.assertEqual(restarted.state(), GateState.MAINTENANCE)
+                    self.assertEqual(restarted.recover_after_restart(), GateState.RECOVERY_HOLD)
+                    with self.assertRaisesRegex(Denied, "^GATE_CLOSED$"):
+                        restarted.admit_remote("a", "after-migration")
+                    for contender in UpdateKind:
+                        with self.assertRaisesRegex(Denied, "^GATE_CLOSED$"):
+                            restarted.request_update(contender)
 
 
 class RecoveryAdmissionTests(unittest.TestCase):

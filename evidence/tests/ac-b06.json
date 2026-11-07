@@ -1,0 +1,51 @@
+{
+  "acceptance_scope": "Narrow Stage0 prototype per specification section 41; does not accept linked production/MVP features",
+  "assertion": "Validator rejects missing descriptions, stage, release, assertion, AC owner, dependency; test session idle/absolute expiry, logout/revocation, role change, CSRF denial and Stage0/MVP gates derived from registry.",
+  "assertion_sha256": "3ce522b5f7ac62847497df0e92d6370d60c10c071dad66769601a782075a6d1d",
+  "baseline_check_digest": "67e80c270436de6899b67a7a3c8dc8ca68297ef243ff9a0eb5ab56f8a49bf7d5",
+  "build_digest": "24f50e10520639e7bb777fa64367f28e0ae0af52b159bfc52fb2c0b5ff8cd393",
+  "ci_jobs": [
+    {
+      "id": 128338874496,
+      "raw_log_sha256": "dfbd76aaaec418449272b853910057bdc4a193faa8f0370c0c8b3289b0aee0fc",
+      "run_id": 42350989156,
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42350989156/job/128338874496"
+    }
+  ],
+  "ci_observations_digest": "ef4c0aa0a4cd05903468469155bbdc3c8a6d4d833d1f804bcb7ce6c435faf52f",
+  "enables_production_mutation": false,
+  "environment": "Disposable GitHub-hosted Ubuntu 24.04.5; Python 3.13 unit/native labs, Python 3.12 QEMU harness; Docker 29.9.3, Compose 2.38.2, age 1.3.2; no user VPS/SSH keys",
+  "evidence_digest": "d5bb27c60887a73adf615ba7cb0a2d56256f141c0b504786f6a9627cac3c369e",
+  "fault_injection": "Missing registry fields, stale/forged evidence, idle/absolute expiry, wrong CSRF, role change and logout",
+  "initial_state": "Server sessions and registry fixtures",
+  "limits": [
+    "Automated self-review, not an independent human security audit.",
+    "QEMU guests, managed services and SFTP share one hypervisor; external operator/offline Owner roles are automated fixture processes.",
+    "Independent VPS/targets in dependency tests are inventory scopes on the fixture runner, not independently administered production machines.",
+    "SIGKILL/ENOSPC phase-boundary injection does not prove physical power-loss or arbitrary filesystem/storage durability.",
+    "Backend approval authority and managed root/Docker daemon remain within the stated TCB; knowingly false Owner attestation is not detected with a guarantee.",
+    "Lab dependency SBOM is scoped and incomplete for a production release; package install/update/restore integration remains unaccepted."
+  ],
+  "manifest_digest": "7cc8cfc1627d19c789e56fe7ead7d849b64f7033b34cd35e3bd5be8dacbcff1a",
+  "observation": "Missing descriptions, stage, release, assertion, AC owner, dependencies and inconsistent reciprocal links are rejected. Idle 30-minute and absolute 12-hour expiry, login rotation, logout, explicit revoke, role revoke and session-bound CSRF denials pass. Stage0 and MVP gates derive their tests from the registry; required NOT_RUN/FAIL, missing/tampered evidence and incomplete release sets block.",
+  "outcome": "PASS",
+  "recorded_at_utc": "2026-11-07T09:51:44.526664Z",
+  "review_kind": "AUTOMATED_SELF_REVIEW",
+  "review_status": "ACCEPTED_STAGE0_LAB",
+  "reviewed_assertion_parts": [
+    "Missing descriptions, stage, release, assertion, AC owner, dependencies and inconsistent reciprocal links are rejected.",
+    "Idle 30-minute and absolute 12-hour expiry, login rotation, logout, explicit revoke, role revoke and session-bound CSRF denials pass.",
+    "Stage0 and MVP gates derive their tests from the registry; required NOT_RUN/FAIL, missing/tampered evidence and incomplete release sets block."
+  ],
+  "reviewed_source_paths": [
+    "tests/test_requirements.py",
+    "tests/test_sessions.py",
+    "stage0/requirements.py",
+    "stage0/sessions.py"
+  ],
+  "reviewer": "Codex automated source and CI evidence self-review; no independent human audit",
+  "sbom_digest": "343a64ca99894ca07ee28ed4577453a777eea68ecbde6f7dcb860b3fbd6f4498",
+  "scenario": "Stage0 prototype review for AC-B06",
+  "source_commit": "71d964e18d7251430e0d998022f9ceb6d3bee156",
+  "test_id": "AC-B06"
+}

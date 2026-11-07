@@ -16,6 +16,33 @@ _MACHINES = {
     "Host Admission Gate": "NORMAL → QUIESCING → MAINTENANCE → RESUMING → NORMAL",
 }
 
+# These are explicit security bounds of the v2.3 baseline, not a semantic
+# classifier for arbitrary prose. Removing or changing one requires ADR review.
+_SECURITY_BOUNDS = (
+    "Root/managed Docker daemon и сознательно ложная Owner attestation не входят в полную защитную гарантию.",
+    "умышленно ложное Owner attestation или скрытый полный snapshot не обнаруживаются гарантированно.",
+    "провал или контрпример → ADR_CHANGE_REQUEST",
+)
+
+
+def _check_requirement_index(section, registry):
+    rows = {}
+    for line in section.splitlines():
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if not cells or not re.fullmatch(r"(?:FR-\d{3}\.\d+|NFR-\d{2}|P0-\d+|CTRL-B\d{2})", cells[0]):
+            continue
+        identifier = cells[0]
+        if len(cells) != 5 or identifier in rows:
+            raise InvalidRegistry(f"baseline: invalid or duplicate requirement index row {identifier}")
+        rows[identifier] = cells
+    if rows.keys() != registry.requirements.keys():
+        raise InvalidRegistry("baseline: requirement index and registry ID sets differ")
+    for identifier, item in registry.requirements.items():
+        _, _, release_stage, owner, acceptances = rows[identifier]
+        if (release_stage != item["release_inclusion"] + "/" + item["stage"]
+                or owner != item["owner"] or set(acceptances.split(",")) != set(item["acceptance_ids"])):
+            raise InvalidRegistry(f"baseline: stage, owner or acceptance trace drift for {identifier}")
+
 
 def _stage0_ids(declaration):
     result = set()
@@ -43,6 +70,7 @@ def check_baseline(markdown: str, data: dict) -> dict:
     if len(sections) != 1:
         raise InvalidRegistry("baseline: expected exactly one authoritative section 40")
     section = sections[0]
+    _check_requirement_index(section, registry)
     for name, expected in _MACHINES.items():
         pattern = rf"^\*\*{re.escape(name)}:\*\* `([^`]+)`"
         matches = re.findall(pattern, markdown, re.M)
@@ -57,11 +85,21 @@ def check_baseline(markdown: str, data: dict) -> dict:
         raise InvalidRegistry("baseline: Stage0 criteria differ from the registry")
     if registry.tests.get("AC-28", {}).get("stage") != "Stage2":
         raise InvalidRegistry("baseline: AC-28 must be accepted at Stage2")
+    for boundary in _SECURITY_BOUNDS:
+        if boundary not in markdown:
+            raise InvalidRegistry("baseline: Owner trust boundary or ADR amendment clause changed; review an ADR")
     return {
         "outcome": "PASS", "spec_sha256": hashlib.sha256(markdown.encode("utf-8")).hexdigest(),
         "normative_section": 40, "machines": _MACHINES,
         "stage0_required_tests": sorted(required),
         "job_unknown_is_terminal": True, "incident_is_separate": True,
+        "owner_attestation_exclusion_present": True, "adr_amendment_clause_present": True,
+        "requirement_index_count": len(registry.requirements),
+        "acceptance_capability_trace": {
+            identifier: [{"requirement_id": ref, "stage": registry.requirements[ref]["stage"],
+                          "owner": registry.requirements[ref]["owner"]} for ref in item["linked_requirements"]]
+            for identifier, item in registry.tests.items()
+        },
         "scope": "Document and trace validation; does not certify runtime transitions or Owner truthfulness",
     }
 

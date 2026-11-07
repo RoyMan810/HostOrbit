@@ -37,6 +37,8 @@ class Phase(StrEnum):
 class Work(StrEnum):
     JOB = "job"
     ROTATION = "rotation"
+    REVOKE = "revoke"
+    RESOURCE = "resource"
 
 
 class BackupDenied(RuntimeError):
@@ -53,6 +55,16 @@ _CONTROLLER = """
         name TEXT PRIMARY KEY NOT NULL,
         version INTEGER NOT NULL REFERENCES generations(version),
         ciphertext TEXT NOT NULL
+    );
+    CREATE TABLE revocations (
+        name TEXT NOT NULL,
+        version INTEGER NOT NULL,
+        PRIMARY KEY (name, version)
+    );
+    CREATE TABLE resources (
+        id TEXT PRIMARY KEY NOT NULL,
+        revision INTEGER NOT NULL CHECK (revision > 0),
+        secret_name TEXT NOT NULL REFERENCES secret_refs(name)
     );
     CREATE TABLE backups (id TEXT PRIMARY KEY NOT NULL, phase TEXT NOT NULL, reason TEXT);
     CREATE UNIQUE INDEX one_active_backup ON backups ((1))
@@ -190,6 +202,31 @@ class BackupLab:
                 garbage = {row["digest"] for row in vault.execute("SELECT digest FROM objects")} - keep
                 vault.executemany("DELETE FROM objects WHERE digest = ?", ((ref,) for ref in garbage))
             return garbage
+
+    def finish_revoke(self, work_id: str, name: str) -> None:
+        """Retain encrypted data and the exact revoked version in the snapshot."""
+        with self._write() as db:
+            self._require_work(db, work_id, Work.REVOKE)
+            ref = db.execute("SELECT version FROM secret_refs WHERE name = ?", (name,)).fetchone()
+            if ref is None:
+                raise BackupDenied("SECRET_NOT_FOUND")
+            db.execute("INSERT OR IGNORE INTO revocations VALUES (?, ?)", (name, ref["version"]))
+            self._complete(db, work_id)
+
+    def finish_resource(self, work_id: str, resource_id: str, secret_name: str) -> None:
+        with self._write() as db:
+            self._require_work(db, work_id, Work.RESOURCE)
+            ref = db.execute("SELECT version FROM secret_refs WHERE name = ?", (secret_name,)).fetchone()
+            if ref is None:
+                raise BackupDenied("SECRET_NOT_FOUND")
+            if db.execute("SELECT 1 FROM revocations WHERE name = ? AND version = ?",
+                          (secret_name, ref["version"])).fetchone():
+                raise BackupDenied("SECRET_REVOKED")
+            db.execute("""INSERT INTO resources VALUES (?, 1, ?)
+                       ON CONFLICT(id) DO UPDATE SET revision = revision + 1,
+                                                    secret_name = excluded.secret_name""",
+                       (resource_id, secret_name))
+            self._complete(db, work_id)
 
     def _request(self, backup_id: str) -> None:
         with self._write() as db:

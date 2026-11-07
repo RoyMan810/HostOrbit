@@ -1,14 +1,16 @@
 import copy
 import unittest
 
-from stage0.baseline import _MACHINES, check_baseline
+from stage0.baseline import _MACHINES, _SECURITY_BOUNDS, check_baseline
 from stage0.requirements import InvalidRegistry
 from test_requirements import fixture
 
 
 def specification():
     definitions = "\n\n".join(f"**{name}:** `{graph}`" for name, graph in _MACHINES.items())
-    return f"## 40. Authority\n\n{definitions}\n\n**Stage0:** `AC-B03`\n\n## 41. Evidence\n"
+    rows = "\n".join(f"| {item['id']} | Fixture | {item['release_inclusion']}/{item['stage']} | "
+                     f"{item['owner']} | {','.join(item['acceptance_ids'])} |" for item in fixture()["requirements"])
+    return f"## 40. Authority\n\n{rows}\n\n{definitions}\n\n**Stage0:** `AC-B03`\n\n## 41. Evidence\n" + "\n".join(_SECURITY_BOUNDS)
 
 
 class BaselineTests(unittest.TestCase):
@@ -17,6 +19,28 @@ class BaselineTests(unittest.TestCase):
         self.assertEqual(result["stage0_required_tests"], ["AC-B03"])
         self.assertTrue(result["job_unknown_is_terminal"])
         self.assertTrue(result["incident_is_separate"])
+        self.assertTrue(result["owner_attestation_exclusion_present"])
+        self.assertTrue(result["adr_amendment_clause_present"])
+        self.assertEqual(result["requirement_index_count"], 3)
+        self.assertEqual(result["acceptance_capability_trace"]["AC-B03"],
+                         [{"requirement_id": "CTRL-B03", "stage": "Stage0", "owner": "Fixture"}])
+
+    def test_missing_requirement_even_with_its_tests_removed_and_index_drift_are_denied(self):
+        data = fixture()
+        data["requirements"].pop()
+        data["tests"].pop()
+        with self.assertRaisesRegex(InvalidRegistry, "ID sets differ"):
+            check_baseline(specification(), data)
+        for old, new in (("POST/OPTIONAL/Stage4", "POST/OPTIONAL/Stage5"),
+                         ("| Fixture | AC-B03 |", "| Changed | AC-B03 |"),
+                         ("| Fixture | AC-B03 |", "| Fixture | AC-28 |")):
+            with self.subTest(old=old), self.assertRaisesRegex(InvalidRegistry, "trace drift"):
+                check_baseline(specification().replace(old, new), fixture())
+
+    def test_removing_or_reversing_the_owner_exclusion_or_amendment_clause_requires_adr(self):
+        for boundary in _SECURITY_BOUNDS:
+            with self.subTest(boundary=boundary), self.assertRaisesRegex(InvalidRegistry, "review an ADR"):
+                check_baseline(specification().replace(boundary, "Owner attestation is always truthful"), fixture())
 
     def test_rejects_missing_or_competing_authority_even_outside_section_40(self):
         original = specification()

@@ -1,0 +1,57 @@
+{
+  "acceptance_scope": "Narrow Stage0 prototype per specification section 41; does not accept linked production/MVP features",
+  "assertion": "В тестовом Backend RCE попытаться подделать plan/approval, перезаписать DB, вызвать Broker IPC, запросить secret и Docker operation; ожидать отказ для shell/несоответствующего scope/невалидного IPC. Если тест демонстрирует злоупотребление разрешённым выглядит approval в пределах TCB, это **показывается как остаточный риск, не маскируется фразой «RCE защищён»**; разработчик подтверждает заявленную границу доверия.",
+  "assertion_sha256": "b17adfcd34f399d3a49a0b1c6c654fcf789242b3c9bd883a99eca00c4cedc09e",
+  "baseline_check_digest": "67e80c270436de6899b67a7a3c8dc8ca68297ef243ff9a0eb5ab56f8a49bf7d5",
+  "build_digest": "24f50e10520639e7bb777fa64367f28e0ae0af52b159bfc52fb2c0b5ff8cd393",
+  "ci_jobs": [
+    {
+      "id": 128338874417,
+      "raw_log_sha256": "cc39bd689cccb7cd4ad7e9fc5d9d433ce31c784c74a39e792e5a26ae672c50d7",
+      "run_id": 42350989156,
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42350989156/job/128338874417"
+    },
+    {
+      "id": 128338874496,
+      "raw_log_sha256": "dfbd76aaaec418449272b853910057bdc4a193faa8f0370c0c8b3289b0aee0fc",
+      "run_id": 42350989156,
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42350989156/job/128338874496"
+    }
+  ],
+  "ci_observations_digest": "ef4c0aa0a4cd05903468469155bbdc3c8a6d4d833d1f804bcb7ce6c435faf52f",
+  "enables_production_mutation": false,
+  "environment": "Disposable GitHub-hosted Ubuntu 24.04.5; Python 3.13 unit/native labs, Python 3.12 QEMU harness; Docker 29.9.3, Compose 2.38.2, age 1.3.2; no user VPS/SSH keys",
+  "evidence_digest": "084e6fb2a5adcefeca240afb88e841c4826a6a02389f4007b53d7458a122c857",
+  "fault_injection": "Forge approval, call Broker, request shell, raw secret, arbitrary Docker and outside-scope operations",
+  "initial_state": "Backend container able to rewrite application approval/plan records",
+  "limits": [
+    "Automated self-review, not an independent human security audit.",
+    "QEMU guests, managed services and SFTP share one hypervisor; external operator/offline Owner roles are automated fixture processes.",
+    "Independent VPS/targets in dependency tests are inventory scopes on the fixture runner, not independently administered production machines.",
+    "SIGKILL/ENOSPC phase-boundary injection does not prove physical power-loss or arbitrary filesystem/storage durability.",
+    "Backend approval authority and managed root/Docker daemon remain within the stated TCB; knowingly false Owner attestation is not detected with a guarantee.",
+    "Lab dependency SBOM is scoped and incomplete for a production release; package install/update/restore integration remains unaccepted."
+  ],
+  "manifest_digest": "7cc8cfc1627d19c789e56fe7ead7d849b64f7033b34cd35e3bd5be8dacbcff1a",
+  "observation": "Compromised Backend rewrites SQLite approvals but has no direct Broker mount, Vault read or Docker socket. Worker forwarding arbitrary shell, raw decrypt/Docker requests, foreign scopes and forged permits is denied. Apparently approved in-scope forgery receives a scoped receipt: explicit Backend-in-TCB residual risk, not RCE protection. The receipt is a lab admission result, not execution of an arbitrary remote Docker operation; replay is denied.",
+  "outcome": "PASS",
+  "recorded_at_utc": "2026-11-07T09:51:44.526664Z",
+  "review_kind": "AUTOMATED_SELF_REVIEW",
+  "review_status": "ACCEPTED_STAGE0_LAB",
+  "reviewed_assertion_parts": [
+    "Compromised Backend rewrites SQLite approvals but has no direct Broker mount, Vault read or Docker socket.",
+    "Worker forwarding arbitrary shell, raw decrypt/Docker requests, foreign scopes and forged permits is denied.",
+    "Apparently approved in-scope forgery receives a scoped receipt: explicit Backend-in-TCB residual risk, not RCE protection.",
+    "The receipt is a lab admission result, not execution of an arbitrary remote Docker operation; replay is denied."
+  ],
+  "reviewed_source_paths": [
+    "tests/lab/broker_boundary.py",
+    "tests/lab/broker-containers.sh",
+    "stage0/broker_lab.py"
+  ],
+  "reviewer": "Codex automated source and CI evidence self-review; no independent human audit",
+  "sbom_digest": "343a64ca99894ca07ee28ed4577453a777eea68ecbde6f7dcb860b3fbd6f4498",
+  "scenario": "Stage0 prototype review for AC-A04",
+  "source_commit": "71d964e18d7251430e0d998022f9ceb6d3bee156",
+  "test_id": "AC-A04"
+}

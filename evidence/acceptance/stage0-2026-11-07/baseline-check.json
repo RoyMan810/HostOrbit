@@ -1,0 +1,1222 @@
+{
+  "acceptance_capability_trace": {
+    "AC-01": [
+      {
+        "owner": "Auth/Bootstrap",
+        "requirement_id": "FR-001.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Auth",
+        "requirement_id": "FR-002.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Onboarding",
+        "requirement_id": "FR-026.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Architecture/QA",
+        "requirement_id": "NFR-01",
+        "stage": "Stage1"
+      }
+    ],
+    "AC-02": [
+      {
+        "owner": "RBAC/Policy",
+        "requirement_id": "FR-003.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "RBAC/Policy",
+        "requirement_id": "FR-021.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Architecture/QA",
+        "requirement_id": "NFR-01",
+        "stage": "Stage1"
+      }
+    ],
+    "AC-03": [
+      {
+        "owner": "SSH/OS Manager",
+        "requirement_id": "FR-005.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Onboarding",
+        "requirement_id": "FR-026.1",
+        "stage": "Stage2"
+      }
+    ],
+    "AC-04": [
+      {
+        "owner": "Secrets Broker",
+        "requirement_id": "FR-017.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Diagnostics Log Sanitizer",
+        "requirement_id": "FR-030.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Architecture/QA",
+        "requirement_id": "NFR-01",
+        "stage": "Stage1"
+      }
+    ],
+    "AC-05": [
+      {
+        "owner": "Infrastructure Registry",
+        "requirement_id": "FR-006.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Service Adapter Registry",
+        "requirement_id": "FR-007.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Nginx Manager",
+        "requirement_id": "FR-011.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Service Details",
+        "requirement_id": "FR-032.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Architecture/Security",
+        "requirement_id": "P0-3",
+        "stage": "Stage0"
+      }
+    ],
+    "AC-06": [
+      {
+        "owner": "RBAC/Policy",
+        "requirement_id": "FR-003.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Operations/Worker",
+        "requirement_id": "FR-013.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Config/Change Plan",
+        "requirement_id": "FR-014.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Config Editor",
+        "requirement_id": "FR-014.2",
+        "stage": "Stage4"
+      },
+      {
+        "owner": "RBAC/Policy",
+        "requirement_id": "FR-021.1",
+        "stage": "Stage1"
+      }
+    ],
+    "AC-07": [
+      {
+        "owner": "Service Details/Worker",
+        "requirement_id": "FR-008.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Operations/Worker",
+        "requirement_id": "FR-013.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Architecture/QA",
+        "requirement_id": "NFR-02",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Architecture/Security",
+        "requirement_id": "P0-4",
+        "stage": "Stage0"
+      }
+    ],
+    "AC-08": [
+      {
+        "owner": "Operations/Worker",
+        "requirement_id": "FR-013.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Architecture/QA",
+        "requirement_id": "NFR-02",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Architecture/Security",
+        "requirement_id": "P0-4",
+        "stage": "Stage0"
+      }
+    ],
+    "AC-09": [
+      {
+        "owner": "Service Details/Worker",
+        "requirement_id": "FR-008.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Operations/Worker",
+        "requirement_id": "FR-013.1",
+        "stage": "Stage1"
+      }
+    ],
+    "AC-10": [
+      {
+        "owner": "Audit Manager",
+        "requirement_id": "FR-016.1",
+        "stage": "Stage2"
+      }
+    ],
+    "AC-11": [
+      {
+        "owner": "Backup/Recovery",
+        "requirement_id": "FR-015.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Backup/Storage Registry",
+        "requirement_id": "FR-025.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Architecture/QA",
+        "requirement_id": "NFR-03",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Architecture/Security",
+        "requirement_id": "P0-2",
+        "stage": "Stage0"
+      }
+    ],
+    "AC-12": [
+      {
+        "owner": "Backup/Recovery",
+        "requirement_id": "FR-015.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Secrets Broker",
+        "requirement_id": "FR-017.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Recovery/Rescue CLI",
+        "requirement_id": "FR-024.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Architecture/QA",
+        "requirement_id": "NFR-03",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Architecture/Security",
+        "requirement_id": "P0-2",
+        "stage": "Stage0"
+      }
+    ],
+    "AC-13": [
+      {
+        "owner": "Recovery/Rescue CLI",
+        "requirement_id": "FR-024.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Recovery Web Wizard",
+        "requirement_id": "FR-024.2",
+        "stage": "Stage4"
+      },
+      {
+        "owner": "Architecture/Security",
+        "requirement_id": "P0-1",
+        "stage": "Stage0"
+      }
+    ],
+    "AC-14": [
+      {
+        "owner": "Scheduler",
+        "requirement_id": "FR-023.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Recovery/Rescue CLI",
+        "requirement_id": "FR-024.1",
+        "stage": "Stage1"
+      }
+    ],
+    "AC-15": [
+      {
+        "owner": "Infrastructure Registry",
+        "requirement_id": "FR-006.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Network Discovery",
+        "requirement_id": "FR-010.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Frontend/Monitoring",
+        "requirement_id": "FR-018.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Service Details",
+        "requirement_id": "FR-032.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Architecture/QA",
+        "requirement_id": "NFR-04",
+        "stage": "Stage2"
+      }
+    ],
+    "AC-16": [
+      {
+        "owner": "Network/Firewall Manager",
+        "requirement_id": "FR-012.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Network/Firewall Manager",
+        "requirement_id": "FR-012.2",
+        "stage": "Stage4"
+      }
+    ],
+    "AC-17": [
+      {
+        "owner": "Network Discovery",
+        "requirement_id": "FR-010.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Nginx Manager",
+        "requirement_id": "FR-011.1",
+        "stage": "Stage2"
+      }
+    ],
+    "AC-18": [
+      {
+        "owner": "Update Manager",
+        "requirement_id": "FR-008.2",
+        "stage": "Stage4"
+      },
+      {
+        "owner": "Independent Update Controller",
+        "requirement_id": "FR-022.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Infrastructure Update Manager",
+        "requirement_id": "FR-022.2",
+        "stage": "Stage4"
+      },
+      {
+        "owner": "Architecture/QA",
+        "requirement_id": "NFR-06",
+        "stage": "Stage2"
+      }
+    ],
+    "AC-19": [
+      {
+        "owner": "Topology/Monitoring/Security",
+        "requirement_id": "FR-018.2",
+        "stage": "Stage4"
+      },
+      {
+        "owner": "Groups/Operations",
+        "requirement_id": "FR-020.1",
+        "stage": "Stage4"
+      }
+    ],
+    "AC-20": [
+      {
+        "owner": "Topology/Monitoring/Security",
+        "requirement_id": "FR-018.2",
+        "stage": "Stage4"
+      },
+      {
+        "owner": "Templates Manager",
+        "requirement_id": "FR-019.1",
+        "stage": "Stage4"
+      },
+      {
+        "owner": "Policy Engine",
+        "requirement_id": "FR-021.2",
+        "stage": "Stage4"
+      },
+      {
+        "owner": "Service Catalog",
+        "requirement_id": "FR-032.2",
+        "stage": "Stage4"
+      }
+    ],
+    "AC-21": [
+      {
+        "owner": "Backup/Storage Registry",
+        "requirement_id": "FR-025.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Storage Center",
+        "requirement_id": "FR-025.2",
+        "stage": "Stage4"
+      }
+    ],
+    "AC-22": [
+      {
+        "owner": "Scheduler",
+        "requirement_id": "FR-023.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Scheduler",
+        "requirement_id": "FR-023.2",
+        "stage": "Stage5"
+      }
+    ],
+    "AC-23": [
+      {
+        "owner": "Update Manager",
+        "requirement_id": "FR-008.2",
+        "stage": "Stage4"
+      },
+      {
+        "owner": "Infrastructure Update Manager",
+        "requirement_id": "FR-022.2",
+        "stage": "Stage4"
+      },
+      {
+        "owner": "Service Catalog",
+        "requirement_id": "FR-032.2",
+        "stage": "Stage4"
+      }
+    ],
+    "AC-24": [
+      {
+        "owner": "Domains/Certs/Caddy Managers",
+        "requirement_id": "FR-011.2",
+        "stage": "Stage4"
+      }
+    ],
+    "AC-25": [
+      {
+        "owner": "Remnawave Adapter",
+        "requirement_id": "FR-007.2",
+        "stage": "Stage4"
+      },
+      {
+        "owner": "VPN Adapter",
+        "requirement_id": "FR-009.1",
+        "stage": "Stage4"
+      }
+    ],
+    "AC-26": [
+      {
+        "owner": "Frontend",
+        "requirement_id": "FR-004.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Frontend/Monitoring",
+        "requirement_id": "FR-018.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Preferences",
+        "requirement_id": "FR-031.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Preferences",
+        "requirement_id": "FR-031.2",
+        "stage": "Stage5"
+      },
+      {
+        "owner": "Architecture/QA",
+        "requirement_id": "NFR-05",
+        "stage": "Stage2"
+      }
+    ],
+    "AC-27": [
+      {
+        "owner": "Audit Manager",
+        "requirement_id": "FR-016.2",
+        "stage": "Stage4"
+      }
+    ],
+    "AC-28": [
+      {
+        "owner": "SSH/OS Manager",
+        "requirement_id": "FR-005.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Infrastructure Registry",
+        "requirement_id": "FR-006.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Service Adapter Registry",
+        "requirement_id": "FR-007.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Service Details/Worker",
+        "requirement_id": "FR-008.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Frontend/Monitoring",
+        "requirement_id": "FR-018.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Onboarding",
+        "requirement_id": "FR-026.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Service Details",
+        "requirement_id": "FR-032.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Architecture/QA",
+        "requirement_id": "NFR-04",
+        "stage": "Stage2"
+      }
+    ],
+    "AC-29": [
+      {
+        "owner": "Activity Center",
+        "requirement_id": "FR-027.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Telegram Integration",
+        "requirement_id": "FR-027.2",
+        "stage": "Stage4"
+      }
+    ],
+    "AC-30": [
+      {
+        "owner": "Topology/Monitoring/Security",
+        "requirement_id": "FR-018.2",
+        "stage": "Stage4"
+      },
+      {
+        "owner": "Search/Palette",
+        "requirement_id": "FR-028.1",
+        "stage": "Stage5"
+      }
+    ],
+    "AC-31": [
+      {
+        "owner": "Audit Manager",
+        "requirement_id": "FR-016.2",
+        "stage": "Stage4"
+      },
+      {
+        "owner": "Topology/Monitoring/Security",
+        "requirement_id": "FR-018.2",
+        "stage": "Stage4"
+      },
+      {
+        "owner": "Support Bundle",
+        "requirement_id": "FR-030.2",
+        "stage": "Stage4"
+      }
+    ],
+    "AC-32": [
+      {
+        "owner": "Help/Runbook",
+        "requirement_id": "FR-029.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Help Center",
+        "requirement_id": "FR-029.2",
+        "stage": "Stage4"
+      }
+    ],
+    "AC-33": [
+      {
+        "owner": "SSH/OS Manager",
+        "requirement_id": "FR-005.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Infrastructure Registry",
+        "requirement_id": "FR-006.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Service Adapter Registry",
+        "requirement_id": "FR-007.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Network Discovery",
+        "requirement_id": "FR-010.1",
+        "stage": "Stage2"
+      }
+    ],
+    "AC-34": [
+      {
+        "owner": "Nginx Manager",
+        "requirement_id": "FR-011.1",
+        "stage": "Stage2"
+      }
+    ],
+    "AC-35": [
+      {
+        "owner": "Secrets Broker",
+        "requirement_id": "FR-017.1",
+        "stage": "Stage1"
+      }
+    ],
+    "AC-36": [
+      {
+        "owner": "Config/Change Plan",
+        "requirement_id": "FR-014.1",
+        "stage": "Stage2"
+      }
+    ],
+    "AC-37": [
+      {
+        "owner": "Operations/Worker",
+        "requirement_id": "FR-013.1",
+        "stage": "Stage1"
+      }
+    ],
+    "AC-38": [
+      {
+        "owner": "Backup/Recovery",
+        "requirement_id": "FR-015.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Secrets Broker",
+        "requirement_id": "FR-017.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Recovery/Rescue CLI",
+        "requirement_id": "FR-024.1",
+        "stage": "Stage1"
+      }
+    ],
+    "AC-39": [
+      {
+        "owner": "Independent Update Controller",
+        "requirement_id": "FR-022.1",
+        "stage": "Stage1"
+      }
+    ],
+    "AC-40": [
+      {
+        "owner": "Recovery/Rescue CLI",
+        "requirement_id": "FR-024.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Architecture/Security",
+        "requirement_id": "P0-1",
+        "stage": "Stage0"
+      }
+    ],
+    "AC-41": [
+      {
+        "owner": "Recovery/Rescue CLI",
+        "requirement_id": "FR-024.1",
+        "stage": "Stage1"
+      }
+    ],
+    "AC-42": [
+      {
+        "owner": "Auth",
+        "requirement_id": "FR-002.1",
+        "stage": "Stage1"
+      }
+    ],
+    "AC-43": [
+      {
+        "owner": "Nginx Manager",
+        "requirement_id": "FR-011.1",
+        "stage": "Stage2"
+      }
+    ],
+    "AC-44": [
+      {
+        "owner": "Recovery/Rescue CLI",
+        "requirement_id": "FR-024.1",
+        "stage": "Stage1"
+      }
+    ],
+    "AC-45": [
+      {
+        "owner": "Audit Manager",
+        "requirement_id": "FR-016.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Diagnostics Log Sanitizer",
+        "requirement_id": "FR-030.1",
+        "stage": "Stage1"
+      }
+    ],
+    "AC-46": [
+      {
+        "owner": "Recovery/Rescue CLI",
+        "requirement_id": "FR-024.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Architecture/Security",
+        "requirement_id": "P0-1",
+        "stage": "Stage0"
+      }
+    ],
+    "AC-47": [
+      {
+        "owner": "Backup/Recovery",
+        "requirement_id": "FR-015.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Secrets Broker",
+        "requirement_id": "FR-017.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Recovery/Rescue CLI",
+        "requirement_id": "FR-024.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Help/Runbook",
+        "requirement_id": "FR-029.1",
+        "stage": "Stage1"
+      }
+    ],
+    "AC-48": [
+      {
+        "owner": "Operations/Worker",
+        "requirement_id": "FR-013.1",
+        "stage": "Stage1"
+      }
+    ],
+    "AC-49": [
+      {
+        "owner": "Network/Firewall Manager",
+        "requirement_id": "FR-012.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Frontend/Monitoring",
+        "requirement_id": "FR-018.1",
+        "stage": "Stage2"
+      }
+    ],
+    "AC-50": [
+      {
+        "owner": "Independent Update Controller",
+        "requirement_id": "FR-022.1",
+        "stage": "Stage1"
+      }
+    ],
+    "AC-51": [
+      {
+        "owner": "Recovery/Rescue CLI",
+        "requirement_id": "FR-024.1",
+        "stage": "Stage1"
+      }
+    ],
+    "AC-52": [
+      {
+        "owner": "Operations/Worker",
+        "requirement_id": "FR-013.1",
+        "stage": "Stage1"
+      }
+    ],
+    "AC-A01": [
+      {
+        "owner": "Recovery/Rescue CLI",
+        "requirement_id": "FR-024.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Architecture/Security",
+        "requirement_id": "P0-1",
+        "stage": "Stage0"
+      }
+    ],
+    "AC-A02": [
+      {
+        "owner": "Backup/Recovery",
+        "requirement_id": "FR-015.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Secrets Broker",
+        "requirement_id": "FR-017.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Recovery/Rescue CLI",
+        "requirement_id": "FR-024.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Architecture/Security",
+        "requirement_id": "P0-2",
+        "stage": "Stage0"
+      }
+    ],
+    "AC-A03": [
+      {
+        "owner": "Backup/Recovery",
+        "requirement_id": "FR-015.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Architecture/QA",
+        "requirement_id": "NFR-03",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Architecture/Security",
+        "requirement_id": "P0-2",
+        "stage": "Stage0"
+      }
+    ],
+    "AC-A04": [
+      {
+        "owner": "Auth",
+        "requirement_id": "FR-002.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "RBAC/Policy",
+        "requirement_id": "FR-003.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Secrets Broker",
+        "requirement_id": "FR-017.1",
+        "stage": "Stage1"
+      }
+    ],
+    "AC-A05": [
+      {
+        "owner": "Service Details/Worker",
+        "requirement_id": "FR-008.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Operations/Worker",
+        "requirement_id": "FR-013.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Recovery/Rescue CLI",
+        "requirement_id": "FR-024.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Architecture/Security",
+        "requirement_id": "P0-1",
+        "stage": "Stage0"
+      }
+    ],
+    "AC-A06": [
+      {
+        "owner": "Recovery/Rescue CLI",
+        "requirement_id": "FR-024.1",
+        "stage": "Stage1"
+      }
+    ],
+    "AC-A07": [
+      {
+        "owner": "SSH/OS Manager",
+        "requirement_id": "FR-005.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Service Adapter Registry",
+        "requirement_id": "FR-007.1",
+        "stage": "Stage2"
+      }
+    ],
+    "AC-A08": [
+      {
+        "owner": "Nginx Manager",
+        "requirement_id": "FR-011.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Operations/Worker",
+        "requirement_id": "FR-013.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Config/Change Plan",
+        "requirement_id": "FR-014.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Architecture/Security",
+        "requirement_id": "P0-3",
+        "stage": "Stage0"
+      }
+    ],
+    "AC-A09": [
+      {
+        "owner": "Operations/Worker",
+        "requirement_id": "FR-013.1",
+        "stage": "Stage1"
+      }
+    ],
+    "AC-A10": [
+      {
+        "owner": "Operations/Worker",
+        "requirement_id": "FR-013.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Audit Manager",
+        "requirement_id": "FR-016.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Architecture/QA",
+        "requirement_id": "NFR-02",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Architecture/Security",
+        "requirement_id": "P0-4",
+        "stage": "Stage0"
+      }
+    ],
+    "AC-A11": [
+      {
+        "owner": "Backup/Recovery",
+        "requirement_id": "FR-015.1",
+        "stage": "Stage2"
+      }
+    ],
+    "AC-A12": [
+      {
+        "owner": "Backup/Recovery",
+        "requirement_id": "FR-015.1",
+        "stage": "Stage2"
+      }
+    ],
+    "AC-A13": [
+      {
+        "owner": "Backup/Recovery",
+        "requirement_id": "FR-015.1",
+        "stage": "Stage2"
+      }
+    ],
+    "AC-A14": [
+      {
+        "owner": "Secrets Broker",
+        "requirement_id": "FR-017.1",
+        "stage": "Stage1"
+      }
+    ],
+    "AC-A15": [
+      {
+        "owner": "Independent Update Controller",
+        "requirement_id": "FR-022.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Architecture/QA",
+        "requirement_id": "NFR-06",
+        "stage": "Stage2"
+      }
+    ],
+    "AC-A16": [
+      {
+        "owner": "Nginx Manager",
+        "requirement_id": "FR-011.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Service Details",
+        "requirement_id": "FR-032.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Architecture/Security",
+        "requirement_id": "P0-3",
+        "stage": "Stage0"
+      }
+    ],
+    "AC-A17": [
+      {
+        "owner": "Service Details/Worker",
+        "requirement_id": "FR-008.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Audit Manager",
+        "requirement_id": "FR-016.1",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Diagnostics Log Sanitizer",
+        "requirement_id": "FR-030.1",
+        "stage": "Stage1"
+      }
+    ],
+    "AC-A18": [
+      {
+        "owner": "RBAC/Policy",
+        "requirement_id": "FR-003.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "SSH/OS Manager",
+        "requirement_id": "FR-005.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Network Discovery",
+        "requirement_id": "FR-010.1",
+        "stage": "Stage2"
+      }
+    ],
+    "AC-A19": [
+      {
+        "owner": "Operations/Worker",
+        "requirement_id": "FR-013.1",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Architecture/Security",
+        "requirement_id": "P0-4",
+        "stage": "Stage0"
+      }
+    ],
+    "AC-A20": [
+      {
+        "owner": "Architecture/QA",
+        "requirement_id": "NFR-07",
+        "stage": "Stage1"
+      }
+    ],
+    "AC-A21": [
+      {
+        "owner": "Recovery/Rescue CLI",
+        "requirement_id": "FR-024.1",
+        "stage": "Stage1"
+      }
+    ],
+    "AC-A22": [
+      {
+        "owner": "Architecture/QA",
+        "requirement_id": "NFR-08",
+        "stage": "Stage2"
+      }
+    ],
+    "AC-B01": [
+      {
+        "owner": "Architecture/QA",
+        "requirement_id": "NFR-02",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Architecture/Security",
+        "requirement_id": "P0-4",
+        "stage": "Stage0"
+      },
+      {
+        "owner": "Execution/Adapter",
+        "requirement_id": "CTRL-B01",
+        "stage": "Stage0"
+      }
+    ],
+    "AC-B02": [
+      {
+        "owner": "Architecture/QA",
+        "requirement_id": "NFR-03",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Architecture/QA",
+        "requirement_id": "NFR-08",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Architecture/Security",
+        "requirement_id": "P0-2",
+        "stage": "Stage0"
+      },
+      {
+        "owner": "Backup Coordinator",
+        "requirement_id": "CTRL-B02",
+        "stage": "Stage0"
+      }
+    ],
+    "AC-B03": [
+      {
+        "owner": "Architecture/QA",
+        "requirement_id": "NFR-03",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Architecture/Security",
+        "requirement_id": "P0-2",
+        "stage": "Stage0"
+      },
+      {
+        "owner": "Rescue/Recovery",
+        "requirement_id": "CTRL-B03",
+        "stage": "Stage0"
+      }
+    ],
+    "AC-B04": [
+      {
+        "owner": "Architecture/Security",
+        "requirement_id": "P0-1",
+        "stage": "Stage0"
+      },
+      {
+        "owner": "Operations/Policy",
+        "requirement_id": "CTRL-B04",
+        "stage": "Stage0"
+      }
+    ],
+    "AC-B05": [
+      {
+        "owner": "Backup/Resource Restore",
+        "requirement_id": "CTRL-B05",
+        "stage": "Stage2"
+      }
+    ],
+    "AC-B06": [
+      {
+        "owner": "Architecture/QA",
+        "requirement_id": "NFR-05",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Architecture/QA",
+        "requirement_id": "NFR-07",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Requirements/Auth",
+        "requirement_id": "CTRL-B06",
+        "stage": "Stage0"
+      }
+    ],
+    "AC-B07": [
+      {
+        "owner": "Architecture/QA",
+        "requirement_id": "NFR-07",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Architecture/QA",
+        "requirement_id": "CTRL-B07",
+        "stage": "Stage0"
+      }
+    ],
+    "AC-B08": [
+      {
+        "owner": "SSH/OS",
+        "requirement_id": "CTRL-B08",
+        "stage": "Stage0"
+      }
+    ],
+    "AC-B09": [
+      {
+        "owner": "Architecture/QA",
+        "requirement_id": "NFR-02",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Architecture/QA",
+        "requirement_id": "NFR-06",
+        "stage": "Stage2"
+      },
+      {
+        "owner": "Architecture/Security",
+        "requirement_id": "P0-4",
+        "stage": "Stage0"
+      },
+      {
+        "owner": "Updater/Operations",
+        "requirement_id": "CTRL-B09",
+        "stage": "Stage0"
+      }
+    ],
+    "AC-B10": [
+      {
+        "owner": "Architecture/QA",
+        "requirement_id": "NFR-01",
+        "stage": "Stage1"
+      },
+      {
+        "owner": "Secrets Broker",
+        "requirement_id": "CTRL-B10",
+        "stage": "Stage0"
+      }
+    ]
+  },
+  "adr_amendment_clause_present": true,
+  "checker_sha256": "2d59e1397a4da2419bcbaf00424b87a80df86ff15c0a0b422c77093c66864f9b",
+  "execution": "Local actual-source baseline check, plus reviewed CI regression tests at the manifest source revision",
+  "incident_is_separate": true,
+  "job_unknown_is_terminal": true,
+  "machines": {
+    "Host Admission Gate": "NORMAL → QUIESCING → MAINTENANCE → RESUMING → NORMAL",
+    "Incident": "OPEN → RECONCILING → RECONCILED_SUCCEEDED | RECONCILED_FAILED | QUARANTINED",
+    "Job": "QUEUED → INTENT_PREPARED → DISPATCHING → EXECUTING → VERIFYING → SUCCEEDED | FAILED | UNKNOWN_OUTCOME | CANCELLED_SAFE",
+    "Plan": "DRAFT → PREFLIGHTED → AWAITING_APPROVAL → APPROVED → EXECUTION_CLAIMED → CLOSED"
+  },
+  "normative_section": 40,
+  "outcome": "PASS",
+  "owner_attestation_exclusion_present": true,
+  "registry_input_sha256": "27dd0d50aabc90b7111932dacd78a9c5cbfd5065d71e5981c7548b0a5567b264",
+  "requirement_index_count": 71,
+  "scope": "Document and trace validation; does not certify runtime transitions or Owner truthfulness",
+  "spec_sha256": "550cdc3afef5570c3b2cf0662fd3311a5e2d680f2892643f363646409a539426",
+  "stage0_required_tests": [
+    "AC-A01",
+    "AC-A02",
+    "AC-A03",
+    "AC-A04",
+    "AC-A05",
+    "AC-A20",
+    "AC-B01",
+    "AC-B02",
+    "AC-B03",
+    "AC-B04",
+    "AC-B06",
+    "AC-B07",
+    "AC-B08",
+    "AC-B09",
+    "AC-B10"
+  ]
+}
