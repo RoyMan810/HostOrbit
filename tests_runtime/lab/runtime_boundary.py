@@ -399,7 +399,7 @@ Match User {account}
             # Print only daemon startup diagnostics; never dump request bodies, key files or Vault data.
             for path in lab.glob("*.log"):
                 data = path.read_text(errors="replace")
-                if "Traceback" in data or "Error" in data or "error" in data:
+                if path.name.startswith("sshd-") or "Traceback" in data or "Error" in data or "error" in data:
                     print(path.name, data[-4000:], file=sys.stderr)
             raise
         finally:

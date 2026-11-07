@@ -68,9 +68,17 @@ def probe(target, private_key, known_hosts):
         raise Denied("SSH_HOST_KEY_MISMATCH") from None
     except asyncssh.PermissionDenied:
         raise Denied("SSH_AUTHENTICATION_FAILED") from None
+    except asyncssh.KeyExchangeFailed:
+        raise Denied("SSH_KEY_EXCHANGE_FAILED") from None
+    except asyncssh.ConnectionLost:
+        raise Denied("SSH_CONNECTION_LOST") from None
+    except asyncssh.ProtocolError:
+        raise Denied("SSH_PROTOCOL_ERROR") from None
     except (asyncio.TimeoutError, TimeoutError):
         raise Denied("SSH_TIMEOUT") from None
-    except (asyncssh.Error, OSError):
+    except OSError:
+        raise Denied("SSH_NETWORK_UNAVAILABLE") from None
+    except asyncssh.Error:
         raise Denied("SSH_CONNECTION_FAILED") from None
     # Arbitrary third-party stdout/stderr is never a public result, log payload or exception message.
     try:

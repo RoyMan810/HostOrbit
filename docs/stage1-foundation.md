@@ -38,7 +38,7 @@ Owner управляет прикладными правами. Admin испол
 
 ## SQLite и события
 
-Инициализация выполняется явно. Каталог имеет доступ только владельцу процесса, файл БД — mode 0600; symlink БД отклоняется. Соединения проверяют WAL, synchronous FULL, foreign keys ON, busy timeout 5000 и точную версию схемы. Отсутствующая БД не создаётся при запросе, неизвестная схема закрывает доступ.
+Инициализация выполняется явно. В приватном режиме каталог имеет mode 0700, файл БД — 0600. Для разных UID API и Worker явно задаются владелец и отдельная группа БД, directory mode 2770 и file mode 0660; права проверяются при каждом соединении. Symlink БД отклоняется. Соединения проверяют WAL, synchronous FULL, foreign keys ON, busy timeout 5000 и допустимую версию схемы. Отсутствующая БД не создаётся при запросе, неизвестная схема закрывает доступ.
 
 Изменение состояния, hash chain Audit и Outbox сохраняются одной транзакцией. SQLite triggers отклоняют обычные UPDATE/DELETE Audit/Outbox. Проверка `Store.verify_audit()` сравнивает цепочку и соответствие Outbox. Backend остаётся внутри TCB и имеет доступ к application SQLite; защита от переписывающего всю БД root/Backend RCE этим механизмом не заявлена.
 
@@ -52,4 +52,4 @@ Owner управляет прикладными правами. Admin испол
 
 Тесты включают гонку bootstrap, реальный SIGKILL до commit, ошибку записи Outbox, конкурентные ETag updates, обход RBAC, отзыв сессий, CSRF, лимиты и подмену proxy headers. В CI выделен отдельный Python 3.13 job.
 
-Stage1 ещё требует прикладной интеграции Broker, Worker и независимого host admission supervisor с ограниченным helper. В этом срезе HTTP не имеет путей выполнения SSH, Docker, обновления или дешифрования Vault. Stage2 Change Plan/UI и общий gate Stage1 пока не принимаются. Canonical registry и отдельные принятые evidence определяют переходы этапов.
+[Runtime contour](stage1-runtime.md) добавляет фиксированный read-only SSH probe через очередь, отдельные Worker/Broker и host authority. Browser получает только нормализованное наблюдение. Docker, обновления и generic decrypt не входят в installed registry. Stage2 Change Plan/UI, полный установщик и общий gate Stage1 пока не принимаются. Canonical registry и отдельные принятые evidence определяют переходы этапов.
