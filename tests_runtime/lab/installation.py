@@ -247,7 +247,7 @@ print(json.dumps(out))
                 raise RuntimeError("Compose service did not recover after restart")
             print("Repeated install was denied without key replacement; systemd Compose restart preserved the installation.", flush=True)
         except Exception:
-            for service in ("hostorbit-broker.service", "hostorbit-supervisor.service", "hostorbit-compose.service"):
+            for service in ("hostorbit-vault-initialize.service", "hostorbit-broker.service", "hostorbit-supervisor.service", "hostorbit-compose.service"):
                 result = run("/usr/bin/journalctl", "--unit", service, "--no-pager", "--lines", "40", check=False)
                 print(result.stdout.decode(errors="replace"), file=sys.stderr)
             raise

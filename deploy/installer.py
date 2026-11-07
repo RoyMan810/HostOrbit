@@ -304,7 +304,7 @@ def install(args):
                 "--database-group", cfg["app_gid"], "init")
         command(runtime, "--config", CONFIG / "runtime.json", "initialize-supervisor")
         # systemd gives just this UID a private copy of the OS credential.
-        command("/usr/bin/systemd-run", "--quiet", "--wait", "--collect", "--property=User=ho-broker",
+        command("/usr/bin/systemd-run", "--unit=hostorbit-vault-initialize", "--quiet", "--wait", "--collect", "--property=User=ho-broker",
                 "--property=Group=ho-broker", "--property=SupplementaryGroups=ho-gate-rpc",
                 "--property=UMask=0077", "--property=LoadCredential=broker-dek:" + cfg["vault_credential"],
                 runtime, "--config", CONFIG / "runtime.json", "initialize-broker")

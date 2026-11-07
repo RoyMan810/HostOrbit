@@ -12,6 +12,7 @@ permissions:
 env:
   HOSTORBIT_LAB_DOCKER_VERSION: "29.9.3"
   HOSTORBIT_LAB_PYTHON_IMAGE: docker.io/library/python@sha256:f3dac913ab53b78c64f26d5518fcd7043d5a1a46522d6a493b598c3ed12f62a6
+  HOSTORBIT_INSTALL_PYTHON_IMAGE: docker.io/library/python@sha256:09a17cad02668ae61ece136b4fd36ac3849e14f670ebedb637ea3e15580525bc
 
 jobs:
   installation:
@@ -43,10 +44,8 @@ jobs:
           PY
       - name: Build the signed wheel bundle without placing its private signer inside
         run: |
-          docker pull python:3.13.18-slim-trixie
-          resolved=$(docker image inspect python:3.13.18-slim-trixie --format '{{index .RepoDigests 0}}')
-          python_image="docker.io/library/python@${resolved##*@}"
-          echo "Resolved installation runtime: $python_image"
+          python_image="$HOSTORBIT_INSTALL_PYTHON_IMAGE"
+          docker pull "$python_image"
           docker run --rm --network none "$python_image" python -c 'import sys,sqlite3; print(sys.version); print(sqlite3.sqlite_version); assert sys.version_info[:2]==(3,13) and sqlite3.sqlite_version_info>=(3,45)'
           python deploy/build_bundle.py --output "$RUNNER_TEMP/hostorbit-install-bundle" \
             --signing-key "$RUNNER_TEMP/hostorbit-lab-signer.seed" \
