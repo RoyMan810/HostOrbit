@@ -21,6 +21,6 @@ sudo /opt/hostorbit/venv/bin/hostorbit \
 
 ## Граница текущего блока
 
-Команды live apply пока нет. Успешная репетиция не выдаёт maintenance permit, не подтверждает Vault/DEK portability, `RESTORE_ATTESTED` или DR readiness. Для применения к рабочей БД требуется связать утверждённый update plan и подписанный совместимый release с независимым host authority, согласованной off-host ControllerBackup ≤30 минут, проверенной restore-процедурой и host TimeHealth. Эти предусловия не заменяются boolean-флагами или `--force`.
+Команды live apply пока нет. Успешная репетиция не выдаёт maintenance permit, не подтверждает Vault/DEK portability, `RESTORE_ATTESTED` или DR readiness. Для применения к рабочей БД требуется связать утверждённый update plan и подписанный совместимый release с независимым host authority, согласованной off-host ControllerBackup ≤30 минут, проверенной restore-процедурой и host TimeHealth. [Host TimeHealth](stage1-time-health.md) уже проверяется независимым supervisor; его привязка к live migration остаётся частью следующего updater workflow. Эти предусловия не заменяются boolean-флагами или `--force`.
 
 Тесты проверяют реальную схему 1, committed WAL, параллельного writer, сохранение Auth/session и целостности аудита, schema drift, broken FK/Audit, отказ Outbox и `SIGKILL` до/после commit. Отдельный installation job выполняет CLI из установленного подписанного wheel на временной Ubuntu VM. Stage1 и MVP release gate остаются открытыми.

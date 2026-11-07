@@ -119,10 +119,11 @@ def configure_source(root, source):
         write(path, "[Time]\nNTP=\nNTP=127.0.0.1\nFallbackNTP=\nPollIntervalMinSec=16s\nPollIntervalMaxSec=16s\n")
         unit = "systemd-timesyncd.service"
     else:
-        config = root / "chrony.conf"
+        # Keep the fixture in Ubuntu's permitted configuration tree. The stock
+        # AppArmor profile intentionally denies an arbitrary /run config path.
+        config = Path("/etc/chrony/conf.d/hostorbit-time-lab.conf")
         write(config, "server 127.0.0.1 port 123 iburst minpoll 0 maxpoll 0\nport 0\ncmdport 0\n"
-              "bindcmdaddress /run/chrony/chronyd.sock\npidfile /run/chrony/hostorbit-time-lab.pid\n"
-              "driftfile /run/chrony/hostorbit-time-lab.drift\n")
+              "bindcmdaddress /run/chrony/chronyd.sock\npidfile /run/chrony/chronyd.pid\n")
         write(Path("/run/systemd/system/chrony.service.d/99-hostorbit-time-lab.conf"),
               "[Service]\nType=simple\nPIDFile=\nExecStart=\n"
               f"ExecStart=/usr/sbin/chronyd -d -x -U -u _chrony -f {config}\n")

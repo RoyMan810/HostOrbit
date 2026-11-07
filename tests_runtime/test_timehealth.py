@@ -183,6 +183,26 @@ class TimeHealthTests(unittest.TestCase):
         with self.assertRaisesRegex(Denied, "TIME_UNTRUSTED"):
             self.health.anchor(plan, 1)
 
+    def test_anchor_cannot_move_to_another_plan_revision_or_nonce(self):
+        plan = identifier()
+        anchor = self.health.anchor(plan, 1)
+        for changed_plan, revision in ((identifier(), 1), (plan, 2)):
+            with self.assertRaisesRegex(Denied, "TIME_UNTRUSTED"):
+                self.health.validate(anchor, changed_plan, revision)
+        changed = {**anchor, "nonce": "f" * 64}
+        with self.assertRaisesRegex(Denied, "TIME_UNTRUSTED"):
+            self.health.validate(changed, plan, 1)
+
+    def test_existing_journal_requires_recovery_before_a_new_process_can_use_it(self):
+        plan = identifier()
+        anchor = self.health.anchor(plan, 1)
+        other = TimeHealth(self.root / "time", source=self.rig.source, clock=self.rig.clock, watch=TestWatch())
+        self.addCleanup(other.close)
+        self.assertEqual(other.poll()["state"], "UNTRUSTED")
+        other.recover()
+        with self.assertRaisesRegex(Denied, "TIME_UNTRUSTED"):
+            other.validate(anchor, plan, 1)
+
     def test_missing_state_never_creates_an_automatic_replacement(self):
         missing = self.root / "missing"
         health = TimeHealth(missing, source=self.rig.source, clock=self.rig.clock, watch=TestWatch())

@@ -10,6 +10,8 @@ Self-hosted система управления Linux-серверами. Раз
 
 [Репетиция миграции БД](docs/stage1-migrations.md) проверяет историческую схему 1 → 2 на приватных WAL-согласованных копиях. Рабочая БД открывается read-only; live apply остаётся закрытым до связывания maintenance, backup и TimeHealth gates.
 
+[TimeHealth](docs/stage1-time-health.md) проверяет host chrony/timesyncd, clock continuity и подписанные привязки времени к ревизиям планов. Недостоверное время закрывает mutating admission и удерживает прерванное обновление в `RECOVERY_HOLD`; read-only probe остаётся доступен.
+
 [Приёмка Stage0](evidence/acceptance/stage0-2026-11-07/README.md): 15 обязательных лабораторных критериев имеют проверенные отчёты `PASS`. Рецензирование выполнено автоматической самопроверкой Codex с явными ограничениями стенда. Остальные 69 AC сохраняют `NOT_RUN`; Stage1 и выпуск MVP остаются открытыми.
 
 ## Допуск к изменениям

@@ -2,7 +2,7 @@
 
 Stage1 получил первый прикладной сквозной контур. Авторизованный пользователь запрашивает проверку зарегистрированной VPS, Worker получает одноразовый допуск host authority, Broker проверяет собственный scope и использует SSH-ключ внутри своего процесса. Проверенный ответ становится результатом Job и событием Outbox.
 
-Встроенный registry разрешает только `host.probe`. Он проверяет достижимость ограниченного root helper и возвращает `REACHABLE`, источник, время и boot ID. Это наблюдение не означает здоровье всех служб VPS. Docker restart, Nginx reload, обновления и другие инфраструктурные изменения остаются выключенными до реализации соответствующих preflight, Backup Gate, TimeHealth и reconciliation controls.
+Встроенный registry разрешает только `host.probe`. Он проверяет достижимость ограниченного root helper и возвращает `REACHABLE`, источник, время и boot ID. Это наблюдение не означает здоровье всех служб VPS. Docker restart, Nginx reload, обновления и другие инфраструктурные изменения остаются выключенными до реализации соответствующих preflight, Backup Gate и reconciliation controls. [Host TimeHealth](stage1-time-health.md) уже включён в mutating admission/consumption и maintenance transitions; production mutating registry остаётся закрытым.
 
 ## HTTP контракт
 
