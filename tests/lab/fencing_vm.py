@@ -2,14 +2,16 @@
 """Managed service and restricted SSH fixture for the VM fencing experiment."""
 
 import base64
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 import hashlib
+import json
 import os
 from pathlib import Path
 import re
 import runpy
 import secrets
+import shutil
 import signal
 import socket
 import subprocess
@@ -24,6 +26,8 @@ _PROBE = b'{"operation":"probe","target":"stage0-fixture","version":1}\n'
 _PROBE_OK = b'{"status":"OK","uid":0,"version":1}\n'
 _RESTART = b'{"operation":"restart-service-fixture","target":"stage0-fixture","version":1}\n'
 _RESTART_COMMAND = "hostorbit.stage0.restart-service-fixture"
+# The daemon waits through the recovery guest's cold boot. The direct client still has a short bound.
+_DOCKER_STOP_TIMEOUT = 420
 
 
 def systemctl(*args, check=True):
@@ -42,16 +46,26 @@ def invocation(unit):
 
 def installed_main():
     path = Path(__file__)
+    docker_script = path.with_name("docker-restart-fixture")
+    docker = runpy.run_path(str(docker_script)) if docker_script.is_file() else None
     if path.name == "ssh-gateway":
         forward = runpy.run_path(str(path.with_name("probe-gateway")))["forward"]
-        if os.environ.get("SSH_ORIGINAL_COMMAND") == _RESTART_COMMAND:
+        command = os.environ.get("SSH_ORIGINAL_COMMAND")
+        if docker is not None and command == docker["COMMAND"]:
+            return forward(command, docker["REQUEST"], timeout=45)
+        if command == _RESTART_COMMAND:
             return forward(_RESTART_COMMAND, _RESTART, timeout=20)
         return forward("hostorbit.stage0.probe", _PROBE)
     if path.name != "typed-helper" or os.geteuid() != 0 or len(sys.argv) != 1:
         return 65
     signal.alarm(5)
-    payload = sys.stdin.buffer.read(len(_RESTART) + 1)
+    docker_request = docker["REQUEST"] if docker is not None else b""
+    payload = sys.stdin.buffer.read(max(len(_RESTART), len(docker_request)) + 1)
     signal.alarm(0)
+    if docker is not None and payload == docker_request:
+        return docker["restart_fixture"](
+            path.with_name("restart-fixture"), payload=payload, stop_timeout=_DOCKER_STOP_TIMEOUT,
+        )
     if payload == _PROBE:
         sys.stdout.buffer.write(_PROBE_OK)
         return 0
@@ -86,11 +100,97 @@ def key_fingerprint(public):
 
 
 @dataclass(frozen=True)
+class DeferredRestart:
+    volume: Path
+    container: str
+    unit: str
+    state_dir: Path
+    initial: str
+
+    def require_pending(self):
+        from docker_late_effect import state
+        from ssh_systemd_docker import empty_cgroup
+
+        group = Path("/sys/fs/cgroup/system.slice") / self.unit
+        if (not empty_cgroup(group) or not (self.volume / "stop-received").is_file()
+                or (self.volume / "release-stop").exists() or state(self.container)["StartedAt"] != self.initial):
+            raise RuntimeError("Expected the Docker effect to remain pending with an empty direct cgroup")
+
+    def stop_direct_client(self):
+        from docker_late_effect import wait_for
+        from ssh_systemd_docker import empty_cgroup, running_restart_cgroup
+
+        wait_for((self.volume / "stop-received").exists, "the Docker daemon to start stopping the container")
+        group = running_restart_cgroup(self.state_dir, self.container, self.unit)
+        (group / "cgroup.kill").write_text("1", encoding="ascii")
+        wait_for(lambda: empty_cgroup(group), "the Docker client cgroup to empty", seconds=8)
+        self.require_pending()
+
+    def release_and_verify(self):
+        from docker_late_effect import docker, wait_for, wait_for_late_restart
+        from ssh_systemd_docker import empty_cgroup
+
+        self.require_pending()
+        ready = self.volume / "ready"
+        ready.unlink()
+        (self.volume / "release-stop").touch()
+        restarted_at = wait_for_late_restart(self.container, self.initial)
+        wait_for(ready.exists, "the restarted container to become ready")
+        events = docker(
+            "events", "--since", self.initial, "--until", str(int(time.time()) + 1),
+            "--filter", f"container={self.container}", "--filter", "event=restart", "--format", "{{.Action}}",
+            timeout=8,
+        )
+        if events.splitlines() != ["restart"]:
+            raise RuntimeError("Expected one Docker restart event for the isolated fixture")
+        if not empty_cgroup(Path("/sys/fs/cgroup/system.slice") / self.unit):
+            raise RuntimeError("The direct Docker client cgroup is no longer empty")
+        print(f"The Docker effect completed late and the container became ready ({restarted_at}).", flush=True)
+
+
+@contextmanager
+def deferred_restart(lab, helper_dir, image):
+    from docker_late_effect import docker, start_delayed_container, state, wait_for
+    from ssh_restart_fixture import DOCKER_HOST, local_docker_socket
+
+    daemon = os.environ.get("HOSTORBIT_LAB_DOCKER_HOST", DOCKER_HOST)
+    if not local_docker_socket(daemon):
+        raise RuntimeError("The deferred fixture requires a local Docker Unix socket")
+    os.environ["DOCKER_HOST"] = daemon
+    os.environ.pop("DOCKER_CONTEXT", None)
+    docker("pull", "--platform", "linux/amd64", image, timeout=90)
+    state_dir = helper_dir / "restart-fixture"
+    docker_script = helper_dir / "docker-restart-fixture"
+    unit = f"hostorbit-stage0-restart-{secrets.token_hex(8)}.service"
+    state_dir.mkdir(mode=0o700)
+    container = None
+    try:
+        shutil.copyfile(Path(__file__).with_name("ssh_restart_fixture.py"), docker_script)
+        docker_script.chmod(0o644)
+        volume, container = start_delayed_container(lab, image)
+        wait_for((volume / "ready").exists, "deferred Docker fixture startup")
+        (state_dir / "spec.json").write_text(
+            json.dumps({"container": container, "unit": unit, "docker_host": daemon}), encoding="ascii",
+        )
+        yield DeferredRestart(volume, container, unit, state_dir, state(container)["StartedAt"])
+    finally:
+        try:
+            if container is not None:
+                (volume / "release-stop").touch()
+                systemctl("stop", unit, check=False)
+                docker("container", "rm", "-f", container, timeout=35)
+        finally:
+            docker_script.unlink(missing_ok=True)
+            shutil.rmtree(state_dir)
+
+
+@dataclass(frozen=True)
 class ManagedService:
     lab: Path
     port: int
     key_file: Path
     unit: str
+    deferred: DeferredRestart | None
 
     @property
     def host_key(self):
@@ -112,7 +212,7 @@ class ManagedService:
 
 
 @contextmanager
-def managed_service(lab, port, helper_dir, key_file):
+def managed_service(lab, port, helper_dir, key_file, docker_image=None):
     unit = f"hostorbit-stage0-fencing-{secrets.token_hex(8)}.service"
     gateway, helper = helper_dir / "ssh-gateway", helper_dir / "typed-helper"
     original = {path: path.read_bytes() for path in (gateway, helper)}
@@ -128,7 +228,9 @@ def managed_service(lab, port, helper_dir, key_file):
         fixture = Path(__file__).read_bytes()
         for path in (gateway, helper):
             path.write_bytes(fixture)
-        yield ManagedService(lab, port, key_file, unit)
+        experiment = deferred_restart(lab, helper_dir, docker_image) if docker_image else nullcontext()
+        with experiment as deferred:
+            yield ManagedService(lab, port, key_file, unit, deferred)
     finally:
         try:
             systemctl("stop", unit, check=False)
@@ -166,11 +268,25 @@ def source_restart(root, identity, known_hosts):
     return restart(gate, identity, known_hosts)
 
 
-def expect_denial(code, operation, *args):
+def restart_docker(gate, identity, known_hosts):
+    from ssh_restart_fixture import COMMAND, REQUEST
+    from stage0.admission import FixtureObservation, Outcome
+
+    permit = gate.admit_remote("managed", "fixture-docker-restart")
+    result = ssh(identity, known_hosts, MANAGED_HOST, MANAGED_PORT, COMMAND, REQUEST)
+    if result.returncode == 0:
+        raise RuntimeError("The deferred Docker request completed before its client was interrupted")
+    observed = gate.report_remote(permit, FixtureObservation(False, False, False))
+    if observed != Outcome.UNKNOWN:
+        raise RuntimeError("SSH interruption incorrectly settled the Docker effect")
+    return observed
+
+
+def expect_denial(code, operation, *args, **kwargs):
     from stage0.admission import Denied
 
     try:
-        operation(*args)
+        operation(*args, **kwargs)
     except Denied as error:
         if str(error) == code:
             return
@@ -194,7 +310,7 @@ def recovery_gate(root, identity, known_hosts, target):
         return gate
 
 
-def attestation(target, owner, managed, new_key, off_at):
+def attestation(target, owner, managed, new_key, off_at, *, delegated_terminal):
     from stage0.recovery import RecoveryTarget, activation_attestation
 
     time.sleep(max(0, off_at + 10 - time.time()))
@@ -215,7 +331,8 @@ def attestation(target, owner, managed, new_key, off_at):
                 "evidence": "restricted SSH denied the old key and accepted the new probe",
                 "reachable": True, "credentials_rotated": True, "old_key_denied": True, "new_key_verified": True,
                 "old_key_sha256": key_fingerprint(managed.old_key), "new_key_sha256": key_fingerprint(new_key),
-                "direct_stopped": True, "delegated_terminal": True, "postconditions_verified": True,
+                "direct_stopped": True, "delegated_terminal": delegated_terminal,
+                "postconditions_verified": delegated_terminal,
             },
             "unavailable": {"evidence": "unreachable test endpoint", "reachable": False},
         },

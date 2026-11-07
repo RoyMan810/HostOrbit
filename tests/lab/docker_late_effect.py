@@ -32,6 +32,14 @@ def state(container):
     return json.loads(docker("container", "inspect", "--format", "{{json .State}}", container))
 
 
+def wait_for_late_restart(container, initial):
+    def restarted():
+        current = state(container)
+        return current["StartedAt"] if current["Running"] and current["StartedAt"] != initial else None
+
+    return wait_for(restarted, "daemon to complete the late restart")
+
+
 def require_denied(code, operation, *args):
     try:
         operation(*args)
@@ -55,7 +63,7 @@ def kill_client(client):
         raise RuntimeError("Restart client exited before SIGKILL")
 
 
-def exercise(root, image, *, launch_restart=launch_local_restart, stop_remote=None):
+def start_delayed_container(root, image):
     volume = root / "volume"
     volume.mkdir()
     program = Path(__file__).with_name("delayed_container.py").resolve()
@@ -67,6 +75,11 @@ def exercise(root, image, *, launch_restart=launch_local_restart, stop_remote=No
         "--mount", f"type=bind,source={program},target=/lab/fixture.py,readonly",
         image, "python", "/lab/fixture.py",
     )
+    return volume, container
+
+
+def exercise(root, image, *, launch_restart=launch_local_restart, stop_remote=None):
+    volume, container = start_delayed_container(root, image)
     client = None
     try:
         wait_for((volume / "ready").exists, "fixture startup")
@@ -100,11 +113,7 @@ def exercise(root, image, *, launch_restart=launch_local_restart, stop_remote=No
 
         (volume / "release-stop").touch()
 
-        def restarted():
-            current = state(container)
-            return current["StartedAt"] if current["Running"] and current["StartedAt"] != initial else None
-
-        restarted_at = wait_for(restarted, "daemon to complete the late restart")
+        restarted_at = wait_for_late_restart(container, initial)
         if gate.outcome("fixture-restart") != Outcome.UNKNOWN:
             raise RuntimeError("Late observation rewrote the terminal attempt")
         require_denied("QUARANTINED", gate.admit_remote, "dependent-host", "next")

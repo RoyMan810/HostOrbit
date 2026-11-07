@@ -36,6 +36,20 @@ def empty_cgroup(group):
         return True
 
 
+def running_restart_cgroup(state_dir, container, unit):
+    receipt = (state_dir / "receipt").read_text(encoding="ascii")
+    if receipt != f"{container} {unit}\n":
+        raise RuntimeError("Unexpected typed helper receipt")
+    running = unit_state(unit)
+    cgroup = running["ControlGroup"]
+    if running["ActiveState"] != "active" or running["MainPID"] == "0" or cgroup != f"/system.slice/{unit}":
+        raise RuntimeError("Docker client was not running inside the expected transient unit")
+    group = Path("/sys/fs/cgroup") / cgroup.lstrip("/")
+    if running["MainPID"] not in (group / "cgroup.procs").read_text(encoding="ascii").split():
+        raise RuntimeError("Transient unit cgroup did not contain its Docker client")
+    return group
+
+
 def experiment(lab, port, helper_dir, authorized_keys, image, daemon):
     state_dir = helper_dir / "restart-fixture"
     state_dir.mkdir(mode=0o700)
@@ -60,16 +74,7 @@ def experiment(lab, port, helper_dir, authorized_keys, image, daemon):
             return subprocess.Popen(ssh, stdin=request, stdout=subprocess.DEVNULL)
 
     def stop_remote(client, container):
-        receipt = (state_dir / "receipt").read_text(encoding="ascii")
-        if receipt != f"{container} {unit}\n":
-            raise RuntimeError("Unexpected typed helper receipt")
-        running = unit_state(unit)
-        cgroup = running["ControlGroup"]
-        if running["ActiveState"] != "active" or running["MainPID"] == "0" or cgroup != f"/system.slice/{unit}":
-            raise RuntimeError("Docker client was not running inside the expected transient unit")
-        group = Path("/sys/fs/cgroup") / cgroup.lstrip("/")
-        if running["MainPID"] not in (group / "cgroup.procs").read_text(encoding="ascii").split():
-            raise RuntimeError("Transient unit cgroup did not contain its Docker client")
+        group = running_restart_cgroup(state_dir, container, unit)
 
         replay = subprocess.run(ssh, input=REQUEST, capture_output=True, timeout=5)
         if replay.returncode != 65:
@@ -85,7 +90,7 @@ def experiment(lab, port, helper_dir, authorized_keys, image, daemon):
         denied = subprocess.run(ssh, input=REQUEST, capture_output=True, timeout=5)
         if denied.returncode != 255 or b"Permission denied (publickey)" not in denied.stderr:
             raise RuntimeError("The revoked fixture SSH key was not denied at authentication")
-        print(f"SSH was lost, the fixture key was revoked and cgroup {cgroup} is empty.", flush=True)
+        print(f"SSH was lost, the fixture key was revoked and cgroup /system.slice/{unit} is empty.", flush=True)
 
     try:
         shutil.copyfile(helper_dir / "ssh-gateway", probe_gateway)
