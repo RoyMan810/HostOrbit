@@ -22,12 +22,13 @@ def local_docker_socket(address):
     return ".." not in path.parts and path.is_socket()
 
 
-def restart_fixture(state_dir: Path) -> int:
+def restart_fixture(state_dir: Path, *, payload: bytes | None = None, stop_timeout: int = 25) -> int:
     if os.geteuid() != 0 or len(sys.argv) != 1:
         return 65
-    signal.alarm(5)
-    payload = sys.stdin.buffer.read(len(REQUEST) + 1)
-    signal.alarm(0)
+    if payload is None:
+        signal.alarm(5)
+        payload = sys.stdin.buffer.read(len(REQUEST) + 1)
+        signal.alarm(0)
     if payload != REQUEST:
         return 65
 
@@ -57,7 +58,7 @@ def restart_fixture(state_dir: Path) -> int:
         systemd_run, "--quiet", "--wait", f"--unit={unit}", "--property=Type=exec",
         "--property=KillMode=control-group", "--property=RuntimeMaxSec=40s",
         "--property=TimeoutStopSec=4s", "--", "/usr/bin/docker", "--host", daemon,
-        "container", "restart", "--timeout", "25", container,
+        "container", "restart", "--timeout", str(stop_timeout), container,
     ])
 
 

@@ -24,6 +24,7 @@ from nacl.signing import SigningKey, VerifyKey
 
 import fencing_vm as fencing
 from sftp_publication import SftpFailure, SftpPublication, age_key, command, listen, restored_values, sftp_receiver
+from stage0.admission import HostGate
 from stage0.recovery import RecoveryRequest, Rejected, SignedBackup, Snapshot, accept_bundle, issue_request, prepare_bundle, seal_source
 from stage0.snapshot import BackupLab, Work
 
@@ -56,6 +57,21 @@ def receive(stream):
 def send(stream, message):
     stream.write(json.dumps(message, separators=(",", ":")).encode("ascii") + b"\n")
     stream.flush()
+
+
+def receive_attestation(stream):
+    proof = receive(stream)
+    digest = receive(stream)["digest"]
+    fencing.wait_for_observation_time(proof["observed_at"])
+    return decode(proof["record"]), decode(proof["signature"]), digest
+
+
+def send_attestation(stream, binding, attester, managed, new_key, off_at, *, delegated_terminal):
+    record, signature, digest, observed_at = fencing.attestation(
+        binding, attester, managed, new_key, off_at, delegated_terminal=delegated_terminal,
+    )
+    send(stream, {"record": b64(record), "signature": b64(signature), "observed_at": observed_at})
+    send(stream, {"digest": digest})
 
 
 def wrapped_only(lab, backup_id):
@@ -161,6 +177,9 @@ def guest(stream):
             pinned = fencing.guest_known_hosts(root, config["managed_host_key"])
             send(stream, {"old_invocation": fencing.source_restart(root, managed_identity, pinned)})
         send(stream, publish_source(root, endpoint, signer, config["recipient"]))
+        if boot["deferred"]:
+            outcome = fencing.restart_docker(HostGate(root / "source-gate.sqlite3"), managed_identity, pinned)
+            send(stream, {"old_outcome": outcome})
     elif role == "recovery":
         recover_guest(stream, root, endpoint, config["archives"])
         if boot["managed"]:
@@ -169,10 +188,18 @@ def guest(stream):
             target["owner_verify_key"] = decode(target["owner_verify_key"])
             gate = fencing.recovery_gate(root, managed_identity, pinned, target)
             send(stream, {"blocked": "READ_ONLY_RECOVERY", "unreachable": True})
-            proof = receive(stream)
-            digest = receive(stream)["digest"]
-            fencing.wait_for_observation_time(proof["observed_at"])
-            safe = gate.activate_recovery(decode(proof["record"]), decode(proof["signature"]), owner_confirmation=digest)
+            if boot["deferred"]:
+                record, signature, digest = receive_attestation(stream)
+                fencing.expect_denial(
+                    "NO_SAFE_RECOVERY_TARGETS", gate.activate_recovery, record, signature, owner_confirmation=digest,
+                )
+                gate = HostGate(root / "recovery-gate.sqlite3")
+                fencing.expect_denial("READ_ONLY_RECOVERY", fencing.restart_docker, gate, managed_identity, pinned)
+                send(stream, {"pending_blocked": True})
+            record, signature, digest = receive_attestation(stream)
+            if boot["deferred"]:
+                fencing.expect_denial("READ_ONLY_RECOVERY", fencing.restart_docker, gate, managed_identity, pinned)
+            safe = gate.activate_recovery(record, signature, owner_confirmation=digest)
             if safe != {"managed"}:
                 raise RuntimeError("Unexpected activation scope")
             fencing.expect_denial("QUARANTINED", fencing.restart, gate, managed_identity, pinned, "unavailable")
@@ -202,7 +229,7 @@ def make_seed(work, dependencies, age_dir):
     repo = Path(__file__).resolve().parents[2]
     shutil.copytree(repo / "stage0", payload / "stage0", ignore=shutil.ignore_patterns("__pycache__"))
     shutil.copytree(dependencies, payload / "deps", ignore=shutil.ignore_patterns("__pycache__"))
-    for name in ("offhost_recovery.py", "sftp_publication.py", "fencing_vm.py"):
+    for name in ("offhost_recovery.py", "sftp_publication.py", "fencing_vm.py", "ssh_restart_fixture.py"):
         shutil.copyfile(Path(__file__).with_name(name), payload / name)
     for name in ("age", "age-keygen"):
         shutil.copy2(age_dir / name, payload / name)
@@ -273,7 +300,10 @@ def boot_guest(work, console, role, image, seed, sftp_port, managed):
             with connect_guest(port, process) as channel, channel.makefile("rwb") as stream:
                 if receive(stream) != {"ready": True}:
                     raise RuntimeError("Unexpected fixture console greeting")
-                send(stream, {"role": role, "managed": managed is not None})
+                send(stream, {
+                    "role": role, "managed": managed is not None,
+                    "deferred": managed is not None and managed.deferred is not None,
+                })
                 yield stream
         except Exception:
             for path in (log, serial):
@@ -295,6 +325,7 @@ def experiment(work, console, image, dependencies, age_dir, managed):
     store_root.mkdir()
     with sftp_receiver(store_root) as receiver, listen(receiver.config, work / "sftp.log") as port:
         settings = {"account": receiver.account, "host_key": receiver.host_key}
+        deferred = managed.deferred if managed is not None else None
         if managed is not None:
             original_invocation = fencing.invocation(managed.unit)
             settings["managed_host_key"] = managed.host_key
@@ -313,10 +344,17 @@ def experiment(work, console, image, dependencies, age_dir, managed):
             if set(archives) != {"portable", "os_wrapped"} or set(archives.values()) != {p.name for p in receiver.store.iterdir()}:
                 raise RuntimeError("The SFTP store is missing a completed fixture archive")
             print("Source VM published the portable and OS-wrapped-only archives over SFTP.", flush=True)
+            if deferred is not None:
+                deferred.stop_direct_client()
+                if receive(stream) != {"old_outcome": "UNKNOWN_OUTCOME"}:
+                    raise RuntimeError("The source did not preserve an unknown Docker outcome after SSH loss")
+                print("SSH and the direct cgroup stopped while the Docker effect remained pending.", flush=True)
         if (work / "source.qcow2").exists():
             raise RuntimeError("The source system disk still exists")
         off_at = int(time.time())
         print("Source VM stopped and its writable system disk and credential store were removed.", flush=True)
+        if deferred is not None:
+            deferred.require_pending()
 
         with boot_guest(work, console, "recovery", image, seed, port, managed) as stream:
             target = receive(stream)
@@ -357,11 +395,16 @@ def experiment(work, console, image, dependencies, age_dir, managed):
                 if fencing.invocation(managed.unit) != old_invocation or (work / "source.qcow2").exists():
                     raise RuntimeError("Read-only recovery changed the service or the source disk reappeared")
                 print("The fresh VM had a valid key but the read-only gate prevented a restart.", flush=True)
-                record, signature, digest, observed_at = fencing.attestation(
-                    binding, attester, managed, target["managed_key"], off_at,
-                )
-                send(stream, {"record": b64(record), "signature": b64(signature), "observed_at": observed_at})
-                send(stream, {"digest": digest})
+                if deferred is not None:
+                    deferred.require_pending()
+                    send_attestation(stream, binding, attester, managed, target["managed_key"], off_at,
+                                     delegated_terminal=False)
+                    if receive(stream) != {"pending_blocked": True} or fencing.invocation(managed.unit) != old_invocation:
+                        raise RuntimeError("The recovered Controller did not keep the unresolved host read-only")
+                    print("The recovered Controller refused activation and a second Docker restart while the effect was pending.", flush=True)
+                    deferred.release_and_verify()
+                send_attestation(stream, binding, attester, managed, target["managed_key"], off_at,
+                                 delegated_terminal=True)
                 restarted = receive(stream)["new_invocation"]
                 if restarted == old_invocation or restarted != fencing.invocation(managed.unit):
                     raise RuntimeError("The activated Controller did not restart the verified service")
@@ -398,7 +441,9 @@ def main():
     service = nullcontext()
     if args.ssh_fixture is not None:
         lab, port, helper_dir, authorized = args.ssh_fixture
-        service = fencing.managed_service(Path(lab), int(port), Path(helper_dir), Path(authorized))
+        service = fencing.managed_service(
+            Path(lab), int(port), Path(helper_dir), Path(authorized), os.environ.get("HOSTORBIT_LAB_PYTHON_IMAGE"),
+        )
     with service as managed, TemporaryDirectory(prefix="hostorbit-guests-", dir=args.scratch) as work, \
             TemporaryDirectory(prefix="hostorbit-console-", dir="/run") as console:
         Path(console).chmod(0o711)
