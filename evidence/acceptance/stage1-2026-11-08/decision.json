@@ -84,8 +84,22 @@
     "Complete Vault DEK lifecycle, production independent DR and real managed-VPS recovery/key-rotation scenario.",
     "Scheduler automation, full diagnostics/privacy export, versioned RU/EN help, service adapters, capacity/retention/soak and all remaining MVP AC."
   ],
-  "evidence_digest": "d327d1ddcf2e4a109d5002270145464cead868d517aed504a88364a3a001010e",
+  "evidence_digest": "bc5e1e39591bc1701b025345e8aa7e27a009f44cd2d7cc7c76102f18df3614a2",
   "normative_authority": "HostOrbit v2.3 section 40 / canonical stage_gates, without changing their criteria.",
+  "post_review_tooling": {
+    "additional_cgroup_regression_tests": 3,
+    "affected_files": [
+      "tests/lab/ssh_systemd_docker.py",
+      "tests/test_cgroup_observation.py"
+    ],
+    "correction": "Lab observer retries ENODEV; only populated=0 or missing cgroup proves empty; other read errors still fail",
+    "failed_job_url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42417473194/job/128538571839",
+    "failure": "cgroup.events read returned ENODEV during transient cgroup teardown",
+    "historical_manifest_and_ci_unchanged": true,
+    "local_stage0_and_gate_tests": 73,
+    "merge_condition": "All final-branch CI jobs including the native delegated-effect and independent prototype recovery jobs must succeed",
+    "pr": 41
+  },
   "recorded_at_utc": "2026-11-07T21:39:42.371428+00:00",
   "reviewer": "Codex automated self-review; no independent human review or real manual DR attestation.",
   "source_commit": "688d1408004580d95ddd4d6bd1c75c576b1bb764",

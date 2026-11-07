@@ -1,6 +1,7 @@
 """Run the delegated-effect experiment through the restricted SSH fixture."""
 
 import argparse
+import errno
 import json
 import os
 from pathlib import Path
@@ -34,6 +35,13 @@ def empty_cgroup(group):
         return "populated 0" in (group / "cgroup.events").read_text(encoding="ascii").splitlines()
     except FileNotFoundError:
         return True
+    except OSError as error:
+        # cgroupfs can offline an already opened control file during teardown.
+        # Retry until absence or populated=0 is observed; ENODEV is not proof
+        # that the direct effect has stopped.
+        if error.errno == errno.ENODEV:
+            return False
+        raise
 
 
 def running_restart_cgroup(state_dir, container, unit):
