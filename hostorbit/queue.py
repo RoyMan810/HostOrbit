@@ -114,14 +114,14 @@ class JobQueue:
             rows = db.execute("SELECT * FROM jobs WHERE claimed_by IS NOT NULL AND status NOT IN ('SUCCEEDED','FAILED','UNKNOWN_OUTCOME','CANCELLED_SAFE')").fetchall()
         for row in rows:
             outcome = classify(row) if classify is not None else "UNKNOWN_OUTCOME"
-            with self.store.write() as db:
+            with self.store.write(kind="control") as db:
                 current = db.execute("SELECT * FROM jobs WHERE id=? AND claim_nonce=? AND status=?", (row["id"], row["claim_nonce"], row["status"])).fetchone()
                 if current is not None:
                     self._finish(db, current, outcome, "WORKER_RESTART")
 
     def claim(self, worker_id):
         text(worker_id, ULID)
-        with self.store.write() as db:
+        with self.store.write(kind="dispatch") as db:
             self._schema(db)
             for row in db.execute("SELECT * FROM jobs WHERE status='QUEUED' AND claimed_by IS NULL ORDER BY created_at,id LIMIT 100").fetchall():
                 try:
@@ -152,7 +152,7 @@ class JobQueue:
         return row
 
     def advance(self, claim, state, *, permit=None):
-        with self.store.write() as db:
+        with self.store.write(kind="control") as db:
             row = self._claimed(db, claim)
             if _NEXT.get(row["status"]) != state or state == "SUCCEEDED":
                 raise Denied("JOB_TRANSITION_DENIED")
@@ -185,5 +185,5 @@ class JobQueue:
         self._event(db, db.execute("SELECT * FROM jobs WHERE id=?", (row["id"],)).fetchone(), "job.finished", reason=reason)
 
     def finish(self, claim, outcome, reason, *, result=None):
-        with self.store.write() as db:
+        with self.store.write(kind="control") as db:
             self._finish(db, self._claimed(db, claim), outcome, reason, result)

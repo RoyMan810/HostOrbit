@@ -17,11 +17,11 @@ CREATE TABLE receipts(job_id TEXT PRIMARY KEY, nonce TEXT NOT NULL UNIQUE, state
 
 
 class Broker:
-    def __init__(self, directory, policy, vault, gate, verify_key, *, worker_uid, execute=probe, clock=time.time):
+    def __init__(self, directory, policy, vault, gate, verify_key, *, worker_uid, execute=probe, clock=time.time, writers=None):
         self.directory, self.policy = Path(directory), policy
         self.vault, self.gate, self.verify_key = vault, gate, verify_key
         self.worker_uid, self.execute, self.clock = worker_uid, execute, clock
-        self.journal = Journal(self.directory / "receipts.sqlite3")
+        self.journal = Journal(self.directory / "receipts.sqlite3", writers=writers)
         verify_known_hosts(self.directory / "known_hosts", policy)
 
     @classmethod

@@ -147,7 +147,7 @@ class InstallationTests(unittest.TestCase):
 
     def test_compose_separates_public_api_from_networkless_worker_and_private_host_data(self):
         cfg = {"app_uid": 23101, "app_gid": 23201, "worker_uid": 23102, "worker_gid": 23102,
-               "broker_rpc_gid": 23202, "gate_rpc_gid": 23203}
+               "broker_rpc_gid": 23202, "gate_rpc_gid": 23203, "writer_directory": "/var/lib/hostorbit/writer-admission"}
         doc = compose_document(cfg, "hostorbit/controller:fixture", 18080)
         api, worker = doc["services"]["api"], doc["services"]["worker"]
         self.assertEqual(api["ports"], [{"target": 8000, "published": "18080", "host_ip": "127.0.0.1", "protocol": "tcp"}])
@@ -159,6 +159,9 @@ class InstallationTests(unittest.TestCase):
         self.assertFalse(doc["networks"]["api"]["internal"])
         self.assertEqual(doc["networks"]["api"]["driver_opts"]["com.docker.network.bridge.host_binding_ipv4"], "127.0.0.1")
         for service in (api, worker):
+            public_state = [mount for mount in service["volumes"] if mount["source"] == cfg["writer_directory"]]
+            self.assertEqual(len(public_state), 1)
+            self.assertTrue(public_state[0]["read_only"])
             self.assertEqual(service["userns_mode"], "host")
             self.assertEqual(service["cap_drop"], ["ALL"])
             self.assertTrue(service["read_only"])

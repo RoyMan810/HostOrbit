@@ -197,6 +197,7 @@ def compose_document(config, image, port):
               "environment": {"HOME": "/nonexistent", "PYTHONNOUSERSITE": "1", "PYTHONDONTWRITEBYTECODE": "1"},
               "logging": {"driver": "json-file", "options": {"max-size": "10m", "max-file": "2"}}}
     mounts = [bind(CONFIG / "runtime.json", CONFIG / "runtime.json"),
+              bind(config["writer_directory"], config["writer_directory"]),
               bind(DATA / "app", DATA / "app", read_only=False)]
     return {"name": "hostorbit", "services": {
         "api": {**common, "user": f"{config['app_uid']}:{config['app_gid']}", "command": ["api"],
@@ -242,7 +243,9 @@ def create_owner(username):
     password = getpass.getpass("Owner password: ")
     if password != getpass.getpass("Confirm password: "):
         raise ArtifactError("PASSWORD_CONFIRMATION_MISMATCH")
-    service = AuthService(Store(cfg["database"], access=DataAccess(cfg["app_uid"], cfg["app_gid"])))
+    from hostorbit.admission import Admission
+    service = AuthService(Store(cfg["database"], access=DataAccess(cfg["app_uid"], cfg["app_gid"]),
+                                writers=Admission(cfg["writer_directory"])))
     token = service.issue_bootstrap()
     user_id = service.create_owner(token, username, password)
     print("Owner created " + user_id)
@@ -290,6 +293,7 @@ def install(args):
                "trusted_proxies": ["127.0.0.1/32"], "api_port": 8000, "api_bind": "0.0.0.0",
                "targets": str(CONFIG / "targets.json"), "supervisor_directory": str(DATA / "control-gate"),
                "broker_directory": str(DATA / "broker"), "vault_directory": str(DATA / "vault"),
+               "writer_directory": str(DATA / "writer-admission"),
                "vault_credential": str(CONFIG / "credentials/broker-dek.cred"), "public_verify_key": str(CONFIG / "gate.pub"),
                "gate_socket": str(RUN / "supervisor/gate.sock"), "broker_socket": str(RUN / "broker/broker.sock")}
         for role, name in (("app", "ho-api"), ("worker", "ho-worker"), ("broker", "ho-broker")):
@@ -313,6 +317,7 @@ def install(args):
         write(CONFIG / "release-trust.pub", key)
         runtime = APP / "venv/bin/hostorbit-runtime"
         command(runtime, "--config", CONFIG / "runtime.json", "initialize-credential")
+        command(runtime, "--config", CONFIG / "runtime.json", "initialize-writers")
         command(APP / "venv/bin/hostorbit", "--database", cfg["database"], "--database-owner", cfg["app_uid"],
                 "--database-group", cfg["app_gid"], "init")
         command(runtime, "--config", CONFIG / "runtime.json", "initialize-supervisor")

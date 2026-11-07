@@ -7,6 +7,7 @@ import time
 import unittest
 
 from hostorbit.auth import AuthService
+from hostorbit.admission import Admission
 from hostorbit.database import Store
 from hostorbit.errors import Denied
 from hostorbit.queue import JobQueue
@@ -32,7 +33,10 @@ class LocalClient:
 class RuntimeTests(unittest.TestCase):
     def setUp(self):
         self.directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.writers = Admission.initialize(self.directory / "writers", owner=os.geteuid())
+        self.writers.publish("OPEN")
         self.store = Store.initialize(self.directory / "app" / "controller.sqlite3")
+        self.store.writers = self.writers
         self.auth = AuthService(self.store)
         self.owner = self.auth.create_owner(self.auth.issue_bootstrap(), "roman", PASSWORD)
         self.tokens = self.auth.login("roman", PASSWORD, ip="fixture", correlation="fixture")[0]
@@ -40,9 +44,11 @@ class RuntimeTests(unittest.TestCase):
         self.queue = JobQueue(self.store)
         self.queue.register_resource(TARGET, self.policy.targets[TARGET].scope_digest, 1)
         self.authority = Authority.initialize(self.directory / "gate", self.policy)
+        self.authority.journal.writers = self.writers
         key = self.directory / "dek"
         new_private_file(key, os.urandom(32))
         self.vault = Vault.initialize(self.directory / "vault", key)
+        self.vault.journal.writers = self.writers
         self.vault.import_ssh(SECRET, 1, private_key(), owner_id=ACTOR, worker_uid=WORKER_UID, target=TARGET)
         Broker.initialize(self.directory / "broker", self.policy)
         self.executions = []
@@ -52,7 +58,7 @@ class RuntimeTests(unittest.TestCase):
             return observation()
         self.broker = Broker(self.directory / "broker", self.policy, self.vault,
                              LocalClient(self.authority, "broker", BROKER_UID), bytes(self.authority.key.verify_key),
-                             worker_uid=WORKER_UID, execute=execute)
+                             worker_uid=WORKER_UID, execute=execute, writers=self.writers)
         self.worker = Worker(self.queue, LocalClient(self.authority, "worker", WORKER_UID),
                              LocalClient(self.broker, "worker", WORKER_UID), secret_refs={TARGET: SECRET + ":v1"})
 
@@ -77,6 +83,38 @@ class RuntimeTests(unittest.TestCase):
             raw = "\n".join(db.iterdump())
         self.assertNotIn(private_key().decode(), raw)
         self.assertNotIn("PRIVATE KEY", json.dumps(result))
+
+    def test_closing_during_active_job_allows_completion_without_claiming_more_work(self):
+        first, second = self.enqueue(), self.enqueue("fixture-request-0002")
+        with self.store.write() as db:
+            db.execute("UPDATE jobs SET created_at=created_at+1 WHERE id=?", (second["id"],))
+        self.worker.observe = lambda phase: self.writers.publish("CLOSING_ADMISSION", first["id"]) if phase == "INTENT_PREPARED" else None
+        self.assertTrue(self.worker.run_one())
+        self.assertEqual(self.job(first["id"])["status"], "SUCCEEDED")
+        self.assertEqual(self.job(second["id"])["status"], "QUEUED")
+        self.assertFalse(self.worker.run_one())
+        with self.assertRaisesRegex(Denied, "WRITER_ADMISSION_CLOSED"):
+            self.enqueue("fixture-request-0003")
+        with self.assertRaisesRegex(Denied, "WRITER_ADMISSION_CLOSED"):
+            self.vault.revoke(SECRET + ":v1")
+        self.assertEqual(self.executions, [TARGET])
+        self.store.verify_audit()
+        # Login/logout, rate limits and audit are operational metadata, so the
+        # Owner can still inspect the controller during the drain period.
+        tokens = self.auth.login("roman", PASSWORD, ip="fixture", correlation="drain")[0]
+        self.auth.logout(tokens.session, tokens.csrf, correlation="drain")
+
+    def test_closed_admission_prevents_vault_object_creation_and_new_gate_permits(self):
+        queued = self.enqueue()
+        with self.store.read() as db:
+            row = dict(db.execute("SELECT * FROM jobs WHERE id=?", (queued["id"],)).fetchone())
+        before = set((self.vault.directory / "objects").iterdir())
+        self.writers.publish("CLOSING_ADMISSION", queued["id"])
+        with self.assertRaisesRegex(Denied, "WRITER_ADMISSION_CLOSED"):
+            self.vault.import_ssh(SECRET, 2, private_key(), owner_id=ACTOR, worker_uid=WORKER_UID, target=TARGET)
+        self.assertEqual(before, set((self.vault.directory / "objects").iterdir()))
+        with self.assertRaisesRegex(Denied, "WRITER_ADMISSION_CLOSED"):
+            self.authority.admit(self.queue.binding(row))
 
     def test_stopped_worker_does_not_claim_a_waiting_job_and_releases_its_lifetime_lock(self):
         queued = self.enqueue()

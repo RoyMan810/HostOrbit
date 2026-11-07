@@ -17,6 +17,7 @@
   "broker_directory": "/var/lib/hostorbit/broker",
   "vault_directory": "/var/lib/hostorbit/vault",
   "vault_credential": "/etc/hostorbit/credentials/broker-dek.cred",
+  "writer_directory": "/var/lib/hostorbit/writer-admission",
   "public_verify_key": "/etc/hostorbit/gate.pub",
   "gate_socket": "/run/hostorbit/supervisor/gate.sock",
   "broker_socket": "/run/hostorbit/broker/broker.sock"

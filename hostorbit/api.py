@@ -13,6 +13,7 @@ from starlette.exceptions import HTTPException
 from starlette.concurrency import run_in_threadpool
 
 from . import __version__
+from .admission import Admission
 from .auth import ABSOLUTE_SECONDS, COOKIE, AuthService, Role
 from .config import Settings
 from .database import DataAccess, Store, canonical, identifier
@@ -155,7 +156,8 @@ class Reauthentication(Input):
 def create_app(settings: Settings, *, auth: AuthService | None = None):
     import os
     access = DataAccess(settings.database_owner_uid if settings.database_owner_uid is not None else os.geteuid(), settings.database_gid)
-    service = auth or AuthService(Store(settings.database, access=access))
+    service = auth or AuthService(Store(settings.database, access=access,
+                                       writers=Admission(settings.writer_directory) if settings.writer_directory else None))
     queue = JobQueue(service.store, clock=service.clock)
     app = FastAPI(title="HostOrbit API", version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.auth = service

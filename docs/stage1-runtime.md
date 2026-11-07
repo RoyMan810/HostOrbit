@@ -36,6 +36,8 @@ Vault и Broker receipts принадлежат `ho-broker` в отдельны�
 
 ## Vault и SSH
 
+[Snapshot writer admission](stage1-backup-barrier.md) включён в новую установку. Business mutations и новые claims/permits закрываются при drain; ACK, checkpoints, session metadata и Audit/Outbox продолжают commit. Короткий exclusive barrier берётся до SQLite transaction и отпускается до шифрования/сети. Root-owned state доступен контейнерам только для чтения; отдельный Coordinator journal и watchdog восстанавливают прерванный локальный capture без автоматического признания backup пригодным.
+
 Private key versions неизменяемы. Blob зашифрован XChaCha20-Poly1305; AAD включает secret/version, kind, purpose, owner, consumer digest, target, state, policy revision и key version. Metadata и состояние находятся в private Broker journal. Замена metadata или ciphertext не даёт разрешённого использования. `REVOKED` запрещает следующий Use.
 
 Broker получает runtime DEK из OS credential. В новом systemd профиле root-owned encrypted source `.cred` имеет mode 0600, `LoadCredentialEncrypted` предоставляет приватную расшифрованную копию только Broker. `initialize-credential` запечатывает новый DEK непосредственно из памяти через stdin `systemd-creds`; существующий Vault или credential не заменяет. Инициализация Vault использует уже подготовленный credential, а не создаёт новый ключ при утрате данных. Offline Owner age identity этому коду не передаётся.
