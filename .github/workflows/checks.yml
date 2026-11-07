@@ -183,10 +183,11 @@ jobs:
           tar --no-same-owner -xzf age.tar.gz -- age/age age/age-keygen
           echo "$age_dir/age" >> "$GITHUB_PATH"
       - run: python -m unittest discover -s tests -v
-      - name: Validate accepted Stage0 evidence and retain the MVP release block
+      - name: Validate accepted Stage0 and Stage1 evidence and retain the MVP release block
         run: |
           registry=evidence/acceptance/stage0-2026-11-07/HostOrbit_Requirements_Registry_v2.3.json
           python -m stage0.requirements "$registry" --gate Stage0 --evidence-root .
+          python -m stage0.requirements "$registry" --gate Stage1 --evidence-root .
           python - <<'PY'
           from pathlib import Path
           from stage0.requirements import _read_json, validate

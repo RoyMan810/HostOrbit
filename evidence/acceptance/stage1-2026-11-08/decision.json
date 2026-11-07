@@ -1,0 +1,95 @@
+{
+  "Stage0": {
+    "current_ci_run": 42415508424,
+    "current_regression_tests": 66,
+    "decision": "ACCEPTED_RECONFIRMED",
+    "passing_reports": 15,
+    "previous_record": "evidence/acceptance/stage0-2026-11-07/README.md",
+    "prototype_source_changed_since_accepted_build": false,
+    "required_tests": [
+      "AC-A01",
+      "AC-A02",
+      "AC-A03",
+      "AC-A04",
+      "AC-A05",
+      "AC-A20",
+      "AC-B01",
+      "AC-B02",
+      "AC-B03",
+      "AC-B04",
+      "AC-B06",
+      "AC-B07",
+      "AC-B08",
+      "AC-B09",
+      "AC-B10"
+    ]
+  },
+  "Stage1": {
+    "decision": "ACCEPTED",
+    "reports": [
+      {
+        "capability": "owner_auth",
+        "evidence_digest": "0ce4fd39e300a6394232cc626f14d2b11bd0cf7db96b9c9096daa500d43540a7",
+        "path": "evidence/capabilities/stage1/owner_auth.json"
+      },
+      {
+        "capability": "rbac",
+        "evidence_digest": "89ca93a1bc8b79269f8bd11591ef00a104396468b018893d401d4ab1c4a43e78",
+        "path": "evidence/capabilities/stage1/rbac.json"
+      },
+      {
+        "capability": "sqlite_audit_outbox",
+        "evidence_digest": "0a1d60efe087a30d99153512b78be12cea4a7728d3df2be0387a6f6851257698",
+        "path": "evidence/capabilities/stage1/sqlite_audit_outbox.json"
+      },
+      {
+        "capability": "ssh_helper",
+        "evidence_digest": "9384bbfb312c38c8d6b08a4eb824f30fb6e8ea3131725f85363575d73b1f7135",
+        "path": "evidence/capabilities/stage1/ssh_helper.json"
+      },
+      {
+        "capability": "broker_ipc",
+        "evidence_digest": "1ad4bd23eedaede99bf76636d6429538638fd7e095efe0cf853bb34c655dba48",
+        "path": "evidence/capabilities/stage1/broker_ipc.json"
+      },
+      {
+        "capability": "admission_supervisor",
+        "evidence_digest": "a530740bbd8df63344b74de370c7c9d869afa2fe42097542565d9c2066329fb1",
+        "path": "evidence/capabilities/stage1/admission_supervisor.json"
+      }
+    ],
+    "required_capabilities": [
+      "owner_auth",
+      "rbac",
+      "sqlite_audit_outbox",
+      "ssh_helper",
+      "broker_ipc",
+      "admission_supervisor"
+    ],
+    "scope": "FOUNDATION_ONLY"
+  },
+  "broader_acceptance_unchanged": {
+    "AC_NOT_RUN": 69,
+    "AC_PASS": 15,
+    "Stage2": "NOT_ACCEPTED",
+    "Stage3_MVP": "BLOCKED",
+    "canonical_registry_modified": false,
+    "requirements_states_promoted": false,
+    "stage1_tagged_AC_NOT_RUN": 34
+  },
+  "canonical_registry_sha256": "20015d08dca924f1ce645d825fee0ae13433785c20ba17f9abb3fa1e998fe75d",
+  "deferred": [
+    "Full assigned FR/subrequirement completion beyond the six Foundation capabilities, including Global/Group/VPS Effective Policy and full Change Plans.",
+    "Full A/B update/self-update, live migration and formal freshness/restore-attested Backup Gate.",
+    "Complete Vault DEK lifecycle, production independent DR and real managed-VPS recovery/key-rotation scenario.",
+    "Scheduler automation, full diagnostics/privacy export, versioned RU/EN help, service adapters, capacity/retention/soak and all remaining MVP AC."
+  ],
+  "evidence_digest": "d327d1ddcf2e4a109d5002270145464cead868d517aed504a88364a3a001010e",
+  "normative_authority": "HostOrbit v2.3 section 40 / canonical stage_gates, without changing their criteria.",
+  "recorded_at_utc": "2026-11-07T21:39:42.371428+00:00",
+  "reviewer": "Codex automated self-review; no independent human review or real manual DR attestation.",
+  "source_commit": "688d1408004580d95ddd4d6bd1c75c576b1bb764",
+  "source_tree": "0cbeffc76fb5b494db138dc6a42aec081626285f",
+  "spec_md_sha256": "550cdc3afef5570c3b2cf0662fd3311a5e2d680f2892643f363646409a539426",
+  "user_authorization": "User requested review of Stage0/Stage1 and authorized accepting them if all stage conditions are satisfactory."
+}

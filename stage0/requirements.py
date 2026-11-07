@@ -1,4 +1,4 @@
-"""Validate the v2.3 Requirements Registry and evaluate its test-based gates."""
+"""Validate the v2.3 Requirements Registry and evaluate its evidence-based gates."""
 
 import argparse
 from dataclasses import dataclass
@@ -107,6 +107,14 @@ class Registry:
 
     def blockers(self, stage: str, evidence_root: Path) -> list[str]:
         gate = self.gates[stage]
+        if stage == "Stage1":
+            result = []
+            for capability in gate["required_capabilities"]:
+                try:
+                    _check_capability_evidence(evidence_root, capability)
+                except InvalidRegistry as error:
+                    result.append(f"{capability}: {error}")
+            return result
         if stage in ("Stage0", "Stage2"):
             test_ids = set(gate["required_tests"])
         elif stage == "Stage3":
@@ -260,10 +268,50 @@ def _check_evidence(root: Path, test: dict) -> None:
         raise InvalidRegistry("evidence time or digest does not match")
 
 
+def _check_capability_evidence(root: Path, capability: str) -> None:
+    """Use the canonical Stage1 capability gate, without promoting full MVP AC.
+
+    Reports describe Foundation-only assertions. Their checked source files and
+    evidence artifacts must still match; a count of green jobs alone is not a
+    capability report. Revalidation is required after changing this code scope.
+    """
+    if re.fullmatch(r"[a-z][a-z0-9_]{0,63}", capability) is None:
+        raise InvalidRegistry("unsafe capability ID")
+    descriptor = {"id": "Stage1." + capability, "evidence_path": f"evidence/capabilities/stage1/{capability}.json"}
+    _check_evidence(root, descriptor)
+    root = root.resolve()
+    report = _read_json(root / descriptor["evidence_path"])
+    if report.get("capability") != capability or report.get("stage") != "Stage1" or report.get("scope") != "FOUNDATION_ONLY":
+        raise InvalidRegistry("capability report scope/binding is invalid")
+    for field in ("positive_checks", "negative_checks", "limitations"):
+        _references(report, field, "capability evidence")
+    source_files = report.get("source_files")
+    artifacts = report.get("artifacts")
+    if not isinstance(source_files, list) or not source_files:
+        raise InvalidRegistry("missing capability source files")
+    if not isinstance(artifacts, list) or len(artifacts) < 3:
+        raise InvalidRegistry("missing manifest/SBOM/CI evidence artifacts")
+    for record in source_files + artifacts:
+        if not isinstance(record, dict) or set(record) != {"path", "sha256"}:
+            raise InvalidRegistry("invalid capability evidence file record")
+        relative = record["path"]
+        if (not isinstance(relative, str) or not relative or PurePosixPath(relative).is_absolute()
+                or ".." in PurePosixPath(relative).parts or "\\" in relative
+                or not isinstance(record["sha256"], str) or re.fullmatch(r"[0-9a-f]{64}", record["sha256"]) is None):
+            raise InvalidRegistry("unsafe capability evidence file record")
+        path = (root / relative).resolve()
+        if not path.is_relative_to(root) or not path.is_file():
+            raise InvalidRegistry("capability evidence file is unavailable")
+        if hashlib.sha256(path.read_bytes()).hexdigest() != record["sha256"]:
+            raise InvalidRegistry("capability source/artifact digest changed")
+    if report["manifest_digest"] not in {item["sha256"] for item in artifacts} or report["sbom_digest"] not in {item["sha256"] for item in artifacts}:
+        raise InvalidRegistry("manifest/SBOM evidence binding is missing")
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("registry", type=Path)
-    parser.add_argument("--gate", choices=("Stage0", "Stage2", "Stage3"))
+    parser.add_argument("--gate", choices=("Stage0", "Stage1", "Stage2", "Stage3"))
     parser.add_argument("--evidence-root", type=Path)
     args = parser.parse_args(argv)
     try:

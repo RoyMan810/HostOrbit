@@ -1,0 +1,120 @@
+{
+  "artifacts": [
+    {
+      "path": "evidence/acceptance/stage1-2026-11-08/source-manifest.json",
+      "sha256": "c70c537315f38078a9a277819329dbf529da15f6fa350ff4c5e33de4e30ffded"
+    },
+    {
+      "path": "evidence/acceptance/stage1-2026-11-08/sbom.cdx.json",
+      "sha256": "185b3062cfec008162196407a7089b30ace8b408f948e01f417d465c7d403b4c"
+    },
+    {
+      "path": "evidence/acceptance/stage1-2026-11-08/ci-observations.json",
+      "sha256": "84614c65af5e0186b012b3ef6bf9454defc96d33d6baf24ab146346b531651e1"
+    }
+  ],
+  "build_digest": "20b9e756bd6004e270a273369b6024351002e3affc96babbfd3e1f978162b7ef",
+  "capability": "rbac",
+  "capability_assertion": "Foundation: Owner/Admin/Operator/Auditor, explicit server-side grants/scopes, no Owner bootstrap/delegation from Web, role/session revocation and manager-level authorization before queue dispatch.",
+  "ci_jobs": [
+    {
+      "conclusion": "success",
+      "excerpts": [
+        "2026-11-07T21:22:16.9576580Z test_bootstrap_expiry_rotation_and_concurrent_consumption (test_auth_api.BootstrapTests.test_bootstrap_expiry_rotation_and_concurrent_consumption) ... ok",
+        "2026-11-07T21:22:17.1304969Z test_first_web_visitor_cannot_bootstrap_owner_and_token_is_local_single_use (test_auth_api.BootstrapTests.test_first_web_visitor_cannot_bootstrap_owner_and_token_is_local_single_use) ... ok",
+        "2026-11-07T21:22:17.3406228Z test_local_cli_creates_owner_without_password_or_token_in_arguments (test_auth_api.BootstrapTests.test_local_cli_creates_owner_without_password_or_token_in_arguments) ... ok",
+        "2026-11-07T21:22:17.3977626Z test_new_passwords_require_fourteen_characters_and_api_cli_refuses_root (test_auth_api.BootstrapTests.test_new_passwords_require_fourteen_characters_and_api_cli_refuses_root) ... ok",
+        "2026-11-07T21:22:18.0487332Z test_http_spoofed_proto_cross_origin_form_and_large_body_are_denied (test_http_boundary.HttpBoundaryTests.test_http_spoofed_proto_cross_origin_form_and_large_body_are_denied) ... ok",
+        "2026-11-07T21:22:26.0945517Z Ran 51 tests in 16.499s",
+        "2026-11-07T21:22:32.8374064Z test_unsigned_development_opt_in_and_broad_trust_key_permissions_are_denied (test_installation.InstallationTests.test_unsigned_development_opt_in_and_broad_trust_key_permissions_are_denied) ... ok",
+        "2026-11-07T21:22:32.8491449Z test_verified_copy_has_only_signed_files_and_never_copies_the_offline_seed (test_installation.InstallationTests.test_verified_copy_has_only_signed_files_and_never_copies_the_offline_seed) ... ok",
+        "2026-11-07T21:22:47.0670355Z Ran 137 tests in 20.573s"
+      ],
+      "id": 128532586993,
+      "name": "Stage 1 Auth, RBAC and Audit / Python 3.13",
+      "raw_log_digest_scope": "Complete decoded UTF-8 GitHub response including BOM if present, without newline conversion",
+      "raw_log_sha256": "594f9acb0b3f188db093f2a1a1e515ec8ac4bcdc2deb67184d0d2a0d84ed0c9f",
+      "run_id": 42415508424,
+      "source_head": "688d1408004580d95ddd4d6bd1c75c576b1bb764",
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42415508424/job/128532586993"
+    },
+    {
+      "conclusion": "success",
+      "excerpts": [
+        "2026-11-07T21:22:13.3742673Z Systemd service/socket profiles passed the systemd syntax verifier.",
+        "2026-11-07T21:22:18.5929164Z Distinct API and Worker UIDs committed one verified SSH observation through Broker and host authority.",
+        "2026-11-07T21:22:20.1977529Z DAC denied API sockets and private stores; SO_PEERCRED denied a group member spoofing Worker.",
+        "2026-11-07T21:22:21.6136985Z Replay and signature substitution were denied; raw remote canary output did not reach SQLite or SSE.",
+        "2026-11-07T21:22:25.2711961Z Second Worker was excluded by flock; killed Worker recovered as UNKNOWN despite a late successful Broker receipt.",
+        "2026-11-07T21:22:25.8190340Z Real SSH host-key replacement was denied and the failed observation was committed with audit/outbox."
+      ],
+      "id": 128532587157,
+      "name": "Stage 1 process boundary / Linux UIDs and SSH",
+      "raw_log_digest_scope": "Complete decoded UTF-8 GitHub response including BOM if present, without newline conversion",
+      "raw_log_sha256": "dff32a0b0ddf1e0d6fceaaf80092466b8b6a51beb994b8346f59ede86e5fe78d",
+      "run_id": 42415508424,
+      "source_head": "688d1408004580d95ddd4d6bd1c75c576b1bb764",
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42415508424/job/128532587157"
+    }
+  ],
+  "environment": "GitHub-hosted Ubuntu 24.04 amd64, Python 3.13, SQLite >=3.45, pinned app dependencies/OCI; actual Linux UIDs, systemd and isolated SSH/Compose where stated.",
+  "evidence_digest": "89ca93a1bc8b79269f8bd11591ef00a104396468b018893d401d4ab1c4a43e78",
+  "fault_injection": "test_no_operator_wildcard_or_view_secret_grant_and_owner_is_local_only; test_role_change_or_disable_revokes_all_sessions_and_invalidates_csrf; test_scope_changed_or_actor_revoked_after_enqueue_cancels_before_permit; test_fixed_numeric_targets_reject_loopback_metadata_zones_dns_and_unsupported_actions",
+  "initial_state": "Fresh private or explicit shared-group SQLite; independently trusted signed development bundle and separate service identities; ephemeral fixture keys only.",
+  "limitations": [
+    "Basic fixed-capability scoped RBAC is accepted; Global→Group→VPS Effective Policy UI/inheritance and complete mutating Change Plan approval AC remain separate MVP work.",
+    "No full AC status, FR completion, Stage2/3 gate or production/MVP readiness is promoted by this Foundation-only report."
+  ],
+  "manifest_digest": "c70c537315f38078a9a277819329dbf529da15f6fa350ff4c5e33de4e30ffded",
+  "negative_checks": [
+    "test_no_operator_wildcard_or_view_secret_grant_and_owner_is_local_only",
+    "test_role_change_or_disable_revokes_all_sessions_and_invalidates_csrf",
+    "test_scope_changed_or_actor_revoked_after_enqueue_cancels_before_permit",
+    "test_fixed_numeric_targets_reject_loopback_metadata_zones_dns_and_unsupported_actions"
+  ],
+  "observation": "Reviewed code and successful exact-main CI job logs support each listed Foundation positive and negative component check.",
+  "outcome": "PASS",
+  "positive_checks": [
+    "test_operator_scope_and_auditor_read_only_permissions_are_checked_in_manager",
+    "test_admin_cannot_delegate_beyond_own_scope_or_modify_owner_or_admin"
+  ],
+  "recorded_at_utc": "2026-11-07T21:39:42.371428+00:00",
+  "reviewer": "Codex automated code/evidence self-review; not an independent human security audit.",
+  "sbom_digest": "185b3062cfec008162196407a7089b30ace8b408f948e01f417d465c7d403b4c",
+  "scenario": "Foundation: Owner/Admin/Operator/Auditor, explicit server-side grants/scopes, no Owner bootstrap/delegation from Web, role/session revocation and manager-level authorization before queue dispatch.",
+  "scope": "FOUNDATION_ONLY",
+  "source_commit": "688d1408004580d95ddd4d6bd1c75c576b1bb764",
+  "source_files": [
+    {
+      "path": "hostorbit/api.py",
+      "sha256": "8b65fef13f60a99dda244f67d55e535ded93b891a12e9d0a6b4d08b026dde884"
+    },
+    {
+      "path": "hostorbit/auth.py",
+      "sha256": "ec9c94b21e19a306a375ace7c42831e740f9abc6337649a310f31a9f7bdf488a"
+    },
+    {
+      "path": "hostorbit/queue.py",
+      "sha256": "0616abc8a165911b6d9827982647823b2c822ed28e489cd43b0723cb0a6dd20c"
+    },
+    {
+      "path": "tests_app/test_permissions.py",
+      "sha256": "14b34a51ba7b087f17f9b35b71d4e0fba9273c90e756438df75e281cd3a5c167"
+    },
+    {
+      "path": "tests_app/test_queue_api.py",
+      "sha256": "12c6ddcb049df912466932870d367c2a98cafa22071343db76af01baf8eba196"
+    },
+    {
+      "path": "tests_runtime/test_protocol_policy.py",
+      "sha256": "93e01954ad88f2b8481a48715fcc45d6442fc53595e87ea715440c19aaf43669"
+    },
+    {
+      "path": "tests_runtime/test_worker_broker.py",
+      "sha256": "578ce6314715e9e2ad3fbb41c7d621b7fdb2530cdaa95b763b8501f29915e93c"
+    }
+  ],
+  "source_tree": "0cbeffc76fb5b494db138dc6a42aec081626285f",
+  "stage": "Stage1",
+  "test_id": "Stage1.rbac"
+}

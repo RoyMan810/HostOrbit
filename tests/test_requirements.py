@@ -1,4 +1,5 @@
 from contextlib import redirect_stderr, redirect_stdout
+import hashlib
 import io
 import json
 from pathlib import Path
@@ -173,3 +174,55 @@ class RegistryTests(unittest.TestCase):
             self.assertEqual(main([str(path), "--gate", "Stage0"]), 2)
             path.write_text('{"schema_version": "1.0", "schema_version": "1.0"}', encoding="utf-8")
             self.assertEqual(main([str(path)]), 1)
+
+    def foundation_report(self):
+        source = self.directory / "controller.py"
+        source.write_text("# checked Foundation fixture\n")
+        artifacts = []
+        for name in ("source-manifest", "sbom", "ci-observations"):
+            path = self.directory / "evidence" / (name + ".json")
+            path.parent.mkdir(exist_ok=True)
+            path.write_text(json.dumps({"kind": name}))
+            artifacts.append({"path": str(path.relative_to(self.directory)), "sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
+        report = {**passing_report("Stage1.auth"), "stage": "Stage1", "scope": "FOUNDATION_ONLY", "capability": "auth",
+            "positive_checks": ["Local Owner login"], "negative_checks": ["First visitor denied"], "limitations": ["Fixture only"],
+            "source_files": [{"path": "controller.py", "sha256": hashlib.sha256(source.read_bytes()).hexdigest()}], "artifacts": artifacts,
+            "manifest_digest": artifacts[0]["sha256"], "sbom_digest": artifacts[1]["sha256"]}
+        report["evidence_digest"] = evidence_digest(report)
+        self.write_report({"evidence_path": "evidence/capabilities/stage1/auth.json"}, report)
+        return report
+
+    def test_stage1_uses_only_canonical_capabilities_and_does_not_promote_mvp_tests(self):
+        registry = validate(self.data)
+        self.assertTrue(registry.blockers("Stage1", self.directory))
+        self.foundation_report()
+        self.assertEqual(registry.blockers("Stage1", self.directory), [])
+        self.assertEqual(registry.blockers("Stage3", self.directory), ["AC-28: NOT_RUN", "AC-B03: NOT_RUN"])
+
+    def test_stage1_requires_negative_checks_and_foundation_scope(self):
+        for field, value in (("negative_checks", []), ("scope", "FULL_MVP"), ("outcome", "FAIL"), ("capability", "different")):
+            report = self.foundation_report()
+            report[field] = value
+            report["evidence_digest"] = evidence_digest(report)
+            self.write_report({"evidence_path": "evidence/capabilities/stage1/auth.json"}, report)
+            with self.subTest(field=field):
+                self.assertTrue(validate(self.data).blockers("Stage1", self.directory))
+
+    def test_stage1_rejects_changed_code_or_missing_evidence_artifacts(self):
+        report = self.foundation_report()
+        (self.directory / "controller.py").write_text("# changed after acceptance\n")
+        self.assertTrue(validate(self.data).blockers("Stage1", self.directory))
+        report = self.foundation_report()
+        (self.directory / report["artifacts"][0]["path"]).unlink()
+        self.assertTrue(validate(self.data).blockers("Stage1", self.directory))
+
+    def test_stage1_rejects_tampered_review_or_path_escape(self):
+        report = self.foundation_report()
+        report["observation"] = "tampered after review"
+        self.write_report({"evidence_path": "evidence/capabilities/stage1/auth.json"}, report)
+        self.assertTrue(validate(self.data).blockers("Stage1", self.directory))
+        report = self.foundation_report()
+        report["source_files"][0]["path"] = "../escape"
+        report["evidence_digest"] = evidence_digest(report)
+        self.write_report({"evidence_path": "evidence/capabilities/stage1/auth.json"}, report)
+        self.assertTrue(validate(self.data).blockers("Stage1", self.directory))

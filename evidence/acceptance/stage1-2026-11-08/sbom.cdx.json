@@ -1,0 +1,165 @@
+{
+  "bomFormat": "CycloneDX",
+  "components": [
+    {
+      "name": "annotated-doc",
+      "purl": "pkg:pypi/annotated-doc@0.0.5",
+      "type": "library",
+      "version": "0.0.5"
+    },
+    {
+      "name": "annotated-types",
+      "purl": "pkg:pypi/annotated-types@0.8.0",
+      "type": "library",
+      "version": "0.8.0"
+    },
+    {
+      "name": "anyio",
+      "purl": "pkg:pypi/anyio@4.16.0",
+      "type": "library",
+      "version": "4.16.0"
+    },
+    {
+      "name": "asyncssh",
+      "purl": "pkg:pypi/asyncssh@2.24.1",
+      "type": "library",
+      "version": "2.24.1"
+    },
+    {
+      "name": "argon2-cffi",
+      "purl": "pkg:pypi/argon2-cffi@25.1.0",
+      "type": "library",
+      "version": "25.1.0"
+    },
+    {
+      "name": "argon2-cffi-bindings",
+      "purl": "pkg:pypi/argon2-cffi-bindings@26.1.0",
+      "type": "library",
+      "version": "26.1.0"
+    },
+    {
+      "name": "cffi",
+      "purl": "pkg:pypi/cffi@2.1.1",
+      "type": "library",
+      "version": "2.1.1"
+    },
+    {
+      "name": "click",
+      "purl": "pkg:pypi/click@8.5.1",
+      "type": "library",
+      "version": "8.5.1"
+    },
+    {
+      "name": "cryptography",
+      "purl": "pkg:pypi/cryptography@50.0.2",
+      "type": "library",
+      "version": "50.0.2"
+    },
+    {
+      "name": "fastapi",
+      "purl": "pkg:pypi/fastapi@0.162.0",
+      "type": "library",
+      "version": "0.162.0"
+    },
+    {
+      "name": "h11",
+      "purl": "pkg:pypi/h11@0.16.0",
+      "type": "library",
+      "version": "0.16.0"
+    },
+    {
+      "name": "idna",
+      "purl": "pkg:pypi/idna@3.20",
+      "type": "library",
+      "version": "3.20"
+    },
+    {
+      "name": "opentelemetry-api",
+      "purl": "pkg:pypi/opentelemetry-api@1.45.2",
+      "type": "library",
+      "version": "1.45.2"
+    },
+    {
+      "name": "pycparser",
+      "purl": "pkg:pypi/pycparser@3.12",
+      "type": "library",
+      "version": "3.12"
+    },
+    {
+      "name": "PyNaCl",
+      "purl": "pkg:pypi/pynacl@1.6.2",
+      "type": "library",
+      "version": "1.6.2"
+    },
+    {
+      "name": "pydantic",
+      "purl": "pkg:pypi/pydantic@2.14.3",
+      "type": "library",
+      "version": "2.14.3"
+    },
+    {
+      "name": "pydantic-core",
+      "purl": "pkg:pypi/pydantic-core@2.50.4",
+      "type": "library",
+      "version": "2.50.4"
+    },
+    {
+      "name": "starlette",
+      "purl": "pkg:pypi/starlette@1.10.0",
+      "type": "library",
+      "version": "1.10.0"
+    },
+    {
+      "name": "typing-extensions",
+      "purl": "pkg:pypi/typing-extensions@4.16.0",
+      "type": "library",
+      "version": "4.16.0"
+    },
+    {
+      "name": "typing-inspection",
+      "purl": "pkg:pypi/typing-inspection@0.4.5",
+      "type": "library",
+      "version": "0.4.5"
+    },
+    {
+      "name": "uvicorn",
+      "purl": "pkg:pypi/uvicorn@0.54.0",
+      "type": "library",
+      "version": "0.54.0"
+    },
+    {
+      "hashes": [
+        {
+          "alg": "SHA-256",
+          "content": "eb7dd1b518f0a307c99cd97782623c5321da049154b04acd2d98d21aa7bc9b2c"
+        }
+      ],
+      "name": "age",
+      "type": "application",
+      "version": "1.3.2"
+    },
+    {
+      "name": "docker.io/library/python@sha256:f3dac913ab53b78c64f26d5518fcd7043d5a1a46522d6a493b598c3ed12f62a6",
+      "type": "container"
+    },
+    {
+      "name": "docker.io/library/python@sha256:09a17cad02668ae61ece136b4fd36ac3849e14f670ebedb637ea3e15580525bc",
+      "type": "container"
+    }
+  ],
+  "metadata": {
+    "component": {
+      "name": "HostOrbit Foundation",
+      "type": "application",
+      "version": "0.1.0.dev1"
+    },
+    "properties": [
+      {
+        "name": "hostorbit:scope",
+        "value": "Pinned application requirements, age and workflow OCI identities; not a complete OS/image SBOM or release certification."
+      }
+    ]
+  },
+  "specVersion": "1.6",
+  "version": 1
+}
