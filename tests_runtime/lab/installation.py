@@ -87,6 +87,45 @@ def owner_create():
         os.close(master)
 
 
+def migration_rehearsal(root):
+    """Use only code/assets from the installed signed wheel on a legacy fixture."""
+    legacy = root / "legacy"
+    legacy.mkdir(mode=0o700)
+    path = legacy / "controller.sqlite3"
+    code = f"""import sqlite3
+from contextlib import closing
+from pathlib import Path
+from hostorbit.auth import AuthService
+from hostorbit.database import Store
+from hostorbit.migrations import historical_schema
+p=Path({str(path)!r})
+p.touch(mode=0o600)
+with closing(sqlite3.connect(p,autocommit=True)) as db:
+ db.execute('PRAGMA journal_mode=WAL')
+ db.executescript(historical_schema())
+s=Store(p)
+a=AuthService(s)
+a.create_owner(a.issue_bootstrap(),'legacy-owner',{PASSWORD!r})
+a.login('legacy-owner',{PASSWORD!r},ip='192.0.2.77',correlation='install-lab')
+print(s.verify_audit())
+"""
+    before = run("/opt/hostorbit/venv/bin/python", "-c", code).stdout.decode().strip()
+    output = root / "migration-review"
+    response = run("/opt/hostorbit/venv/bin/hostorbit", "--database", path,
+                   "migration-rehearsal", "--output", output)
+    report = json.loads(response.stdout)
+    if (report["status"] != "REHEARSAL_PASSED" or report["applied_to_source"] is not False
+            or report["live_apply"] != "BLOCKED" or report["source_audit_head"] != before
+            or report["preserved_table_rows"]["users"] != 1 or report["preserved_table_rows"]["sessions"] != 1):
+        raise RuntimeError("Installed historical migration rehearsal failed")
+    with sqlite3.connect(path) as source, sqlite3.connect(output / "migrated.sqlite3") as copied:
+        if (source.execute("PRAGMA user_version").fetchone() != (1,)
+                or copied.execute("PRAGMA user_version").fetchone() != (2,)
+                or source.execute("SELECT digest FROM audit ORDER BY seq DESC LIMIT 1").fetchone() != (before,)):
+            raise RuntimeError("Rehearsal changed the source or failed to migrate its private copy")
+    print("Installed wheel CLI rehearsed schema 1 to 2; Owner/session/audit survived and live schema stayed at 1.", flush=True)
+
+
 @contextmanager
 def tls_proxy(root):
     run("/usr/bin/openssl", "req", "-x509", "-newkey", "ed25519", "-nodes", "-keyout", root / "tls.key",
@@ -240,6 +279,7 @@ print(json.dumps(out))
                     raise RuntimeError("Installed Owner could not authenticate through HTTPS proxy")
                 login.close()
             print("First web visitor had no bootstrap authority; hidden-input local Owner setup and HTTPS login passed.", flush=True)
+            migration_rehearsal(root)
             before = {name: hashlib.sha256(Path(path).read_bytes()).hexdigest() for name, path in (
                 ("credential", "/etc/hostorbit/credentials/broker-dek"),
                 ("gate", "/var/lib/hostorbit/control-gate/signing.key"))}
