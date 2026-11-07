@@ -154,9 +154,12 @@ def main():
                     "stranger": dict(user=UID_STRANGER, group=UID_STRANGER, extra_groups=[GID_BROKER_RPC]),
                     "root": dict(user=0, group=0, extra_groups=[])}[role]
         config_path = lab / "runtime.json"
+        def service_env(role):
+            return {**os.environ, "PYTHONPATH": str(code), "HOME": "/nonexistent" if role != "root" else "/root",
+                    "USER": {"api": "ho-api", "worker": "ho-worker", "broker": "ho-broker", "root": "root", "stranger": "nobody"}[role]}
         def invoke(mode, role, *extra, input=None):
             return command(sys.executable, str(child_script), "--child", mode, "--config", str(config_path), *extra,
-                           input=input, cwd=code, env={**os.environ, "PYTHONPATH": str(code)}, **role_options(role))
+                           input=input, cwd=code, env=service_env(role), **role_options(role))
         def spawn(mode, role, *, listener=None):
             stream = (lab / f"{mode}-{len(processes)}.log").open("wb")
             logs.append(stream)
@@ -164,7 +167,7 @@ def main():
             if listener:
                 argv += ["--listener-fd", str(listener.fileno())]
             process = subprocess.Popen(argv, stdout=stream, stderr=subprocess.STDOUT, start_new_session=True,
-                                       pass_fds=(listener.fileno(),) if listener else (), cwd=code, env={**os.environ, "PYTHONPATH": str(code)}, **role_options(role))
+                                       pass_fds=(listener.fileno(),) if listener else (), cwd=code, env=service_env(role), **role_options(role))
             processes.append(process)
             return process
         def stop(process):
@@ -373,7 +376,7 @@ Match User {account}
                     return db.execute("SELECT state FROM attempts WHERE job_id=?", (interrupted,)).fetchone() == ("DISPATCHING",)
             wait_for(dispatched, "Broker did not consume the interrupted observation permit")
             duplicate = subprocess.run([sys.executable, str(child_script), "--child", "worker", "--config", str(config_path), "--once"],
-                                       capture_output=True, timeout=10, cwd=code, env={**os.environ, "PYTHONPATH": str(code)}, **role_options("worker"))
+                                       capture_output=True, timeout=10, cwd=code, env=service_env("worker"), **role_options("worker"))
             assert duplicate.returncode != 0 and b"PROCESS_ALREADY_RUNNING" in duplicate.stderr, duplicate.stderr
             os.killpg(worker_process.pid, signal.SIGKILL)
             worker_process.wait(timeout=5)

@@ -1,6 +1,7 @@
 """One fixed SSH operation with in-process keys, pinned host identity and bounded streams."""
 
 import asyncio
+import errno
 import os
 import time
 
@@ -41,6 +42,7 @@ async def exchange(target, key, known_hosts):
         target.value["ip"], port=target.value["port"], username="hostorbit-svc",
         client_keys=[key], agent_path=None, config=None,
         known_hosts=str(known_hosts), host_key_alias=f"ho-{target.id}",
+        x509_trusted_certs=None, x509_trusted_cert_paths=[],
         preferred_auth=["publickey"], password_auth=False, kbdint_auth=False,
         gss_auth=False, agent_forwarding=False, connect_timeout=4, login_timeout=5,
     )
@@ -76,8 +78,10 @@ def probe(target, private_key, known_hosts):
         raise Denied("SSH_PROTOCOL_ERROR") from None
     except (asyncio.TimeoutError, TimeoutError):
         raise Denied("SSH_TIMEOUT") from None
-    except OSError:
-        raise Denied("SSH_NETWORK_UNAVAILABLE") from None
+    except OSError as error:
+        code = {errno.EACCES: "SSH_LOCAL_ACCESS_DENIED", errno.ENOENT: "SSH_LOCAL_FILE_MISSING",
+                errno.ECONNREFUSED: "SSH_CONNECTION_REFUSED", errno.ENETUNREACH: "SSH_NETWORK_UNREACHABLE"}.get(error.errno, "SSH_NETWORK_UNAVAILABLE")
+        raise Denied(code) from None
     except asyncssh.Error:
         raise Denied("SSH_CONNECTION_FAILED") from None
     # Arbitrary third-party stdout/stderr is never a public result, log payload or exception message.
