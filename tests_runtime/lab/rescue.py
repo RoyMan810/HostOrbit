@@ -28,12 +28,13 @@ from hostorbit.runtime.rescue import offline_profile, prepare_bundle, wipe
 
 
 def main():
-    if (sys.argv[1:] != ["--isolated-vm"] or os.geteuid() != 0 or os.environ.get("GITHUB_ACTIONS") != "true"
+    if (sys.argv[1:] not in (["--isolated-vm"], ["--isolated-vm", "--keep-data"]) or os.geteuid() != 0 or os.environ.get("GITHUB_ACTIONS") != "true"
             or os.environ.get("RUNNER_ENVIRONMENT") != "github-hosted"):
         raise RuntimeError("Recovery fixture requires an explicitly isolated GitHub-hosted VM")
     root = Path("/var/lib/hostorbit-rescue-lab")
     root.mkdir(mode=0o700)  # Refuse any pre-existing path.
     identity = None
+    keep = False
     try:
         data = json.loads(sys.stdin.buffer.read(16384))
         identity = bytearray(base64.b64decode(data["identity"], validate=True))
@@ -123,10 +124,12 @@ def main():
         if (root / "target-state/identity.cred").exists():
             raise RuntimeError("Successful import retained the one-time identity")
         print("Native Rescue data import passed exact Owner digest, separate Owner auth, new host credential/signer, replay refusal and durable READ_ONLY_RECOVERY; offline profile and physical DR remain unattested.", flush=True)
+        keep = "--keep-data" in sys.argv
     finally:
         if identity is not None:
             wipe(identity)
-        shutil.rmtree(root)
+        if not keep:
+            shutil.rmtree(root)
 
 
 if __name__ == "__main__":

@@ -577,6 +577,106 @@ def tls_proxy(root):
         thread.join(5)
 
 
+def recovery_installation(args, base, foreign):
+    """Source removal and fresh recovered services on this one disposable VM.
+
+    This is service integration, not physical host independence or a manual
+    fencing/restore attestation. Never expose this cleanup as a product command.
+    """
+    units = ("hostorbit-compose.service", "hostorbit-broker.socket", "hostorbit-supervisor.socket",
+             "hostorbit-broker.service", "hostorbit-supervisor.service")
+    run("/usr/bin/systemctl", "stop", *units, timeout=80)
+    docker(args.docker_host, "compose", "--project-name", "hostorbit", "--file", "/etc/hostorbit/compose.json", "down", timeout=60)
+    run("/usr/bin/systemctl", "disable", *units, check=False)
+    for unit in units:
+        (Path("/etc/systemd/system") / unit).unlink()
+    for path in ("/opt/hostorbit", "/etc/hostorbit", "/var/lib/hostorbit", "/run/hostorbit"):
+        shutil.rmtree(path)
+    for path in ("/etc/tmpfiles.d/hostorbit.conf", "/etc/sysusers.d/hostorbit.conf"):
+        Path(path).unlink()
+    run("/usr/bin/systemctl", "daemon-reload")
+    run("/usr/bin/systemctl", "reset-failed", *units, check=False)
+    for name in ("ho-api", "ho-worker", "ho-broker"):
+        run("/usr/sbin/userdel", name)
+    for name in ("ho-api", "ho-worker", "ho-broker", "ho-app-db", "ho-broker-rpc", "ho-gate-rpc"):
+        run("/usr/sbin/groupdel", name, check=False)
+    print("Disposable fixture removed its source installation; only the separately imported private recovery layout remains.", flush=True)
+    state = "/var/lib/hostorbit-rescue-lab/target-state"
+    restore = [*base, "--recovery-state", state]
+    checked = json.loads(run(*restore, "--check", timeout=180).stdout)
+    if checked["recovery"] != "READ_ONLY_RECOVERY" or Path("/opt/hostorbit").exists() or Path(state, "installation.claim.json").exists():
+        raise RuntimeError("Recovery preflight created an installation or consumed the import")
+    result = json.loads(run(*restore, timeout=420).stdout)
+    if result["recovery"] != "READ_ONLY_RECOVERY" or result["owner_setup"] != "RESTORED_OWNER":
+        raise RuntimeError("Recovery install lost its mode or recreated Owner bootstrap")
+    cfg = json.loads(Path("/etc/hostorbit/runtime.json").read_bytes())
+    worker = docker(args.docker_host, "compose", "--project-name", "hostorbit", "--file", "/etc/hostorbit/compose.json", "ps", "--quiet", "worker")
+    # The original container owns its lifetime lock, so use its normal process
+    # health and a separate no-claim assertion against the installed journals.
+    status = json.loads(docker(args.docker_host, "inspect", worker))[0]
+    if not status["State"]["Running"] or status["RestartCount"]:
+        raise RuntimeError("Recovered Worker was not stably idle")
+    verify = """import json
+from pathlib import Path
+from hostorbit.admission import Admission
+from hostorbit.database import DataAccess,Store
+from hostorbit.runtime.authority import Authority
+from hostorbit.runtime.coordinator import Coordinator
+from hostorbit.runtime.policy import Policy
+c=json.load(open('/etc/hostorbit/runtime.json'))
+w=Admission(c['writer_directory'])
+assert w.state()['phase']=='READ_ONLY_RECOVERY'
+Store(c['database'],access=DataAccess(c['app_uid'],c['app_gid']),writers=w).verify_audit()
+a=Authority(c['supervisor_directory'],Policy.load(c['targets']))
+with a.journal.connect() as db:
+ r=db.execute('SELECT * FROM gate').fetchone()
+ assert r['activated']==0 and r['state']=='RECOVERY_HOLD'
+ assert db.execute('SELECT count(*) FROM attempts').fetchone()[0]==0
+a.close()
+Path(c['writer_directory'],'state.json').unlink()
+Coordinator(Path(c['supervisor_directory'])/'snapshots',w).recover_if_idle()
+assert w.state()['phase']=='READ_ONLY_RECOVERY'
+print('RECOVERY_JOURNALS_VERIFIED')
+"""
+    if run("/opt/hostorbit/venv/bin/python", "-c", verify).stdout.strip() != b"RECOVERY_JOURNALS_VERIFIED":
+        raise RuntimeError("Recovered installed journals failed verification")
+    # Actual HTTPS requests into the installed API, with auth-control writes
+    # allowed and business/dispatch mutations rejected by the protected profile.
+    with tls_proxy(Path(state).parent) as context:
+        def request(path, body=None, headers=None):
+            req = Request(ORIGIN + path, data=None if body is None else json.dumps(body).encode(),
+                          headers={"Origin": ORIGIN, "Content-Type": "application/json", **(headers or {})})
+            try:
+                return urlopen(req, context=context, timeout=10)
+            except urllib.error.HTTPError as error:
+                return error
+        login = request("/api/v1/auth/login", {"username": "roman", "password": PASSWORD})
+        if login.status != 200:
+            raise RuntimeError("Restored Owner could not log in through installed HTTPS API")
+        cookie = login.headers["Set-Cookie"].split(";", 1)[0]
+        body = json.load(login)
+        headers = {"Cookie": cookie, "X-CSRF-Token": body["csrf_token"]}
+        audit = request("/api/v1/audit", headers=headers)
+        if audit.status != 200:
+            raise RuntimeError("Restored Owner could not read Audit")
+        audit.close()
+        changed = request("/api/v1/users", {"username": "blocked", "password": PASSWORD, "role": "Auditor"}, headers)
+        if changed.status != 503 or json.load(changed)["code"] != "WRITER_ADMISSION_CLOSED":
+            raise RuntimeError("Recovered API admitted a business write")
+        job = request(f"/api/v1/resources/{FAKE_JOB}/observations", {}, {**headers, "Idempotency-Key": "recovery-blocked-request"})
+        if job.status != 503 or json.load(job)["code"] != "WRITER_ADMISSION_CLOSED":
+            raise RuntimeError("Recovered API admitted a new job")
+    run("/usr/bin/systemctl", "restart", "hostorbit-compose.service", timeout=180)
+    if json.load(urlopen(f"http://127.0.0.1:{PORT}/healthz", timeout=10))["status"] != "alive":
+        raise RuntimeError("Recovered Compose did not restart")
+    if foreign.getsockname() != ("127.0.0.1", 443):
+        raise RuntimeError("Recovery changed a foreign listener")
+    again = run(*restore, check=False, timeout=30)
+    if again.returncode == 0:
+        raise RuntimeError("Repeated recovery overwrote its installation")
+    print("Signed recovery installation passed restored HTTPS Owner/Audit, stable idle Worker, fresh inactive Gate/Broker, persistent read-only after latch loss/restart, and blocked business/jobs/reinstall; physical DR remains unattested.", flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--isolated-vm", action="store_true")
@@ -723,7 +823,7 @@ print('VERIFIED_HOST_TIME')
             rescue_input = json.dumps({"archive": local_archive, "identity": base64.b64encode(fixture_identity).decode(),
                 "anchor": str(root / "independent-controller.pub"), "password": PASSWORD,
                 "keygen": str(args.bundle.parent / "hostorbit-install-age/age/age-keygen")}).encode()
-            recovered = run("/opt/hostorbit/venv/bin/python", "tests_runtime/lab/rescue.py", "--isolated-vm", input=rescue_input, timeout=120)
+            recovered = run("/opt/hostorbit/venv/bin/python", "tests_runtime/lab/rescue.py", "--isolated-vm", "--keep-data", input=rescue_input, timeout=120)
             print(recovered.stdout.decode().strip(), flush=True)
             del rescue_input
             sftp_publication(root, local_archive, fixture_identity)
@@ -748,6 +848,7 @@ print('VERIFIED_HOST_TIME')
             if json.load(urlopen(f"http://127.0.0.1:{PORT}/healthz", timeout=5))["status"] != "alive":
                 raise RuntimeError("Compose service did not recover after restart")
             print("Repeated install was denied without key replacement; systemd Compose restart preserved the installation.", flush=True)
+            recovery_installation(args, base, foreign)
         except Exception:
             for service in ("hostorbit-vault-initialize.service", "hostorbit-broker.service", "hostorbit-supervisor.service", "hostorbit-compose.service"):
                 result = run("/usr/bin/journalctl", "--unit", service, "--no-pager", "--lines", "40", check=False)
@@ -762,6 +863,8 @@ print('VERIFIED_HOST_TIME')
                 docker(args.docker_host, "compose", "--project-name", "hostorbit", "--file",
                        "/etc/hostorbit/compose.json", "down", timeout=60)
             run("/usr/bin/umount", daemon_socket, check=False)
+            if Path("/var/lib/hostorbit-rescue-lab").exists():
+                shutil.rmtree("/var/lib/hostorbit-rescue-lab")
             Path("/opt").chmod(opt_mode)
 
 
