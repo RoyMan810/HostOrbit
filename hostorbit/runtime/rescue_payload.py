@@ -17,6 +17,7 @@ from nacl.secret import Aead
 
 from ..database import Store
 from ..errors import Denied
+from ..migrations import expected_schema, schema_rows
 from .archive_stream import parse_manifest, validate_source
 from .pins import _metadata
 from .protocol import SHA256, canonical, checksum, fields, integer, text
@@ -64,7 +65,7 @@ def unpack(raw):
 
 
 @contextmanager
-def database(raw, version):
+def database(raw, version, *, schema=None):
     if (len(raw) < 100 or bytes(raw[:16]) != b"SQLite format 3\x00"
             or bytes(raw[18:20]) != b"\x01\x01"):
         raise Denied("RESCUE_DATABASE_INVALID")
@@ -85,6 +86,8 @@ def database(raw, version):
                 or db.execute("SELECT 1 FROM sqlite_schema WHERE type='view'").fetchone()):
             raise Denied("RESCUE_DATABASE_INVALID")
         db.row_factory = sqlite3.Row
+        if schema is not None and schema_rows(db) != schema:
+            raise Denied("RESCUE_SCHEMA_DRIFT")
         yield db
     except sqlite3.Error:
         raise Denied("RESCUE_DATABASE_INVALID") from None
@@ -107,6 +110,18 @@ def _match(members, prefix, records):
 
 
 def verify(members, claims, trusted_key):
+    from .authority import _SCHEMA as gate_schema
+    from .broker import _SCHEMA as receipts_schema
+    from .vault import _SCHEMA as vault_schema
+
+    def runtime_schema(script):
+        db = sqlite3.connect(":memory:")
+        try:
+            db.executescript(script)
+            return schema_rows(db)
+        finally:
+            db.close()
+
     manifest = parse_manifest(bytes(members.get("controller/manifest.json", b"")))
     validate_source(manifest, claims["manifest"]["snapshot_id"])
     if manifest != claims["manifest"] or bytes(members.get("controller/gate.pub", b"")) != trusted_key:
@@ -139,7 +154,7 @@ def verify(members, claims, trusted_key):
     expected |= _match(members, "vault/", pin["files"])
     vault_names = {"vault.sqlite3", "receipts.sqlite3"}
     references = []
-    with database(members["vault/vault.sqlite3"], 1) as db:
+    with database(members["vault/vault.sqlite3"], 1, schema=runtime_schema(vault_schema)) as db:
         for row in db.execute("SELECT * FROM secrets ORDER BY ref"):
             metadata = _metadata(row)
             digest = text(row["object_digest"], SHA256)
@@ -161,16 +176,16 @@ def verify(members, claims, trusted_key):
     del aead
     if set(members) != expected:
         raise Denied("RESCUE_SCOPE_INVALID")
-    with database(members["controller/app.sqlite3"], manifest["schema"]) as db:
+    with database(members["controller/app.sqlite3"], manifest["schema"], schema=expected_schema(manifest["schema"])) as db:
         if (Store.verify_audit_connection(db) != manifest["audit_head"]
                 or db.execute("SELECT coalesce(max(seq),0) FROM audit").fetchone()[0] != manifest["audit_sequence"]
                 or db.execute("SELECT count(*) FROM users WHERE role='Owner' AND disabled=0").fetchone()[0] != 1):
             raise Denied("RESCUE_APPLICATION_INVALID")
-    with database(members["controller/gate.sqlite3"], 1) as db:
+    with database(members["controller/gate.sqlite3"], 1, schema=runtime_schema(gate_schema)) as db:
         gate = db.execute("SELECT * FROM gate WHERE id=1").fetchone()
         if gate is None or gate["instance_id"] != manifest["source_instance"] or gate["epoch"] != manifest["gate_epoch"]:
             raise Denied("RESCUE_GATE_INVALID")
-    with database(members["vault/receipts.sqlite3"], 1):
+    with database(members["vault/receipts.sqlite3"], 1, schema=runtime_schema(receipts_schema)):
         pass
     from .policy import Policy
     policy_value = fields(parse_manifest(bytes(members["controller/targets.json"])), ("v", "targets"))

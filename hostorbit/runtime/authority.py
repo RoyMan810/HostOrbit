@@ -181,6 +181,8 @@ class Authority:
         claims = verify_permit(permit, bytes(self.key.verify_key), now=int(self.clock()))
         with self.journal.write() as db:
             gate = self._gate(db)
+            if not gate["activated"]:
+                raise Denied("GATE_CLOSED")
             if claims["epoch"] != gate["epoch"] or (claims["mutating"] and gate["state"] != "NORMAL"):
                 raise Denied("STALE_GATE_EPOCH")
             if claims["mutating"]:

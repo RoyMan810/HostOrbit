@@ -257,6 +257,45 @@ class RescueTests(unittest.TestCase):
         with self.assertRaisesRegex(Denied, "RESCUE_KEYSET_INVALID"):
             verify(members, self.envelope["claims"], self.anchor)
 
+    def test_signed_integral_archive_with_extra_sqlite_trigger_is_not_import_compatible(self):
+        with self.fixture.store.write() as db:
+            db.execute("CREATE TRIGGER unexpected_trigger AFTER DELETE ON sessions BEGIN SELECT 1; END")
+        self.source = self.fixture.backup.create(self.fixture.recipient)
+        self.envelope = json.loads(Path(self.source["provenance"]).read_bytes())
+        self.request = self.issue("drifted-schema")
+        with self.assertRaisesRegex(Denied, "RESCUE_SCHEMA_DRIFT"):
+            self.pack()
+        self.assertFalse(self.bundle.exists())
+
+    def test_historical_schema_one_restores_auth_without_running_a_migration(self):
+        from contextlib import closing
+        from hostorbit.migrations import historical_schema
+        from hostorbit.runtime.storage import new_private_file
+        legacy = self.root / "legacy"
+        legacy.mkdir(mode=0o700)
+        path = legacy / "controller.sqlite3"
+        new_private_file(path, b"")
+        with closing(sqlite3.connect(path, autocommit=True)) as db:
+            db.execute("PRAGMA journal_mode=WAL")
+            db.executescript(historical_schema())
+        store = Store(path, writers=self.fixture.admission)
+        auth = AuthService(store)
+        auth.create_owner(auth.issue_bootstrap(), "roman", PASSWORD)
+        self.fixture.cfg["database"] = str(path)
+        (self.fixture.layout.config / "runtime.json").write_bytes(canonical(self.fixture.cfg))
+        self.fixture.backup.store = store
+        self.source = self.fixture.backup.create(self.fixture.recipient)
+        self.envelope = json.loads(Path(self.source["provenance"]).read_bytes())
+        self.request = self.issue("legacy-target")
+        review = self.pack()
+        target = RecoveryTarget(self.root / "legacy-target-state", owner=os.geteuid(), age_path=self.age)
+        target.accept(self.bundle, owner_digest=review["bundle_sha256"], username="roman", password=PASSWORD)
+        restored = Store(self.root / "legacy-target-data/app/controller.sqlite3")
+        restored.verify_audit()
+        AuthService(restored).login("roman", PASSWORD, ip="127.0.0.1", correlation="legacy-recovered")
+        with restored.read() as db:
+            self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

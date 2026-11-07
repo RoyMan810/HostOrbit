@@ -56,8 +56,11 @@ class AuthorityTests(unittest.TestCase):
             self.authority.admit(request)
 
     def test_recovered_inactive_authority_refuses_even_read_only_probe(self):
+        permit = self.authority.admit(self.request())
         with self.authority.journal.write() as db:
             db.execute("UPDATE gate SET activated=0,state='RECOVERY_HOLD'")
+        with self.assertRaisesRegex(Denied, "GATE_CLOSED"):
+            self.authority.consume(permit)
         self.authority.recover()
         with self.assertRaisesRegex(Denied, "GATE_CLOSED"):
             self.authority.admit(self.request())
