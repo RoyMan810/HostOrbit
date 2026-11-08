@@ -1,0 +1,67 @@
+{
+  "checks": [
+    {
+      "command": "python -m unittest discover -s tests_app -q",
+      "exit_code": 0,
+      "passed": 64,
+      "raw_log_sha256": "c8e85b922af1ac0280b37f0123531dffab17a7bb00ce57ccf02c79e8ed517cf6",
+      "summary": [
+        "----------------------------------------------------------------------",
+        "Ran 64 tests in 16.750s",
+        "",
+        "OK"
+      ]
+    },
+    {
+      "command": "python -m unittest discover -s tests_runtime -q",
+      "exit_code": 0,
+      "passed": 137,
+      "raw_log_sha256": "9fbdf9ba3f0e359e7847f92f41156dd7a66a5eed94f5bd5d77c8002bb9dc2812",
+      "summary": [
+        "----------------------------------------------------------------------",
+        "Ran 137 tests in 20.522s",
+        "",
+        "OK"
+      ]
+    },
+    {
+      "command": "python -m unittest discover -s tests -q",
+      "exit_code": 0,
+      "passed": 73,
+      "raw_log_sha256": "bb9f57191ac9a4aeb25ddb30af2ca007a95ab466c520c833a983426c651fffd5",
+      "summary": [
+        "----------------------------------------------------------------------",
+        "Ran 73 tests in 3.371s",
+        "",
+        "OK"
+      ]
+    },
+    {
+      "command": "python -m unittest discover -s tests_tools -q",
+      "exit_code": 0,
+      "passed": 9,
+      "raw_log_sha256": "685f2d22030b491eaf73de512a26dcb089f3a64b4817cce970101f4d2d976e39",
+      "summary": [
+        "----------------------------------------------------------------------",
+        "Ran 9 tests in 0.068s",
+        "",
+        "OK"
+      ]
+    }
+  ],
+  "ci_jobs": [],
+  "limitations": [
+    "Local automated regression only; original signed/native integration evidence remains historical until current PR CI finishes.",
+    "No independent human audit, Stage2 acceptance, capacity attestation or production infrastructure operation."
+  ],
+  "python": "3.13.17 (main, Oct 21 2026, 17:49:22) [Clang 23.1.3 ]",
+  "recorded_at_utc": "2026-11-08T09:27:45.576355+00:00",
+  "reviewer": "Independent Codex code review; no critical correctness/authorization/exposure finding. Query history scaling limitation documented.",
+  "source_commit": "77a68375261fc0b1686520ef55e592c021d572d8",
+  "source_tree": "44f9e40d4a66eadc0b51e878f1a2af6ed34deb03",
+  "sqlite": "3.53.1",
+  "wheel": {
+    "sha256": "49e6ed780f58d06619e063eb5368037c6095228704def1bb1a1a72383161043b",
+    "smoke": "Imported built wheel in isolated Python, registered both routes, unauthenticated request denied; package excludes tests and Stage0."
+  }
+}

@@ -1,0 +1,85 @@
+{
+  "build_digest": "034a4d7624a3254884f50a55c96b2a02d207720c1767df80ad9082426a979ee3",
+  "build_digest_algorithm": "SHA-256 of sorted file records serialized as compact sorted-key JSON; source build identity, not wheel bytes",
+  "files": [
+    {
+      "path": "deploy/installer.py",
+      "sha256": "86fcd9c7ee69c7d6e8088eaed389c56371af0e001fe40f25445e651f04f6e41e"
+    },
+    {
+      "path": "hostorbit/api.py",
+      "sha256": "4c07a9f0717ecd3e9f36909c4cf50d0605542997d2a33d71d58ce13e1063c440"
+    },
+    {
+      "path": "hostorbit/auth.py",
+      "sha256": "ec9c94b21e19a306a375ace7c42831e740f9abc6337649a310f31a9f7bdf488a"
+    },
+    {
+      "path": "hostorbit/cli.py",
+      "sha256": "5f8f0172c5f3217db2669cf6083229eb00e02d72aa5c389fcf194da174de4778"
+    },
+    {
+      "path": "hostorbit/config.py",
+      "sha256": "f606015fb8fa5c508d53b115a5e6afa37789d8085a1d7f600d5ed6a42939fe5c"
+    },
+    {
+      "path": "hostorbit/inventory.py",
+      "sha256": "3c75c8b51a37f3fb76038dbc6cccc44cf6a82d415ee9afc6a225c885fea2fbe3"
+    },
+    {
+      "path": "hostorbit/queue.py",
+      "sha256": "0616abc8a165911b6d9827982647823b2c822ed28e489cd43b0723cb0a6dd20c"
+    },
+    {
+      "path": "requirements-app.txt",
+      "sha256": "e8db2aaf88c7136cc13c488cbe859b51148feac1254253bc0cc335c2d926cdfb"
+    },
+    {
+      "path": "requirements-dev.txt",
+      "sha256": "44a795a5efa95d91b371309e76f546e06b3a6af0977b196693266e63d66dc962"
+    },
+    {
+      "path": "requirements-lab.txt",
+      "sha256": "c706e75de39b8a5815b3db5f7f05cc31510f3c37cd9d29f760702b7391ec61d1"
+    },
+    {
+      "path": "requirements-quality.txt",
+      "sha256": "6e564a064186fa0ba3bef3ca9d117edb8ec9a6e5c47aaf759e448f790a0a0e26"
+    },
+    {
+      "path": "tests_app/test_auth_api.py",
+      "sha256": "8cbb34f8cd7c68f6a5bee13fec7b4fa6aa1984425ae5d52811ee8e1fb7f40ea1"
+    },
+    {
+      "path": "tests_app/test_http_boundary.py",
+      "sha256": "0c10ef58acd30600a2836c14fabeb3982cdbc956ecee529ad6db5e2bb58a9958"
+    },
+    {
+      "path": "tests_app/test_inventory_api.py",
+      "sha256": "d7b9c069ce17e6d9760607fc7c4eb6cec089e3378c16999f2094eae9acc8fd0b"
+    },
+    {
+      "path": "tests_app/test_permissions.py",
+      "sha256": "14b34a51ba7b087f17f9b35b71d4e0fba9273c90e756438df75e281cd3a5c167"
+    },
+    {
+      "path": "tests_app/test_queue_api.py",
+      "sha256": "12c6ddcb049df912466932870d367c2a98cafa22071343db76af01baf8eba196"
+    },
+    {
+      "path": "tests_runtime/lab/installation.py",
+      "sha256": "88f0fddddb5644485a9a233f7557196378c1222942cc8ee7ed4ec239e38ebe9f"
+    },
+    {
+      "path": "tests_runtime/test_protocol_policy.py",
+      "sha256": "93e01954ad88f2b8481a48715fcc45d6442fc53595e87ea715440c19aaf43669"
+    },
+    {
+      "path": "tests_runtime/test_worker_broker.py",
+      "sha256": "578ce6314715e9e2ad3fbb41c7d621b7fdb2530cdaa95b763b8501f29915e93c"
+    }
+  ],
+  "scope": "Auth/RBAC revalidation after additive read-only inventory routes",
+  "source_commit": "77a68375261fc0b1686520ef55e592c021d572d8",
+  "source_tree": "44f9e40d4a66eadc0b51e878f1a2af6ed34deb03"
+}

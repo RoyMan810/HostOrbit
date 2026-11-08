@@ -1,22 +1,30 @@
 {
   "artifacts": [
     {
-      "path": "evidence/acceptance/stage1-2026-11-08/source-manifest.json",
-      "sha256": "c70c537315f38078a9a277819329dbf529da15f6fa350ff4c5e33de4e30ffded"
+      "path": "evidence/revalidation/stage2-inventory-2026-11-08/source-manifest.json",
+      "sha256": "8e33e09c7f692e0c101408b50c6d69037a523211f33eb2953b4e642fb0a593b9"
     },
     {
       "path": "evidence/acceptance/stage1-2026-11-08/sbom.cdx.json",
       "sha256": "185b3062cfec008162196407a7089b30ace8b408f948e01f417d465c7d403b4c"
     },
     {
+      "path": "evidence/revalidation/stage2-inventory-2026-11-08/verification.json",
+      "sha256": "a4a96c84e4d1bdc0099f13fae04fb48205df265261dc85c35583fc83e5b0fb2c"
+    },
+    {
       "path": "evidence/acceptance/stage1-2026-11-08/ci-observations.json",
       "sha256": "84614c65af5e0186b012b3ef6bf9454defc96d33d6baf24ab146346b531651e1"
     }
   ],
-  "build_digest": "20b9e756bd6004e270a273369b6024351002e3affc96babbfd3e1f978162b7ef",
+  "build_digest": "034a4d7624a3254884f50a55c96b2a02d207720c1767df80ad9082426a979ee3",
   "capability": "rbac",
   "capability_assertion": "Foundation: Owner/Admin/Operator/Auditor, explicit server-side grants/scopes, no Owner bootstrap/delegation from Web, role/session revocation and manager-level authorization before queue dispatch.",
-  "ci_jobs": [
+  "ci_jobs": [],
+  "environment": "Local Linux, Python 3.13.17, SQLite 3.53.1, pinned dependencies, real temporary SQLite and TestClient; native evidence under historical_ci_jobs.",
+  "evidence_digest": "d45426d9cbc0d8cfe4bcd8e5f5cea672ee3ff0ba776e43b6b4d119c51c2dbde0",
+  "fault_injection": "test_no_operator_wildcard_or_view_secret_grant_and_owner_is_local_only; test_role_change_or_disable_revokes_all_sessions_and_invalidates_csrf; test_scope_changed_or_actor_revoked_after_enqueue_cancels_before_permit; test_fixed_numeric_targets_reject_loopback_metadata_zones_dns_and_unsupported_actions",
+  "historical_ci_jobs": [
     {
       "conclusion": "success",
       "excerpts": [
@@ -57,45 +65,57 @@
       "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42415508424/job/128532587157"
     }
   ],
-  "environment": "GitHub-hosted Ubuntu 24.04 amd64, Python 3.13, SQLite >=3.45, pinned app dependencies/OCI; actual Linux UIDs, systemd and isolated SSH/Compose where stated.",
-  "evidence_digest": "89ca93a1bc8b79269f8bd11591ef00a104396468b018893d401d4ab1c4a43e78",
-  "fault_injection": "test_no_operator_wildcard_or_view_secret_grant_and_owner_is_local_only; test_role_change_or_disable_revokes_all_sessions_and_invalidates_csrf; test_scope_changed_or_actor_revoked_after_enqueue_cancels_before_permit; test_fixed_numeric_targets_reject_loopback_metadata_zones_dns_and_unsupported_actions",
   "initial_state": "Fresh private or explicit shared-group SQLite; independently trusted signed development bundle and separate service identities; ephemeral fixture keys only.",
   "limitations": [
     "Basic fixed-capability scoped RBAC is accepted; Global→Group→VPS Effective Policy UI/inheritance and complete mutating Change Plan approval AC remain separate MVP work.",
-    "No full AC status, FR completion, Stage2/3 gate or production/MVP readiness is promoted by this Foundation-only report."
+    "No full AC status, FR completion, Stage2/3 gate or production/MVP readiness is promoted by this Foundation-only report.",
+    "Inventory is an initial read-only Stage2 component, not acceptance of AC-28/Stage2/MVP. Current native PR CI is pending; historical CI is not presented as a run on this source."
   ],
-  "manifest_digest": "c70c537315f38078a9a277819329dbf529da15f6fa350ff4c5e33de4e30ffded",
+  "manifest_digest": "8e33e09c7f692e0c101408b50c6d69037a523211f33eb2953b4e642fb0a593b9",
   "negative_checks": [
     "test_no_operator_wildcard_or_view_secret_grant_and_owner_is_local_only",
     "test_role_change_or_disable_revokes_all_sessions_and_invalidates_csrf",
     "test_scope_changed_or_actor_revoked_after_enqueue_cancels_before_permit",
-    "test_fixed_numeric_targets_reject_loopback_metadata_zones_dns_and_unsupported_actions"
+    "test_fixed_numeric_targets_reject_loopback_metadata_zones_dns_and_unsupported_actions",
+    "tests_app/test_inventory_api.py: unauthorized/foreign resource, revoked grants, stale/future/failed/unknown/cancelled probe, changed scope/policy, malformed result and no secret-field exposure"
   ],
-  "observation": "Reviewed code and successful exact-main CI job logs support each listed Foundation positive and negative component check.",
+  "observation": "Revalidated Auth/RBAC against additive inventory routes: 64 application, 137 runtime, 73 Stage0 and 9 tool tests pass locally. Historical native evidence is retained separately; current PR CI is pending.",
   "outcome": "PASS",
   "positive_checks": [
     "test_operator_scope_and_auditor_read_only_permissions_are_checked_in_manager",
-    "test_admin_cannot_delegate_beyond_own_scope_or_modify_owner_or_admin"
+    "test_admin_cannot_delegate_beyond_own_scope_or_modify_owner_or_admin",
+    "tests_app/test_inventory_api.py: scoped list/detail, bounded output pagination, authenticated wheel routes and current observation state"
   ],
-  "recorded_at_utc": "2026-11-07T21:39:42.371428+00:00",
-  "reviewer": "Codex automated code/evidence self-review; not an independent human security audit.",
+  "recorded_at_utc": "2026-11-08T09:27:45.576355+00:00",
+  "revalidation_of": {
+    "evidence_digest": "89ca93a1bc8b79269f8bd11591ef00a104396468b018893d401d4ab1c4a43e78",
+    "source_commit": "688d1408004580d95ddd4d6bd1c75c576b1bb764"
+  },
+  "reviewer": "Codex automated local revalidation plus independent Codex code review; not an independent human security audit.",
   "sbom_digest": "185b3062cfec008162196407a7089b30ace8b408f948e01f417d465c7d403b4c",
   "scenario": "Foundation: Owner/Admin/Operator/Auditor, explicit server-side grants/scopes, no Owner bootstrap/delegation from Web, role/session revocation and manager-level authorization before queue dispatch.",
   "scope": "FOUNDATION_ONLY",
-  "source_commit": "688d1408004580d95ddd4d6bd1c75c576b1bb764",
+  "source_commit": "77a68375261fc0b1686520ef55e592c021d572d8",
   "source_files": [
     {
       "path": "hostorbit/api.py",
-      "sha256": "8b65fef13f60a99dda244f67d55e535ded93b891a12e9d0a6b4d08b026dde884"
+      "sha256": "4c07a9f0717ecd3e9f36909c4cf50d0605542997d2a33d71d58ce13e1063c440"
     },
     {
       "path": "hostorbit/auth.py",
       "sha256": "ec9c94b21e19a306a375ace7c42831e740f9abc6337649a310f31a9f7bdf488a"
     },
     {
+      "path": "hostorbit/inventory.py",
+      "sha256": "3c75c8b51a37f3fb76038dbc6cccc44cf6a82d415ee9afc6a225c885fea2fbe3"
+    },
+    {
       "path": "hostorbit/queue.py",
       "sha256": "0616abc8a165911b6d9827982647823b2c822ed28e489cd43b0723cb0a6dd20c"
+    },
+    {
+      "path": "tests_app/test_inventory_api.py",
+      "sha256": "d7b9c069ce17e6d9760607fc7c4eb6cec089e3378c16999f2094eae9acc8fd0b"
     },
     {
       "path": "tests_app/test_permissions.py",
@@ -114,7 +134,7 @@
       "sha256": "578ce6314715e9e2ad3fbb41c7d621b7fdb2530cdaa95b763b8501f29915e93c"
     }
   ],
-  "source_tree": "0cbeffc76fb5b494db138dc6a42aec081626285f",
+  "source_tree": "44f9e40d4a66eadc0b51e878f1a2af6ed34deb03",
   "stage": "Stage1",
   "test_id": "Stage1.rbac"
 }

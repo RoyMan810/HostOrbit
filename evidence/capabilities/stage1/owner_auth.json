@@ -1,22 +1,30 @@
 {
   "artifacts": [
     {
-      "path": "evidence/acceptance/stage1-2026-11-08/source-manifest.json",
-      "sha256": "c70c537315f38078a9a277819329dbf529da15f6fa350ff4c5e33de4e30ffded"
+      "path": "evidence/revalidation/stage2-inventory-2026-11-08/source-manifest.json",
+      "sha256": "8e33e09c7f692e0c101408b50c6d69037a523211f33eb2953b4e642fb0a593b9"
     },
     {
       "path": "evidence/acceptance/stage1-2026-11-08/sbom.cdx.json",
       "sha256": "185b3062cfec008162196407a7089b30ace8b408f948e01f417d465c7d403b4c"
     },
     {
+      "path": "evidence/revalidation/stage2-inventory-2026-11-08/verification.json",
+      "sha256": "a4a96c84e4d1bdc0099f13fae04fb48205df265261dc85c35583fc83e5b0fb2c"
+    },
+    {
       "path": "evidence/acceptance/stage1-2026-11-08/ci-observations.json",
       "sha256": "84614c65af5e0186b012b3ef6bf9454defc96d33d6baf24ab146346b531651e1"
     }
   ],
-  "build_digest": "20b9e756bd6004e270a273369b6024351002e3affc96babbfd3e1f978162b7ef",
+  "build_digest": "034a4d7624a3254884f50a55c96b2a02d207720c1767df80ad9082426a979ee3",
   "capability": "owner_auth",
   "capability_assertion": "Foundation: local-only one-time Owner bootstrap, Argon2id authentication, HTTPS session/cookie/CSRF/rate-limit and re-auth primitives with durable negative tests.",
-  "ci_jobs": [
+  "ci_jobs": [],
+  "environment": "Local Linux, Python 3.13.17, SQLite 3.53.1, pinned dependencies, real temporary SQLite and TestClient; native evidence under historical_ci_jobs.",
+  "evidence_digest": "99f6e88c5cdee2312c5ab778ccc6b3d01eae93ca3c1205c0975977f671eb47ba",
+  "fault_injection": "test_first_web_visitor_cannot_bootstrap_owner_and_token_is_local_single_use; test_bootstrap_expiry_rotation_and_concurrent_consumption; test_cookie_security_rotation_csrf_and_plaintext_absence; test_idle_and_absolute_expiry_persist_across_reopen_and_clock_rollback; test_account_ip_login_limit_and_untrusted_forwarding_do_not_allow_bypass; test_reauth_is_bound_to_session_plan_expiry_and_one_consumption",
+  "historical_ci_jobs": [
     {
       "conclusion": "success",
       "excerpts": [
@@ -62,36 +70,40 @@
       "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42415508424/job/128532586993"
     }
   ],
-  "environment": "GitHub-hosted Ubuntu 24.04 amd64, Python 3.13, SQLite >=3.45, pinned app dependencies/OCI; actual Linux UIDs, systemd and isolated SSH/Compose where stated.",
-  "evidence_digest": "0ce4fd39e300a6394232cc626f14d2b11bd0cf7db96b9c9096daa500d43540a7",
-  "fault_injection": "test_first_web_visitor_cannot_bootstrap_owner_and_token_is_local_single_use; test_bootstrap_expiry_rotation_and_concurrent_consumption; test_cookie_security_rotation_csrf_and_plaintext_absence; test_idle_and_absolute_expiry_persist_across_reopen_and_clock_rollback; test_account_ip_login_limit_and_untrusted_forwarding_do_not_allow_bypass; test_reauth_is_bound_to_session_plan_expiry_and_one_consumption",
   "initial_state": "Fresh private or explicit shared-group SQLite; independently trusted signed development bundle and separate service identities; ephemeral fixture keys only.",
   "limitations": [
     "Foundation auth only; complete end-user onboarding, Stage2 UI and a general production deployment/security certification are not claimed.",
-    "No full AC status, FR completion, Stage2/3 gate or production/MVP readiness is promoted by this Foundation-only report."
+    "No full AC status, FR completion, Stage2/3 gate or production/MVP readiness is promoted by this Foundation-only report.",
+    "Inventory is an initial read-only Stage2 component, not acceptance of AC-28/Stage2/MVP. Current native PR CI is pending; historical CI is not presented as a run on this source."
   ],
-  "manifest_digest": "c70c537315f38078a9a277819329dbf529da15f6fa350ff4c5e33de4e30ffded",
+  "manifest_digest": "8e33e09c7f692e0c101408b50c6d69037a523211f33eb2953b4e642fb0a593b9",
   "negative_checks": [
     "test_first_web_visitor_cannot_bootstrap_owner_and_token_is_local_single_use",
     "test_bootstrap_expiry_rotation_and_concurrent_consumption",
     "test_cookie_security_rotation_csrf_and_plaintext_absence",
     "test_idle_and_absolute_expiry_persist_across_reopen_and_clock_rollback",
     "test_account_ip_login_limit_and_untrusted_forwarding_do_not_allow_bypass",
-    "test_reauth_is_bound_to_session_plan_expiry_and_one_consumption"
+    "test_reauth_is_bound_to_session_plan_expiry_and_one_consumption",
+    "tests_app/test_inventory_api.py: unauthorized/foreign resource, revoked grants, stale/future/failed/unknown/cancelled probe, changed scope/policy, malformed result and no secret-field exposure"
   ],
-  "observation": "Reviewed code and successful exact-main CI job logs support each listed Foundation positive and negative component check.",
+  "observation": "Revalidated Auth/RBAC against additive inventory routes: 64 application, 137 runtime, 73 Stage0 and 9 tool tests pass locally. Historical native evidence is retained separately; current PR CI is pending.",
   "outcome": "PASS",
   "positive_checks": [
     "test_local_cli_creates_owner_without_password_or_token_in_arguments",
     "test_password_profile_is_argon2id_and_rehashes_older_parameters_at_login",
-    "Installed native CLI bootstrap followed by HTTPS Owner login"
+    "Installed native CLI bootstrap followed by HTTPS Owner login",
+    "tests_app/test_inventory_api.py: scoped list/detail, bounded output pagination, authenticated wheel routes and current observation state"
   ],
-  "recorded_at_utc": "2026-11-07T21:39:42.371428+00:00",
-  "reviewer": "Codex automated code/evidence self-review; not an independent human security audit.",
+  "recorded_at_utc": "2026-11-08T09:27:45.576355+00:00",
+  "revalidation_of": {
+    "evidence_digest": "0ce4fd39e300a6394232cc626f14d2b11bd0cf7db96b9c9096daa500d43540a7",
+    "source_commit": "688d1408004580d95ddd4d6bd1c75c576b1bb764"
+  },
+  "reviewer": "Codex automated local revalidation plus independent Codex code review; not an independent human security audit.",
   "sbom_digest": "185b3062cfec008162196407a7089b30ace8b408f948e01f417d465c7d403b4c",
   "scenario": "Foundation: local-only one-time Owner bootstrap, Argon2id authentication, HTTPS session/cookie/CSRF/rate-limit and re-auth primitives with durable negative tests.",
   "scope": "FOUNDATION_ONLY",
-  "source_commit": "688d1408004580d95ddd4d6bd1c75c576b1bb764",
+  "source_commit": "77a68375261fc0b1686520ef55e592c021d572d8",
   "source_files": [
     {
       "path": "deploy/installer.py",
@@ -99,7 +111,7 @@
     },
     {
       "path": "hostorbit/api.py",
-      "sha256": "8b65fef13f60a99dda244f67d55e535ded93b891a12e9d0a6b4d08b026dde884"
+      "sha256": "4c07a9f0717ecd3e9f36909c4cf50d0605542997d2a33d71d58ce13e1063c440"
     },
     {
       "path": "hostorbit/auth.py",
@@ -114,6 +126,10 @@
       "sha256": "f606015fb8fa5c508d53b115a5e6afa37789d8085a1d7f600d5ed6a42939fe5c"
     },
     {
+      "path": "hostorbit/inventory.py",
+      "sha256": "3c75c8b51a37f3fb76038dbc6cccc44cf6a82d415ee9afc6a225c885fea2fbe3"
+    },
+    {
       "path": "tests_app/test_auth_api.py",
       "sha256": "8cbb34f8cd7c68f6a5bee13fec7b4fa6aa1984425ae5d52811ee8e1fb7f40ea1"
     },
@@ -122,11 +138,15 @@
       "sha256": "0c10ef58acd30600a2836c14fabeb3982cdbc956ecee529ad6db5e2bb58a9958"
     },
     {
+      "path": "tests_app/test_inventory_api.py",
+      "sha256": "d7b9c069ce17e6d9760607fc7c4eb6cec089e3378c16999f2094eae9acc8fd0b"
+    },
+    {
       "path": "tests_runtime/lab/installation.py",
       "sha256": "88f0fddddb5644485a9a233f7557196378c1222942cc8ee7ed4ec239e38ebe9f"
     }
   ],
-  "source_tree": "0cbeffc76fb5b494db138dc6a42aec081626285f",
+  "source_tree": "44f9e40d4a66eadc0b51e878f1a2af6ed34deb03",
   "stage": "Stage1",
   "test_id": "Stage1.owner_auth"
 }
