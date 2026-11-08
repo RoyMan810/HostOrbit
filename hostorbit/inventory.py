@@ -1,0 +1,102 @@
+"""Scoped, bounded read model over registered resources and completed probes."""
+
+import json
+import re
+import time
+
+from .auth import AuthService, Role, etag
+from .errors import Denied
+from .queue import JobQueue
+from .runtime.protocol import ULID
+
+
+_SELECT = """
+SELECT r.*, j.status AS job_status, j.reason AS job_reason, j.updated_at AS checked_at,
+       j.scope_digest AS job_scope, j.policy_revision AS job_policy, j.result AS job_result,
+       s.result AS success_result
+FROM resources r
+LEFT JOIN jobs j ON j.id=(
+    SELECT id FROM jobs WHERE resource_id=r.id
+    AND status IN ('SUCCEEDED','FAILED','UNKNOWN_OUTCOME','CANCELLED_SAFE')
+    ORDER BY created_at DESC,id DESC LIMIT 1)
+LEFT JOIN jobs s ON s.id=(
+    SELECT id FROM jobs WHERE resource_id=r.id AND status='SUCCEEDED'
+    AND scope_digest=r.scope_digest AND policy_revision=r.policy_revision
+    ORDER BY created_at DESC,id DESC LIMIT 1)
+WHERE r.id>? AND (? IS NULL OR r.id=?)
+AND (? OR EXISTS (SELECT 1 FROM grants g WHERE g.user_id=?
+                 AND g.permission='vps:read' AND g.resource_id IN (r.id,'*')))
+ORDER BY r.id LIMIT ?
+"""
+
+
+def _sample(raw):
+    if raw is None:
+        return None
+    try:
+        value = json.loads(raw)
+        if (not isinstance(value, dict) or value.get('status') != 'REACHABLE'
+                or value.get('source') != 'restricted_helper' or type(value.get('observed_at')) is not int
+                or not isinstance(value.get('boot_id'), str)
+                or not re.fullmatch(r'[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}', value['boot_id'])):
+            return None
+        return {k: value[k] for k in ('status', 'source', 'observed_at', 'boot_id')}
+    except (ValueError, TypeError):
+        return None
+
+
+class Inventory:
+    def __init__(self, store, *, clock=time.time):
+        self.store, self.clock = store, clock
+
+    def _public(self, row, now):
+        success = _sample(row['success_result'])
+        status, reason = 'NOT_CHECKED', 'NO_COMPLETED_OBSERVATION'
+        if row['job_status'] is not None:
+            status = 'UNKNOWN'
+            if row['job_scope'] != row['scope_digest'] or row['job_policy'] != row['policy_revision']:
+                reason = 'OBSERVATION_SCOPE_CHANGED'
+            elif row['job_status'] != 'SUCCEEDED':
+                reason = row['job_reason']
+            else:
+                sample = _sample(row['job_result'])
+                if sample is None:
+                    reason = 'OBSERVATION_INVALID'
+                elif sample['observed_at'] > now or row['checked_at'] > now:
+                    reason = 'OBSERVATION_TIME_INVALID'
+                elif now - sample['observed_at'] > 300:
+                    reason = 'OBSERVATION_STALE'
+                else:
+                    status, reason = 'REACHABLE', 'PROBE_SUCCEEDED'
+        if not row['enabled']:
+            status, reason = 'UNKNOWN', 'RESOURCE_DISABLED'
+        return {**{k: row[k] for k in ('id', 'revision', 'policy_revision', 'created_at', 'updated_at')},
+                'enabled': bool(row['enabled']), 'access_mode': 'READ_ONLY',
+                'observation': {'status': status, 'reason': reason,
+                                'last_checked_at': row['checked_at'], 'last_success': success}}
+
+    def _rows(self, auth, token, *, after='', identity=None, limit=51):
+        with self.store.read() as db:
+            JobQueue._schema(db)
+            actor = auth._session(db, token)
+            rows = db.execute(_SELECT, (after, identity, identity, actor['role'] == Role.OWNER,
+                                        actor['id'], limit)).fetchall()
+            now = int(self.clock())
+            for row in rows:
+                AuthService.require(db, actor, 'vps:read', row['id'])
+            return [self._public(row, now) for row in rows]
+
+    def list(self, auth, token, *, after='', limit=50):
+        if type(limit) is not int or not 1 <= limit <= 100 or (after and re.fullmatch(ULID, after) is None):
+            raise Denied('INVENTORY_CURSOR_INVALID', 422)
+        rows = self._rows(auth, token, after=after, limit=limit + 1)
+        value = {'items': rows[:limit], 'next_after': rows[limit - 1]['id'] if len(rows) > limit else None}
+        return value, etag(value, 0)
+
+    def get(self, auth, token, identity):
+        if re.fullmatch(ULID, identity) is None:
+            raise Denied('RESOURCE_NOT_FOUND', 404)
+        rows = self._rows(auth, token, identity=identity, limit=1)
+        if not rows:
+            raise Denied('RESOURCE_NOT_FOUND', 404)
+        return rows[0], etag(rows[0], rows[0]['revision'])

@@ -8,6 +8,8 @@ Self-hosted система управления Linux-серверами по Т
 
 Доступна подписанная development-установка на Ubuntu 24.04 amd64. Единственный включённый remote adapter — read-only `host.probe`. Stage2, production mutations, A/B updates, live migration и независимая DR-приёмка остаются открытыми. Остальные 69 полных AC сохраняют `NOT_RUN`; Foundation не заменяет приёмку MVP.
 
+Начат [Stage2: API инвентаря VPS](docs/stage2-inventory.md): список и карточка зарегистрированных ресурсов с ограничением доступа и свежестью SSH-наблюдений. Обнаружение Docker/Nginx и безопасные изменяющие операции остаются следующими компонентами Stage2.
+
 ## Работа с проектом
 
 - [Документация и структура](docs/README.md)

@@ -14,6 +14,7 @@
 
 ## Controller и развёртывание
 
+- [Stage2: API инвентаря VPS и достоверные наблюдения](stage2-inventory.md)
 - [Foundation: Owner, Auth/RBAC и хранилище](stage1-foundation.md)
 - [Runtime: Worker, Broker, SSH и host authority](stage1-runtime.md)
 - [Подписанная установка](stage1-installation.md)

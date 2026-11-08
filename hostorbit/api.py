@@ -18,7 +18,9 @@ from .auth import ABSOLUTE_SECONDS, COOKIE, AuthService, Role
 from .config import Settings
 from .database import DataAccess, Store, canonical, identifier
 from .errors import Denied
+from .inventory import Inventory
 from .queue import JobQueue
+from .runtime.protocol import ULID
 
 
 def failure(code, status, correlation, *, retry_after=None, details=None):
@@ -159,6 +161,7 @@ def create_app(settings: Settings, *, auth: AuthService | None = None):
     service = auth or AuthService(Store(settings.database, access=access,
                                        writers=Admission(settings.writer_directory) if settings.writer_directory else None))
     queue = JobQueue(service.store, clock=service.clock)
+    inventory = Inventory(service.store, clock=service.clock)
     app = FastAPI(title="HostOrbit API", version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.auth = service
     app.add_middleware(SecurityBoundary, settings=settings, auth=service)
@@ -267,6 +270,20 @@ def create_app(settings: Settings, *, auth: AuthService | None = None):
         result = queue.enqueue_probe(service, token(request), csrf(request), resource_id, request.headers.get("idempotency-key"))
         response.headers["Location"] = f'/api/v1/jobs/{result["id"]}'
         return result
+
+    @app.get("/api/v1/resources")
+    def list_resources(request: Request, response: Response,
+                       after: Annotated[str, Field(pattern="^" + ULID + "$", max_length=26)] | None = None,
+                       limit: Annotated[int, Field(ge=1, le=100)] = 50, actor=Depends(principal)):
+        value, current = inventory.list(service, token(request), after=after or '', limit=limit)
+        response.headers["ETag"] = current
+        return value
+
+    @app.get("/api/v1/resources/{resource_id}")
+    def get_resource(resource_id: str, request: Request, response: Response, actor=Depends(principal)):
+        value, current = inventory.get(service, token(request), resource_id)
+        response.headers["ETag"] = current
+        return value
 
     @app.get("/api/v1/jobs/{job_id}")
     def get_job(job_id: str, request: Request, response: Response, actor=Depends(principal)):
