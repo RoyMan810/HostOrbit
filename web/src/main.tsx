@@ -98,6 +98,7 @@ function Detail({ resource, t, lang, now }: { resource: Resource; t: Copy; lang:
     new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(seconds * 1000))
   const presence = (value: Presence) => value === 'PRESENT' ? t.present : value === 'NOT_DETECTED' ? t.notDetected : t.unknown
   const software = observation.last_success?.software
+  const docker = observation.last_success?.docker
 
   return <>
     <div className="detail-id"><span>{t.host}</span><code>{resource.id}</code></div>
@@ -120,6 +121,16 @@ function Detail({ resource, t, lang, now }: { resource: Resource; t: Copy; lang:
           <div><dt>Nginx</dt><dd>{presence(software.nginx)}</dd></div>
         </dl>
       </> : <p>{t.noSoftware}</p>}
+    </div>}
+    {docker && <div className="software">
+      <h3>{t.dockerHeading}</h3>
+      <p>{current.status === 'REACHABLE' ? t.dockerScope : t.dockerHistorical}</p>
+      {docker.status === 'OBSERVED' ? <ul className="docker-list">
+        {docker.containers.map(container => <li key={container.id}>
+          <div><strong>{container.project} / {container.service}</strong><code title={container.id}>{container.id.slice(0, 12)}</code></div>
+          <span className="pill">{t.containerState[container.state]}</span>
+        </li>)}
+      </ul> : <p>{t.dockerStatus[docker.status]}</p>}
     </div>}
   </>
 }

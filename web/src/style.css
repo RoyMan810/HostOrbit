@@ -130,3 +130,7 @@ dd { margin: 5px 0 0; font-size: 14px; font-weight: 650; }
 .probe-id { display: grid; gap: 3px; margin-bottom: 8px; font-size: 13px; }
 .probe-id span { color: var(--muted); }
 .probe-state p + p, .probe-state button { margin-top: 8px; }
+.docker-list { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
+.docker-list li { display: flex; align-items: start; justify-content: space-between; gap: 10px; padding: 10px; background: var(--soft); border-radius: 8px; }
+.docker-list li div { min-width: 0; display: grid; gap: 4px; overflow-wrap: anywhere; font-size: 13px; }
+.docker-list code { color: var(--muted); }

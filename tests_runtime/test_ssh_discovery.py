@@ -72,14 +72,19 @@ class ProbeNegotiationTests(unittest.IsolatedAsyncioTestCase):
     async def probe(self):
         return await asyncio.wait_for(exchange(self.target, self.client_key, self.known_hosts), 5)
 
-    async def test_v2_uses_one_fixed_request(self):
-        self.assertEqual(await self.probe(), (2, b'probe'))
-        self.assertEqual(self.requests, [('hostorbit.v2.probe', b'{"operation":"probe","version":2}\n')])
+    async def test_v3_uses_one_fixed_request(self):
+        self.assertEqual(await self.probe(), (3, b'probe'))
+        self.assertEqual(self.requests, [('hostorbit.v3.probe', b'{"operation":"probe","version":3}\n')])
 
-    async def test_silent_unsupported_v2_falls_back_on_same_connection(self):
-        self.reply = lambda command: (65, b'') if command == 'hostorbit.v2.probe' else (0, b'legacy')
+    async def test_silent_unsupported_v3_falls_back_to_v2(self):
+        self.reply = lambda command: (65, b'') if command == 'hostorbit.v3.probe' else (0, b'legacy')
+        self.assertEqual(await self.probe(), (2, b'legacy'))
+        self.assertEqual([r[0] for r in self.requests], ['hostorbit.v3.probe', 'hostorbit.v2.probe'])
+
+    async def test_silent_unsupported_versions_fall_back_to_v1(self):
+        self.reply = lambda command: (0, b'legacy') if command == 'hostorbit.v1.probe' else (65, b'')
         self.assertEqual(await self.probe(), (1, b'legacy'))
-        self.assertEqual([r[0] for r in self.requests], ['hostorbit.v2.probe', 'hostorbit.v1.probe'])
+        self.assertEqual([r[0] for r in self.requests], ['hostorbit.v3.probe', 'hostorbit.v2.probe', 'hostorbit.v1.probe'])
 
     async def test_failed_or_noisy_probe_does_not_fall_back(self):
         for status, data in ((65, b'canary'), (1, b'')):

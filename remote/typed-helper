@@ -1,12 +1,142 @@
 #!/usr/bin/python3 -I
 """Read-only root observation. No command, path or target arguments are accepted."""
+import http.client
 import json
 import os
 from pathlib import Path
+import re
 import signal
+import socket
 import stat
 import sys
 import time
+from urllib.parse import urlencode
+
+
+DOCKER_SCOPE = Path("/etc/hostorbit/docker-discovery.json")
+DOCKER_SOCKET = Path("/run/docker.sock")
+MAX_CONTAINERS = 8
+MAX_DOCKER_REPLY = 256 * 1024
+DOCKER_STATES = {"created", "restarting", "running", "removing", "paused", "exited", "dead"}
+
+
+def unique_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError("duplicate key")
+        result[key] = value
+    return result
+
+
+def parse_docker_scope(data):
+    value = json.loads(data, object_pairs_hook=unique_object)
+    if (not isinstance(value, dict) or value.keys() != {"v", "containers"}
+            or type(value["v"]) is not int or value["v"] != 1
+            or not isinstance(value["containers"], list) or len(value["containers"]) > MAX_CONTAINERS):
+        raise ValueError("invalid Docker scope")
+    seen = set()
+    patterns = {"id": r"[0-9a-f]{64}", "project": r"[a-z0-9][a-z0-9_-]{0,62}",
+                "service": r"[A-Za-z0-9][A-Za-z0-9_.-]{0,62}"}
+    for item in value["containers"]:
+        if (not isinstance(item, dict) or item.keys() != patterns.keys()
+                or any(not isinstance(item[k], str) or not re.fullmatch(pattern, item[k])
+                       for k, pattern in patterns.items()) or item["id"] in seen):
+            raise ValueError("invalid Docker container scope")
+        seen.add(item["id"])
+    return value["containers"]
+
+
+def protected_directory(entry):
+    return stat.S_ISDIR(entry.st_mode) and entry.st_uid == 0 and not entry.st_mode & 0o022
+
+
+def read_docker_scope(path):
+    directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        if not protected_directory(os.fstat(directory)):
+            raise ValueError("unprotected Docker scope directory")
+        fd = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+        with os.fdopen(fd, "rb") as file:
+            entry = os.fstat(file.fileno())
+            if (not stat.S_ISREG(entry.st_mode) or entry.st_uid != 0 or entry.st_nlink != 1
+                    or stat.S_IMODE(entry.st_mode) != 0o600):
+                raise ValueError("unprotected Docker scope")
+            data = file.read(4097)
+        if len(data) > 4096:
+            raise ValueError("Docker scope too large")
+        return parse_docker_scope(data)
+    finally:
+        os.close(directory)
+
+
+class DockerConnection(http.client.HTTPConnection):
+    def __init__(self, path):
+        super().__init__("docker", timeout=2)
+        self.path = path
+
+    def connect(self):
+        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.sock.settimeout(self.timeout)
+        self.sock.connect(str(self.path))
+
+
+def list_docker(path, imported):
+    if not imported:
+        raise ValueError("empty Docker scope")
+    approved = {item["id"]: item for item in imported}
+    query = urlencode({"all": "1", "limit": MAX_CONTAINERS,
+                       "filters": json.dumps({"id": list(approved)}, separators=(",", ":"))})
+    connection = DockerConnection(path)
+    try:
+        connection.request("GET", "/v1.44/containers/json?" + query, headers={"Accept": "application/json"})
+        with connection.getresponse() as response:
+            if response.status != 200:
+                raise ValueError("Docker list unavailable")
+            data = response.read(MAX_DOCKER_REPLY + 1)
+    finally:
+        connection.close()
+    if len(data) > MAX_DOCKER_REPLY:
+        raise ValueError("Docker reply too large")
+    values = json.loads(data, object_pairs_hook=unique_object)
+    if not isinstance(values, list) or len(values) > len(approved):
+        raise ValueError("invalid Docker list")
+    states = {}
+    for value in values:
+        identity = value.get("Id") if isinstance(value, dict) else None
+        if not isinstance(identity, str) or identity not in approved or identity in states:
+            raise ValueError("Docker returned an unapproved or duplicate ID")
+        item = approved[identity]
+        labels = value.get("Labels")
+        state = value.get("State")
+        if (isinstance(labels, dict) and labels.get("com.docker.compose.project") == item["project"]
+                and labels.get("com.docker.compose.service") == item["service"]
+                and isinstance(state, str) and state in DOCKER_STATES):
+            states[identity] = state.upper()
+        else:
+            states[identity] = "UNKNOWN"
+    return [{**item, "state": states.get(item["id"], "NOT_FOUND")} for item in imported]
+
+
+def observe_docker(scope_path=DOCKER_SCOPE, socket_path=DOCKER_SOCKET):
+    try:
+        imported = read_docker_scope(scope_path)
+    except FileNotFoundError:
+        return {"status": "NOT_CONFIGURED", "containers": []}
+    except TimeoutError:
+        return {"status": "UNAVAILABLE", "containers": []}
+    except (OSError, ValueError, RecursionError):
+        return {"status": "POLICY_INVALID", "containers": []}
+    if not imported:
+        return {"status": "NOT_CONFIGURED", "containers": []}
+    try:
+        entry = socket_path.lstat()
+        if (not protected_directory(socket_path.parent.lstat()) or not stat.S_ISSOCK(entry.st_mode)
+                or entry.st_uid != 0 or entry.st_mode & 0o002):
+            raise ValueError("unprotected Docker socket")
+        return {"status": "OBSERVED", "containers": list_docker(socket_path, imported)}
+    except (OSError, ValueError, RecursionError, http.client.HTTPException):
+        return {"status": "UNAVAILABLE", "containers": []}
 
 
 def tool_status(path):
@@ -29,13 +159,26 @@ def main():
     signal.alarm(5)
     payload = sys.stdin.buffer.read(len(request) + 1)
     signal.alarm(0)
-    request_v2 = b'{"operation":"probe","version":2}\n'
-    if payload not in (request, request_v2):
+    versions = {request: 1, b'{"operation":"probe","version":2}\n': 2, b'{"operation":"probe","version":3}\n': 3}
+    version = versions.get(payload)
+    if version is None:
         return 65
-    value = {"v": 1, "uid": 0, "boot_id": Path("/proc/sys/kernel/random/boot_id").read_text().strip(), "observed_at": int(time.time())}
-    if payload == request_v2:
-        value["v"] = 2
+    value = {"v": version, "uid": 0, "boot_id": Path("/proc/sys/kernel/random/boot_id").read_text().strip(),
+             "observed_at": int(time.time())}
+    if version >= 2:
         value["software"] = {"docker": tool_status("/usr/bin/docker"), "nginx": tool_status("/usr/sbin/nginx")}
+    if version == 3:
+        # A total deadline also bounds responses which deliver bytes slowly.
+        def timed_out(_signum, _frame):
+            raise TimeoutError("Docker observation timed out")
+
+        previous = signal.signal(signal.SIGALRM, timed_out)
+        signal.alarm(4)
+        try:
+            value["docker"] = observe_docker()
+        finally:
+            signal.alarm(0)
+            signal.signal(signal.SIGALRM, previous)
     print(json.dumps(value, sort_keys=True, separators=(",", ":")))
     return 0
 

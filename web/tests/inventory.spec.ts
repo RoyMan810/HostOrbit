@@ -95,6 +95,17 @@ test('loads the next and previous cursor pages from the Controller', async ({ pa
   await expect(page.getByRole('button', { name: new RegExp(fresh) })).toBeVisible()
 })
 
+test('shows imported Docker state and labels it historical when the sample expires', async ({ page }) => {
+  await page.clock.install()
+  await signIn(page)
+  const detail = page.getByRole('region', { name: 'VPS details' })
+  await expect(detail.getByRole('heading', { name: 'Docker containers' })).toBeVisible()
+  await expect(detail.getByText('fixture / web', { exact: true })).toBeVisible()
+  await expect(detail.getByText('Running', { exact: true })).toBeVisible()
+  await page.clock.fastForward(301_000)
+  await expect(detail.getByText('Historical container observation.', { exact: true })).toBeVisible()
+})
+
 async function finishProbe(page: Page, id: string, outcome: 'SUCCEEDED' | 'UNKNOWN_OUTCOME') {
   const response = await page.request.post('/__fixture__/jobs/' + id + '/finish', { params: { outcome } })
   expect(response.status()).toBe(204)

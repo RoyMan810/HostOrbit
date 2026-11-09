@@ -99,6 +99,23 @@ class RuntimeTests(unittest.TestCase):
         self.assertIsNone(result["result"])
         self.assertNotIn("private-canary", json.dumps(result))
 
+    def test_docker_summary_crosses_the_receipt_boundary_with_fixed_fields(self):
+        container = {"id": "a" * 64, "project": "fixture", "service": "web", "state": "RUNNING"}
+        summary = {"status": "OBSERVED", "containers": [container]}
+        software = {"docker": "PRESENT", "nginx": "NOT_DETECTED"}
+        self.broker.execute = lambda *_: {**observation(), "software": software, "docker": summary}
+        job = self.enqueue()
+        self.worker.run(once=True)
+        self.assertEqual(self.job(job["id"])["result"]["docker"], summary)
+        invalid = {**summary, "containers": [{**container, "labels": {"secret": "fixture-canary"}}]}
+        self.broker.execute = lambda *_: {**observation(), "software": software, "docker": invalid}
+        job = self.enqueue("fixture-invalid-docker")
+        self.worker.run(once=True)
+        result = self.job(job["id"])
+        self.assertEqual(result["status"], "UNKNOWN_OUTCOME")
+        self.assertIsNone(result["result"])
+        self.assertNotIn("fixture-canary", json.dumps(result))
+
     def test_closing_during_active_job_allows_completion_without_claiming_more_work(self):
         first, second = self.enqueue(), self.enqueue("fixture-request-0002")
         with self.store.write() as db:

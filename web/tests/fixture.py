@@ -46,6 +46,9 @@ def fixture(directory):
                   "boot_id": "11111111-1111-1111-1111-111111111111"}
         if index == 0:
             result["software"] = {"docker": "PRESENT", "nginx": "NOT_DETECTED"}
+            result["docker"] = {"status": "OBSERVED", "containers": [
+                {"id": "a" * 64, "project": "fixture", "service": "web", "state": "RUNNING"},
+            ]}
         queue.finish(claim, "SUCCEEDED", "PROBE_VERIFIED", result=result)
 
     app = create_app(Settings(store.path, ORIGIN), auth=auth)
