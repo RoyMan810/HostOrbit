@@ -285,6 +285,10 @@ def create_app(settings: Settings, *, auth: AuthService | None = None):
         response.headers["ETag"] = current
         return value
 
+    @app.get("/api/v1/resources/{resource_id}/docker/containers/{container_id}/restart-preview")
+    def restart_preview(resource_id: str, container_id: str, request: Request, actor=Depends(principal)):
+        return inventory.restart_preview(service, token(request), resource_id, container_id)
+
     @app.get("/api/v1/jobs/{job_id}")
     def get_job(job_id: str, request: Request, response: Response, actor=Depends(principal)):
         value, current = queue.get(service, token(request), job_id)
