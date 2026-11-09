@@ -13,6 +13,7 @@ from .archive_stream import AGE_KEYGEN_PATH, AGE_PATH, parse_manifest
 from .protocol import canonical
 from .recovery_import import RecoveryTarget
 from .rescue import harden, offline_profile, prepare_bundle, wipe
+from .resource_archive import verify_archive
 from .storage import protected_bytes
 
 
@@ -36,6 +37,11 @@ def main(argv=None):
     for flag in ("ciphertext", "provenance", "trusted-key", "request", "output"):
         pack.add_argument("--" + flag, type=Path, required=True)
     pack.add_argument("--age-tool", type=Path, default=AGE_PATH)
+    resource = sub.add_parser("verify-resource-archive", help="Verify a stopped Docker named-volume archive offline")
+    for flag in ("ciphertext", "provenance", "trusted-key"):
+        resource.add_argument("--" + flag, type=Path, required=True)
+    resource.add_argument("--application-schema", required=True)
+    resource.add_argument("--age-tool", type=Path, default=AGE_PATH)
     accept = sub.add_parser("import")
     accept.add_argument("--state", type=Path, required=True)
     accept.add_argument("--bundle", type=Path, required=True)
@@ -50,13 +56,19 @@ def main(argv=None):
             console()
             if args.command == "request":
                 result = RecoveryTarget.issue(args.state, args.destination, args.source_envelope_sha256, keygen_path=args.keygen_tool)
-            elif args.command == "repackage":
+            elif args.command in ("repackage", "verify-resource-archive"):
                 offline_profile()  # Refuse the workstation before asking for secrets.
+                is_resource = args.command == "verify-resource-archive"
                 envelope = parse_manifest(protected_bytes(args.provenance, owner=os.geteuid(), maximum=65536))
                 anchor = protected_bytes(args.trusted_key, owner=os.geteuid(), maximum=32)
-                request = parse_manifest(protected_bytes(args.request, owner=os.geteuid()))
+                if not is_resource:
+                    request = parse_manifest(protected_bytes(args.request, owner=os.geteuid()))
                 identity = bytearray(getpass.getpass("Offline Owner age identity: ").strip().encode("ascii") + b"\n")
-                result = prepare_bundle(args.ciphertext, envelope, anchor, identity, request, args.output, age_path=args.age_tool)
+                if is_resource:
+                    result = verify_archive(args.ciphertext, envelope, anchor, identity,
+                                            application_schema=args.application_schema, age_path=args.age_tool)
+                else:
+                    result = prepare_bundle(args.ciphertext, envelope, anchor, identity, request, args.output, age_path=args.age_tool)
             else:
                 target = RecoveryTarget(args.state, age_path=args.age_tool)
                 digest = input("Exact SHA-256 from the offline workstation (independent confirmation): ").strip()

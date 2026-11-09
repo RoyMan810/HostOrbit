@@ -44,3 +44,11 @@ Writer admission получает отдельный устойчивый `recov
 Unit/fault tests проверяют точный Owner digest при подменённых DB/DEK с правильными внешними полями, чужой target/challenge, replay, expiry, Owner auth/lockout, непустую цель, ENOSPC и погашение failed import, старую recovery point, malformed tar, corrupted scope/generation, отзыв исходных sessions/jobs и durable read-only после restart/утраты latch. Отдельно проверяются отказы workstation profile и неинтерактивной консоли.
 
 Signed-installation CI запускает код из установленного wheel, настоящий pinned age/keygen и systemd-creds на временной GitHub-hosted Ubuntu VM. Проверяются native import/new credential/Vault decryption/new signer, Auth, отказ business writes, replay и watchdog. Положительная процедура использует явно обозначенную **CI profile fixture**; production preflight обязан отклонить уже установленный Controller. Этот прогон **не удостоверяет** реальную offline workstation, новую независимую физическую машину, полный service restore или manual restore attestation. AC статусы и общий Stage1/MVP gate не повышаются автоматически.
+
+## Проверка архива ресурса Stage2
+
+`hostorbit-rescue verify-resource-archive` проверяет один формат архива остановленного тестового Docker named volume на той же изолированной workstation. Укажите `--ciphertext`, `--provenance`, отдельно сохранённый открытый 32-байтовый ключ Ed25519 `--trusted-key` и ожидаемую версию приложения `--application-schema`. Секретный ключ age вводится скрыто через локальный терминал.
+
+Подпись внешнего envelope связывает версию схемы, SHA-256 и длину ciphertext и SHA-256 внутреннего манифеста. Пути файлов и их метаданные остаются внутри шифротекста. Проверка принимает только обычные файлы и каталоги с явно заданными UID, GID и правами. Ссылки, специальные файлы и расширенные метаданные не входят в формат. Время создания возвращается как точка восстановления. Вчерашний архив проходит те же проверки, что и свежий.
+
+Успех возвращает `INTEGRITY_VERIFIED` и `restore_eligibility=NOT_EVALUATED`. Остановка сервиса, UID, GID, права и получатель age описаны подписавшей стороной. Проверка подтверждает целостность этих сведений и расшифровку предоставленным ключом. Создание архивов на VPS, проверка пустой цели, восстановление и аттестация остаются отдельными частями AC-B05.
