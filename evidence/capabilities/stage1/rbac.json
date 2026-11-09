@@ -1,28 +1,28 @@
 {
   "artifacts": [
     {
-      "path": "evidence/revalidation/stage2-inventory-2026-11-08/source-manifest.json",
-      "sha256": "8e33e09c7f692e0c101408b50c6d69037a523211f33eb2953b4e642fb0a593b9"
+      "path": "evidence/revalidation/stage2-discovery-2026-11-09/source-manifest.json",
+      "sha256": "bcfd1f49fc33f018e8137b45e3b06eba0c08200555d7e2f3f51489b4a59c4d3a"
+    },
+    {
+      "path": "evidence/revalidation/stage2-discovery-2026-11-09/verification.json",
+      "sha256": "0e27f96e89df894424ceb080f9611d5666f7a3247e7ed8041ab1aff69d67e8e2"
     },
     {
       "path": "evidence/acceptance/stage1-2026-11-08/sbom.cdx.json",
       "sha256": "185b3062cfec008162196407a7089b30ace8b408f948e01f417d465c7d403b4c"
     },
     {
-      "path": "evidence/revalidation/stage2-inventory-2026-11-08/verification.json",
-      "sha256": "a4a96c84e4d1bdc0099f13fae04fb48205df265261dc85c35583fc83e5b0fb2c"
-    },
-    {
       "path": "evidence/acceptance/stage1-2026-11-08/ci-observations.json",
       "sha256": "84614c65af5e0186b012b3ef6bf9454defc96d33d6baf24ab146346b531651e1"
     }
   ],
-  "build_digest": "034a4d7624a3254884f50a55c96b2a02d207720c1767df80ad9082426a979ee3",
+  "build_digest": "2b304222d1cef8cbef7915375eb84f7e637edc09272e9b161ac5f954988a83a1",
   "capability": "rbac",
   "capability_assertion": "Foundation: Owner/Admin/Operator/Auditor, explicit server-side grants/scopes, no Owner bootstrap/delegation from Web, role/session revocation and manager-level authorization before queue dispatch.",
   "ci_jobs": [],
-  "environment": "Local Linux, Python 3.13.17, SQLite 3.53.1, pinned dependencies, real temporary SQLite and TestClient; native evidence under historical_ci_jobs.",
-  "evidence_digest": "d45426d9cbc0d8cfe4bcd8e5f5cea672ee3ff0ba776e43b6b4d119c51c2dbde0",
+  "environment": "Local Linux Python 3.13.17 and SQLite 3.53.1, pinned dependencies and age. Native CI records are historical.",
+  "evidence_digest": "bfe51a9cc3a823d34b213d51af547043fd1f643c29296f3c09635512c8369bec",
   "fault_injection": "test_no_operator_wildcard_or_view_secret_grant_and_owner_is_local_only; test_role_change_or_disable_revokes_all_sessions_and_invalidates_csrf; test_scope_changed_or_actor_revoked_after_enqueue_cancels_before_permit; test_fixed_numeric_targets_reject_loopback_metadata_zones_dns_and_unsupported_actions",
   "historical_ci_jobs": [
     {
@@ -69,33 +69,36 @@
   "limitations": [
     "Basic fixed-capability scoped RBAC is accepted; Global→Group→VPS Effective Policy UI/inheritance and complete mutating Change Plan approval AC remain separate MVP work.",
     "No full AC status, FR completion, Stage2/3 gate or production/MVP readiness is promoted by this Foundation-only report.",
-    "Inventory is an initial read-only Stage2 component, not acceptance of AC-28/Stage2/MVP. Current native PR CI is pending; historical CI is not presented as a run on this source."
+    "Inventory is an initial read-only Stage2 component, not acceptance of AC-28/Stage2/MVP. Current native PR CI is pending; historical CI is not presented as a run on this source.",
+    "Current native CI is tracked separately in the pull request. Prior CI records apply to their recorded source commits."
   ],
-  "manifest_digest": "8e33e09c7f692e0c101408b50c6d69037a523211f33eb2953b4e642fb0a593b9",
+  "manifest_digest": "bcfd1f49fc33f018e8137b45e3b06eba0c08200555d7e2f3f51489b4a59c4d3a",
   "negative_checks": [
     "test_no_operator_wildcard_or_view_secret_grant_and_owner_is_local_only",
     "test_role_change_or_disable_revokes_all_sessions_and_invalidates_csrf",
     "test_scope_changed_or_actor_revoked_after_enqueue_cancels_before_permit",
     "test_fixed_numeric_targets_reject_loopback_metadata_zones_dns_and_unsupported_actions",
-    "tests_app/test_inventory_api.py: unauthorized/foreign resource, revoked grants, stale/future/failed/unknown/cancelled probe, changed scope/policy, malformed result and no secret-field exposure"
+    "tests_app/test_inventory_api.py: unauthorized/foreign resource, revoked grants, stale/future/failed/unknown/cancelled probe, changed scope/policy, malformed result and no secret-field exposure",
+    "Wrong response versions, arbitrary software keys or values, noisy downgrade, and malformed software are rejected."
   ],
-  "observation": "Revalidated Auth/RBAC against additive inventory routes: 64 application, 137 runtime, 73 Stage0 and 9 tool tests pass locally. Historical native evidence is retained separately; current PR CI is pending.",
+  "observation": "Current source passed 64 application, 144 runtime, 73 Stage0 and 15 tool tests. SSH tests cover v2 and silent v1 fallback through a pinned real SSH test connection.",
   "outcome": "PASS",
   "positive_checks": [
     "test_operator_scope_and_auditor_read_only_permissions_are_checked_in_manager",
     "test_admin_cannot_delegate_beyond_own_scope_or_modify_owner_or_admin",
-    "tests_app/test_inventory_api.py: scoped list/detail, bounded output pagination, authenticated wheel routes and current observation state"
+    "tests_app/test_inventory_api.py: scoped list/detail, bounded output pagination, authenticated wheel routes and current observation state",
+    "Current local regression suites and fixed Docker/Nginx software states through restricted probe v2."
   ],
-  "recorded_at_utc": "2026-11-08T09:27:45.576355+00:00",
+  "recorded_at_utc": "2026-11-09T09:48:47.243534+00:00",
   "revalidation_of": {
-    "evidence_digest": "89ca93a1bc8b79269f8bd11591ef00a104396468b018893d401d4ab1c4a43e78",
-    "source_commit": "688d1408004580d95ddd4d6bd1c75c576b1bb764"
+    "evidence_digest": "d45426d9cbc0d8cfe4bcd8e5f5cea672ee3ff0ba776e43b6b4d119c51c2dbde0",
+    "source_commit": "77a68375261fc0b1686520ef55e592c021d572d8"
   },
-  "reviewer": "Codex automated local revalidation plus independent Codex code review; not an independent human security audit.",
+  "reviewer": "Codex automated local revalidation.",
   "sbom_digest": "185b3062cfec008162196407a7089b30ace8b408f948e01f417d465c7d403b4c",
   "scenario": "Foundation: Owner/Admin/Operator/Auditor, explicit server-side grants/scopes, no Owner bootstrap/delegation from Web, role/session revocation and manager-level authorization before queue dispatch.",
   "scope": "FOUNDATION_ONLY",
-  "source_commit": "77a68375261fc0b1686520ef55e592c021d572d8",
+  "source_commit": "26cbe870eab7c3a509888e09812ac2518cdf60ca",
   "source_files": [
     {
       "path": "hostorbit/api.py",
@@ -107,11 +110,31 @@
     },
     {
       "path": "hostorbit/inventory.py",
-      "sha256": "3c75c8b51a37f3fb76038dbc6cccc44cf6a82d415ee9afc6a225c885fea2fbe3"
+      "sha256": "427f87a897523aac7f22c98e1dd5cfe8597dd64c9bf026f39b564e7856925661"
     },
     {
       "path": "hostorbit/queue.py",
       "sha256": "0616abc8a165911b6d9827982647823b2c822ed28e489cd43b0723cb0a6dd20c"
+    },
+    {
+      "path": "hostorbit/runtime/protocol.py",
+      "sha256": "2dd00cdea63ebc41ab6aca04d955549db65012077fa11a83f3585122eeecbefd"
+    },
+    {
+      "path": "hostorbit/runtime/ssh.py",
+      "sha256": "ddd447fc8a15a6db2650f6d69f8628a92a40c9382a60960f0e96d649d721b106"
+    },
+    {
+      "path": "hostorbit/worker.py",
+      "sha256": "89e34874397c0a8ed9c26dfa6b670e2ac119d981c43a72c2700a391f5defe16b"
+    },
+    {
+      "path": "remote/ssh-gateway",
+      "sha256": "b0c3eed3e387de066278f1774bddfb9b7b4bab8c23b9d64600648f1ccadbb955"
+    },
+    {
+      "path": "remote/typed-helper",
+      "sha256": "094a2ebe694ba6919cbf851b75a4ca1d614b8e63b952777fe5ac22f2e76ae35e"
     },
     {
       "path": "tests_app/test_inventory_api.py",
@@ -126,15 +149,23 @@
       "sha256": "12c6ddcb049df912466932870d367c2a98cafa22071343db76af01baf8eba196"
     },
     {
+      "path": "tests_runtime/lab/runtime_boundary.py",
+      "sha256": "2f024366124232e764b3bae6e28d4a170cd77828f13bb6988269febf26af0cb0"
+    },
+    {
       "path": "tests_runtime/test_protocol_policy.py",
       "sha256": "93e01954ad88f2b8481a48715fcc45d6442fc53595e87ea715440c19aaf43669"
     },
     {
+      "path": "tests_runtime/test_ssh_discovery.py",
+      "sha256": "b7492d985543201cdd17dcad00be75532506241923210dd0fb1f689013510297"
+    },
+    {
       "path": "tests_runtime/test_worker_broker.py",
-      "sha256": "578ce6314715e9e2ad3fbb41c7d621b7fdb2530cdaa95b763b8501f29915e93c"
+      "sha256": "ed3eb221f2ebe8b7e08f836a0ab671ced0d1e98f2c712983a301b3057ca2d2d2"
     }
   ],
-  "source_tree": "44f9e40d4a66eadc0b51e878f1a2af6ed34deb03",
+  "source_tree": "a52adc8700863b0e487de4bd5b60b19f55718b45",
   "stage": "Stage1",
   "test_id": "Stage1.rbac"
 }

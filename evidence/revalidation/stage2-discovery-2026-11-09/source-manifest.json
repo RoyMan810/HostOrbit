@@ -1,0 +1,181 @@
+{
+  "build_digest": "2b304222d1cef8cbef7915375eb84f7e637edc09272e9b161ac5f954988a83a1",
+  "build_digest_algorithm": "SHA-256 of sorted file records in compact sorted-key JSON",
+  "files": [
+    {
+      "path": ".github/workflows/checks.yml",
+      "sha256": "ab93c1c3fea77b0c4c92da83885e3f78cc770988b016f14d4489976cb4ba6ae0"
+    },
+    {
+      "path": "deploy/installer.py",
+      "sha256": "86fcd9c7ee69c7d6e8088eaed389c56371af0e001fe40f25445e651f04f6e41e"
+    },
+    {
+      "path": "deploy/systemd/hostorbit-broker.service",
+      "sha256": "938d872594d6d2f8d39b97f049680849045328e0240729a15cc4a794c8ff60ad"
+    },
+    {
+      "path": "deploy/systemd/hostorbit-broker.socket",
+      "sha256": "c98272e8ed3ba222f12760fca246e928bed4cc34605ce453e354583fceba17ae"
+    },
+    {
+      "path": "hostorbit/api.py",
+      "sha256": "4c07a9f0717ecd3e9f36909c4cf50d0605542997d2a33d71d58ce13e1063c440"
+    },
+    {
+      "path": "hostorbit/auth.py",
+      "sha256": "ec9c94b21e19a306a375ace7c42831e740f9abc6337649a310f31a9f7bdf488a"
+    },
+    {
+      "path": "hostorbit/cli.py",
+      "sha256": "5f8f0172c5f3217db2669cf6083229eb00e02d72aa5c389fcf194da174de4778"
+    },
+    {
+      "path": "hostorbit/config.py",
+      "sha256": "f606015fb8fa5c508d53b115a5e6afa37789d8085a1d7f600d5ed6a42939fe5c"
+    },
+    {
+      "path": "hostorbit/database.py",
+      "sha256": "2cb5c43e31dcabde08f2fad2815df382a6a5377d6d5743bec0ad6093fbb6b44b"
+    },
+    {
+      "path": "hostorbit/inventory.py",
+      "sha256": "427f87a897523aac7f22c98e1dd5cfe8597dd64c9bf026f39b564e7856925661"
+    },
+    {
+      "path": "hostorbit/queue.py",
+      "sha256": "0616abc8a165911b6d9827982647823b2c822ed28e489cd43b0723cb0a6dd20c"
+    },
+    {
+      "path": "hostorbit/runtime/broker.py",
+      "sha256": "43f08dc9d08957c7f3de3083e8d9159f4f0c057ad6cba10bcdad846f72c4b769"
+    },
+    {
+      "path": "hostorbit/runtime/credentials.py",
+      "sha256": "b0f77cd3ed402c17c943a481212a768dae05d70f8d0cec1d9170ad9138573520"
+    },
+    {
+      "path": "hostorbit/runtime/ipc.py",
+      "sha256": "82a3e638f7fbd6f42dcb3b7e79b5e2da113151f1e97f65220826c6bb38d0a257"
+    },
+    {
+      "path": "hostorbit/runtime/policy.py",
+      "sha256": "1d0623c15bb600a2e334fa65a7e01c24d1dbd0a0b93577929412cad31c6970b6"
+    },
+    {
+      "path": "hostorbit/runtime/protocol.py",
+      "sha256": "2dd00cdea63ebc41ab6aca04d955549db65012077fa11a83f3585122eeecbefd"
+    },
+    {
+      "path": "hostorbit/runtime/recovery_keys.py",
+      "sha256": "98c7e5a8a9759abf54b538e4c78b4d31efb6f057fea35c312572b8428fb7aba0"
+    },
+    {
+      "path": "hostorbit/runtime/ssh.py",
+      "sha256": "ddd447fc8a15a6db2650f6d69f8628a92a40c9382a60960f0e96d649d721b106"
+    },
+    {
+      "path": "hostorbit/runtime/storage.py",
+      "sha256": "837f79bcd91342706cf9b4b6984fabed62ded833fdd91d3b363ed419805a66bc"
+    },
+    {
+      "path": "hostorbit/runtime/vault.py",
+      "sha256": "5ff3c737d2b5df3bf585d956f9d7413e2ac118aac6ecb0e210233229ff2181d6"
+    },
+    {
+      "path": "hostorbit/schema_v1.sql",
+      "sha256": "825d6b23d2ac197fa0e62fd7a649ce8563ef84a5f0cdee3135817dd619894db3"
+    },
+    {
+      "path": "hostorbit/worker.py",
+      "sha256": "89e34874397c0a8ed9c26dfa6b670e2ac119d981c43a72c2700a391f5defe16b"
+    },
+    {
+      "path": "remote/ssh-gateway",
+      "sha256": "b0c3eed3e387de066278f1774bddfb9b7b4bab8c23b9d64600648f1ccadbb955"
+    },
+    {
+      "path": "remote/typed-helper",
+      "sha256": "094a2ebe694ba6919cbf851b75a4ca1d614b8e63b952777fe5ac22f2e76ae35e"
+    },
+    {
+      "path": "requirements-app.txt",
+      "sha256": "e8db2aaf88c7136cc13c488cbe859b51148feac1254253bc0cc335c2d926cdfb"
+    },
+    {
+      "path": "requirements-dev.txt",
+      "sha256": "44a795a5efa95d91b371309e76f546e06b3a6af0977b196693266e63d66dc962"
+    },
+    {
+      "path": "requirements-lab.txt",
+      "sha256": "c706e75de39b8a5815b3db5f7f05cc31510f3c37cd9d29f760702b7391ec61d1"
+    },
+    {
+      "path": "requirements-quality.txt",
+      "sha256": "6e564a064186fa0ba3bef3ca9d117edb8ec9a6e5c47aaf759e448f790a0a0e26"
+    },
+    {
+      "path": "tests/lab/ssh-profile.sh",
+      "sha256": "2a3e704c6c035483c71470eaa18173ef1837efbbab6702bb25b461c6fceb77d7"
+    },
+    {
+      "path": "tests_app/test_auth_api.py",
+      "sha256": "8cbb34f8cd7c68f6a5bee13fec7b4fa6aa1984425ae5d52811ee8e1fb7f40ea1"
+    },
+    {
+      "path": "tests_app/test_database.py",
+      "sha256": "3e9aba859e87b65435f94a200f3353ac25d12f9e5953418ee13a145786177aa7"
+    },
+    {
+      "path": "tests_app/test_http_boundary.py",
+      "sha256": "0c10ef58acd30600a2836c14fabeb3982cdbc956ecee529ad6db5e2bb58a9958"
+    },
+    {
+      "path": "tests_app/test_inventory_api.py",
+      "sha256": "d7b9c069ce17e6d9760607fc7c4eb6cec089e3378c16999f2094eae9acc8fd0b"
+    },
+    {
+      "path": "tests_app/test_migrations.py",
+      "sha256": "f08fdca22ec8b7faeee433163cad85dff8e428ac02528372b20df7f4ebc1c892"
+    },
+    {
+      "path": "tests_app/test_permissions.py",
+      "sha256": "14b34a51ba7b087f17f9b35b71d4e0fba9273c90e756438df75e281cd3a5c167"
+    },
+    {
+      "path": "tests_app/test_queue_api.py",
+      "sha256": "12c6ddcb049df912466932870d367c2a98cafa22071343db76af01baf8eba196"
+    },
+    {
+      "path": "tests_runtime/lab/installation.py",
+      "sha256": "88f0fddddb5644485a9a233f7557196378c1222942cc8ee7ed4ec239e38ebe9f"
+    },
+    {
+      "path": "tests_runtime/lab/runtime_boundary.py",
+      "sha256": "2f024366124232e764b3bae6e28d4a170cd77828f13bb6988269febf26af0cb0"
+    },
+    {
+      "path": "tests_runtime/test_credentials.py",
+      "sha256": "696eab0acd4b1aa17168796debe3242b8cc12603f5afaaa73e086f8ac5732b96"
+    },
+    {
+      "path": "tests_runtime/test_protocol_policy.py",
+      "sha256": "93e01954ad88f2b8481a48715fcc45d6442fc53595e87ea715440c19aaf43669"
+    },
+    {
+      "path": "tests_runtime/test_ssh_discovery.py",
+      "sha256": "b7492d985543201cdd17dcad00be75532506241923210dd0fb1f689013510297"
+    },
+    {
+      "path": "tests_runtime/test_vault_pins.py",
+      "sha256": "fad28356ec1118f5038201ff764b039c302f9f7e5c1a0295eb86597bca3d7d6e"
+    },
+    {
+      "path": "tests_runtime/test_worker_broker.py",
+      "sha256": "ed3eb221f2ebe8b7e08f836a0ab671ced0d1e98f2c712983a301b3057ca2d2d2"
+    }
+  ],
+  "scope": "Foundation regression after restricted SSH probe v2",
+  "source_commit": "26cbe870eab7c3a509888e09812ac2518cdf60ca",
+  "source_tree": "a52adc8700863b0e487de4bd5b60b19f55718b45"
+}
