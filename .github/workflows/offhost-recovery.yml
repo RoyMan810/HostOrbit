@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - .github/workflows/offhost-recovery.yml
+      - tools/fetch_age.py
       - requirements-lab.txt
       - stage0/**
       - tests/lab/delayed_container.py
@@ -18,6 +19,7 @@ on:
   pull_request:
     paths:
       - .github/workflows/offhost-recovery.yml
+      - tools/fetch_age.py
       - requirements-lab.txt
       - stage0/**
       - tests/lab/delayed_container.py
@@ -66,8 +68,7 @@ jobs:
           curl --proto '=https' --proto-redir '=https' --fail --silent --show-error --location --retry 2 \
             -o ubuntu.qcow2 https://cloud-images.ubuntu.com/releases/noble/release-20261017/ubuntu-24.04-server-cloudimg-amd64.img
           echo '04e8f2461a16a44e78a370284471f29616cdd9baf1893df25807b71f985b6c94  ubuntu.qcow2' | sha256sum -c -
-          curl --proto '=https' --proto-redir '=https' --fail --silent --show-error --location --retry 2 \
-            -o age.tar.gz 'https://github.com/FiloSottile/age/releases/download/v1.3.2/age-v1.3.2-linux-amd64.tar.gz?download=1'
+          python "$GITHUB_WORKSPACE/tools/fetch_age.py" --output age.tar.gz
           echo 'cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10  age.tar.gz' | sha256sum -c -
           tar --no-same-owner -xzf age.tar.gz -- age/age age/age-keygen
           python -m pip install --only-binary=:all: --target "$lab/deps" -r "$GITHUB_WORKSPACE/requirements-lab.txt"
