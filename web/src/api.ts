@@ -6,9 +6,26 @@ export interface Session {
 export type Status = 'REACHABLE' | 'NOT_CHECKED' | 'UNKNOWN'
 export type Presence = 'PRESENT' | 'NOT_DETECTED' | 'UNKNOWN'
 export type ContainerState = 'CREATED' | 'RESTARTING' | 'RUNNING' | 'REMOVING' | 'PAUSED' | 'EXITED' | 'DEAD' | 'UNKNOWN' | 'NOT_FOUND'
+export interface DockerContainer {
+  id: string
+  project: string
+  service: string
+  state: ContainerState
+}
 export interface DockerObservation {
   status: 'OBSERVED' | 'NOT_CONFIGURED' | 'POLICY_INVALID' | 'UNAVAILABLE'
-  containers: Array<{ id: string; project: string; service: string; state: ContainerState }>
+  containers: DockerContainer[]
+}
+export interface DockerRestartPreview {
+  version: 1
+  action: 'docker.restart'
+  status: 'PREVIEW_ONLY'
+  target: DockerContainer & { resource_id: string }
+  resource_revision: number
+  policy_revision: number
+  observed_at: number
+  boot_id: string
+  risk: 'TEMPORARY_SERVICE_INTERRUPTION'
 }
 export interface Observation {
   status: Status
@@ -16,6 +33,7 @@ export interface Observation {
   last_checked_at: number | null
   last_success: {
     observed_at: number
+    boot_id: string
     software?: Record<'docker' | 'nginx', Presence>
     docker?: DockerObservation
   } | null
@@ -24,6 +42,7 @@ export interface Resource {
   id: string
   enabled: boolean
   access_mode: 'READ_ONLY'
+  revision: number
   policy_revision: number
   created_at: number
   observation: Observation

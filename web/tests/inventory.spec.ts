@@ -106,6 +106,45 @@ test('shows imported Docker state and labels it historical when the sample expir
   await expect(detail.getByText('Historical container observation.', { exact: true })).toBeVisible()
 })
 
+test('opens a Docker restart preview through the real Controller and clears it on expiry', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.clock.install()
+  await signIn(page)
+  const button = page.getByRole('button', { name: 'Preview restart for fixture / web' })
+  const response = page.waitForResponse(reply => reply.url().endsWith('/restart-preview'))
+  await button.press('Enter')
+  const reply = await response
+  expect(reply.request().method()).toBe('GET')
+  expect(reply.status()).toBe(200)
+  expect(new URL(reply.url()).pathname).toBe('/api/v1/resources/' + fresh + '/docker/containers/' + 'a'.repeat(64) + '/restart-preview')
+  await expect(page.getByText('Preview only. No restart was scheduled.')).toBeVisible()
+  await expect(page.getByText('A restart can briefly interrupt this service.')).toBeVisible()
+  await expect(page.getByText('a'.repeat(64), { exact: true })).toBeVisible()
+  await expect(button).toHaveAccessibleDescription('a'.repeat(12))
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390)
+  await page.clock.fastForward(301_000)
+  await expect(button).toHaveCount(0)
+  await expect(page.getByText('Preview only. No restart was scheduled.')).toHaveCount(0)
+})
+
+test('shows the real Controller denial when the operator lacks restart permission', async ({ page }) => {
+  await signIn(page, 'fixture-operator')
+  await page.getByRole('button', { name: 'Preview restart for fixture / web' }).click()
+  await expect(page.getByRole('alert')).toHaveText('The Controller denied this preview.')
+})
+
+test('rejects a preview that belongs to a different observation', async ({ page }) => {
+  await page.route('**/restart-preview', async route => {
+    const response = await route.fetch()
+    const preview = await response.json()
+    await route.fulfill({ response, json: { ...preview, observed_at: preview.observed_at + 1 } })
+  })
+  await signIn(page)
+  await page.getByRole('button', { name: 'Preview restart for fixture / web' }).click()
+  await expect(page.getByRole('alert')).toHaveText('Refresh the inventory before requesting another preview.')
+  await expect(page.getByText('Preview only. No restart was scheduled.')).toHaveCount(0)
+})
+
 async function finishProbe(page: Page, id: string, outcome: 'SUCCEEDED' | 'UNKNOWN_OUTCOME') {
   const response = await page.request.post('/__fixture__/jobs/' + id + '/finish', { params: { outcome } })
   expect(response.status()).toBe(204)

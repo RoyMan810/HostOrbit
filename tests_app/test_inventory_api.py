@@ -2,7 +2,14 @@ from fastapi.testclient import TestClient
 
 from hostorbit.database import identifier
 from hostorbit.queue import JobQueue
+from hostorbit.runtime.protocol import checksum
 from test_auth_api import Fixture, OTHER, SCOPE
+
+
+CONTAINER = "c" * 64
+RUNNING_DOCKER = {"status": "OBSERVED", "containers": [
+    {"id": CONTAINER, "project": "fixture", "service": "web", "state": "RUNNING"},
+]}
 
 
 class InventoryTests(Fixture):
@@ -17,7 +24,7 @@ class InventoryTests(Fixture):
         self.assertEqual(response.status_code, 200, response.text)
         return response
 
-    def complete(self, outcome="SUCCEEDED", reason="PROBE_COMPLETE"):
+    def complete(self, outcome="SUCCEEDED", reason="PROBE_COMPLETE", *, docker=None):
         self.now += 1
         response = self.client.post(f"/api/v1/resources/{SCOPE}/observations", json={},
                                     headers=self.headers(**{"Idempotency-Key": identifier()}))
@@ -28,8 +35,74 @@ class InventoryTests(Fixture):
             self.queue.advance(claim, state)
         value = {"status": "REACHABLE", "source": "restricted_helper", "observed_at": self.now,
                  "boot_id": "11111111-1111-1111-1111-111111111111"}
+        if docker is not None:
+            value.update(software={"docker": "PRESENT", "nginx": "UNKNOWN"}, docker=docker)
         self.queue.finish(claim, outcome, reason, result=value if outcome == "SUCCEEDED" else None)
         return response.json()["id"]
+
+    def restart_preview(self, *, resource=SCOPE, container=CONTAINER, client=None):
+        return (client or self.client).get(
+            f"/api/v1/resources/{resource}/docker/containers/{container}/restart-preview"
+        )
+
+    def test_restart_preview_is_bound_to_a_fresh_observation_and_creates_no_work(self):
+        self.complete(docker=RUNNING_DOCKER)
+        before = self.store.verify_audit()
+        response = self.restart_preview()
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.headers["cache-control"], "no-store")
+        result = response.json()
+        digest = result.pop("preview_digest")
+        self.assertEqual(digest, checksum(result))
+        self.assertEqual(result["action"], "docker.restart")
+        self.assertEqual(result["status"], "PREVIEW_ONLY")
+        self.assertEqual(result["target"], {"resource_id": SCOPE, **RUNNING_DOCKER["containers"][0]})
+        self.assertEqual(result["observed_at"], self.now)
+        self.assertEqual(self.restart_preview().json()["preview_digest"], digest)
+        with self.store.read() as db:
+            self.assertEqual(db.execute("SELECT count(*) FROM jobs").fetchone()[0], 1)
+        self.assertEqual(self.store.verify_audit(), before)
+        self.complete(docker=RUNNING_DOCKER)
+        self.assertNotEqual(self.restart_preview().json()["preview_digest"], digest)
+
+    def test_restart_preview_requires_read_and_restart_in_the_same_scope(self):
+        self.complete(docker=RUNNING_DOCKER)
+        read = {"permission": "vps:read", "resource_id": SCOPE}
+        restart = {"permission": "vps:restart", "resource_id": SCOPE}
+        self.create_user(name="scoped", grants=[read, restart])
+        scoped = self.other_client("scoped")
+        self.assertEqual(self.restart_preview(client=scoped).status_code, 200)
+        self.assertEqual(self.restart_preview(resource=OTHER, client=scoped).status_code, 404)
+        self.create_user(name="split", grants=[read, {**restart, "resource_id": OTHER}])
+        self.assertEqual(self.restart_preview(client=self.other_client("split")).status_code, 403)
+        self.create_user(name="observer", role="Auditor", grants=[read])
+        self.assertEqual(self.restart_preview(client=self.other_client("observer")).status_code, 403)
+        with self.store.write() as db:
+            db.execute("DELETE FROM grants WHERE permission='vps:restart'")
+        self.assertEqual(self.restart_preview(client=scoped).status_code, 403)
+
+    def test_restart_preview_rejects_stale_unavailable_or_ineligible_container(self):
+        self.assertEqual(self.restart_preview().status_code, 409)
+        self.complete()
+        self.assertEqual(self.restart_preview().status_code, 409)
+        self.complete(docker=RUNNING_DOCKER)
+        self.assertEqual(self.restart_preview(container=CONTAINER[:12]).status_code, 404)
+        self.assertEqual(self.restart_preview(container="f" * 64).status_code, 404)
+        self.now += 301
+        self.assertEqual(self.restart_preview().status_code, 409)
+        self.complete(docker={"status": "UNAVAILABLE", "containers": []})
+        self.assertEqual(self.restart_preview().status_code, 409)
+        self.complete(docker={"status": "OBSERVED", "containers": [
+            {**RUNNING_DOCKER["containers"][0], "state": "EXITED"},
+        ]})
+        self.assertEqual(self.restart_preview().status_code, 409)
+        self.complete(docker=RUNNING_DOCKER)
+        self.complete("FAILED", "SSH_TIMEOUT")
+        self.assertEqual(self.restart_preview().status_code, 409)
+        self.complete(docker=RUNNING_DOCKER)
+        with self.store.write() as db:
+            db.execute("UPDATE resources SET policy_revision=2 WHERE id=?", (SCOPE,))
+        self.assertEqual(self.restart_preview().status_code, 409)
 
     def test_inventory_never_claims_health_or_creates_work_before_a_probe(self):
         before = self.store.verify_audit()
