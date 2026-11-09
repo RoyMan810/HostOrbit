@@ -15,7 +15,7 @@ from unittest.mock import patch
 from nacl.signing import SigningKey
 
 from hostorbit.errors import Denied
-from hostorbit.runtime.archive_stream import AGE_SHA256
+from hostorbit.runtime.archive_stream import AGE_SHA256, trusted_age
 from hostorbit.runtime.protocol import canonical
 from hostorbit.runtime.rescue import _encrypted_output
 from hostorbit.runtime.rescue_cli import main
@@ -127,15 +127,20 @@ class ResourceArchiveTests(unittest.TestCase):
             file.chmod(0o600)
         secret = self.identity.decode().splitlines()[-1]
         output = io.StringIO()
+        # The console still requests a root-owned binary. Exercise the same
+        # pinned digest and permissions with the test runner's fixture owner.
         with (patch("hostorbit.runtime.rescue_cli.harden"),
               patch("hostorbit.runtime.rescue_cli.console"),
               patch("hostorbit.runtime.rescue_cli.offline_profile"),
               patch("hostorbit.runtime.rescue_cli.getpass.getpass", return_value=secret),
+              patch("hostorbit.runtime.rescue.trusted_age",
+                    side_effect=lambda path, *, owner: trusted_age(path, owner=os.geteuid())) as verify_tool,
               redirect_stdout(output)):
             self.assertEqual(main([
                 "verify-resource-archive", "--ciphertext", str(path), "--provenance", str(provenance),
                 "--trusted-key", str(anchor), "--application-schema", "fixture-v1", "--age-tool", str(self.age),
             ]), 0)
+            verify_tool.assert_called_once_with(self.age, owner=0)
         self.assertEqual(json.loads(output.getvalue())["status"], "INTEGRITY_VERIFIED")
         self.assertNotIn(secret, output.getvalue())
         self.assertNotIn(self.payload.decode(), output.getvalue())
