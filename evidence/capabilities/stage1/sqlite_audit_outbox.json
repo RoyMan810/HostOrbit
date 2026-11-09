@@ -1,12 +1,12 @@
 {
   "artifacts": [
     {
-      "path": "evidence/revalidation/stage2-discovery-2026-11-09/source-manifest.json",
-      "sha256": "bcfd1f49fc33f018e8137b45e3b06eba0c08200555d7e2f3f51489b4a59c4d3a"
+      "path": "evidence/revalidation/stage2-docker-inventory-2026-11-09/source-manifest.json",
+      "sha256": "de6f58b87a39ebe245a791d59b538a40b1bf47c1c0c0b0abedd330a45c191209"
     },
     {
-      "path": "evidence/revalidation/stage2-discovery-2026-11-09/verification.json",
-      "sha256": "0e27f96e89df894424ceb080f9611d5666f7a3247e7ed8041ab1aff69d67e8e2"
+      "path": "evidence/revalidation/stage2-docker-inventory-2026-11-09/verification.json",
+      "sha256": "309a233bfe80dddc8bc12561fdc53fa6db69919f215beff89622b4d7f5ad1250"
     },
     {
       "path": "evidence/acceptance/stage1-2026-11-08/sbom.cdx.json",
@@ -17,12 +17,12 @@
       "sha256": "84614c65af5e0186b012b3ef6bf9454defc96d33d6baf24ab146346b531651e1"
     }
   ],
-  "build_digest": "2b304222d1cef8cbef7915375eb84f7e637edc09272e9b161ac5f954988a83a1",
+  "build_digest": "293804567d6882b9f5e3d9f814fa7126b7db3739860da0954f58ea79141460a9",
   "capability": "sqlite_audit_outbox",
   "capability_assertion": "Foundation: explicit private/shared-group SQLite WAL initialization, synchronous/FK contracts, append-only hash-linked Audit and same-transaction Outbox; no uncommitted success after rollback/crash.",
   "ci_jobs": [],
   "environment": "Local Linux Python 3.13.17 and SQLite 3.53.1, pinned dependencies and age. Native CI records are historical.",
-  "evidence_digest": "50f01939345a3ed0635e129400d592823cd42fabfe23152408f600fff26aff4f",
+  "evidence_digest": "c36d533a92bb073e60c9535e2ded12954226dbe0d0066d82589e6d9b03a08758",
   "fault_injection": "test_outbox_failure_rolls_back_state_and_audit_together; test_kill_before_commit_does_not_publish_uncommitted_events; test_audit_and_outbox_are_append_only_and_tampering_is_detected; test_symlink_database_and_shared_parent_are_rejected; test_crash_after_dispatch_is_terminal_unknown_and_not_retried; test_second_worker_process_cannot_recover_live_claims",
   "historical_ci_jobs": [
     {
@@ -94,7 +94,7 @@
     "No full AC status, FR completion, Stage2/3 gate or production/MVP readiness is promoted by this Foundation-only report.",
     "Current native CI is tracked separately in the pull request. Prior CI records apply to their recorded source commits."
   ],
-  "manifest_digest": "bcfd1f49fc33f018e8137b45e3b06eba0c08200555d7e2f3f51489b4a59c4d3a",
+  "manifest_digest": "de6f58b87a39ebe245a791d59b538a40b1bf47c1c0c0b0abedd330a45c191209",
   "negative_checks": [
     "test_outbox_failure_rolls_back_state_and_audit_together",
     "test_kill_before_commit_does_not_publish_uncommitted_events",
@@ -104,23 +104,23 @@
     "test_second_worker_process_cannot_recover_live_claims",
     "Wrong response versions, arbitrary software keys or values, noisy downgrade, and malformed software are rejected."
   ],
-  "observation": "Current source passed 64 application, 144 runtime, 73 Stage0 and 15 tool tests. SSH tests cover v2 and silent v1 fallback through a pinned real SSH test connection.",
+  "observation": "Current source passed 64 application, 151 runtime, 73 Stage0, 15 tools and 12 HTTPS browser tests. Local runtime tests verified the typed Docker summary, legacy SSH fallback and disallowed Docker result fields.",
   "outcome": "PASS",
   "positive_checks": [
     "test_pragmas_private_files_unknown_schema_and_missing_database_fail_closed",
     "Distinct-UID API→durable Job→Worker→Broker→verified SSH result with persisted Audit/Outbox",
     "Current local regression suites and fixed Docker/Nginx software states through restricted probe v2."
   ],
-  "recorded_at_utc": "2026-11-09T09:48:47.243534+00:00",
+  "recorded_at_utc": "2026-11-09T15:49:17.715131+00:00",
   "revalidation_of": {
-    "evidence_digest": "0a1d60efe087a30d99153512b78be12cea4a7728d3df2be0387a6f6851257698",
-    "source_commit": "688d1408004580d95ddd4d6bd1c75c576b1bb764"
+    "evidence_digest": "50f01939345a3ed0635e129400d592823cd42fabfe23152408f600fff26aff4f",
+    "source_commit": "26cbe870eab7c3a509888e09812ac2518cdf60ca"
   },
   "reviewer": "Codex automated local revalidation.",
   "sbom_digest": "185b3062cfec008162196407a7089b30ace8b408f948e01f417d465c7d403b4c",
   "scenario": "Foundation: explicit private/shared-group SQLite WAL initialization, synchronous/FK contracts, append-only hash-linked Audit and same-transaction Outbox; no uncommitted success after rollback/crash.",
   "scope": "FOUNDATION_ONLY",
-  "source_commit": "26cbe870eab7c3a509888e09812ac2518cdf60ca",
+  "source_commit": "e00c8bf8f6ae02293d45cbd887e310c9df8f687b",
   "source_files": [
     {
       "path": "hostorbit/database.py",
@@ -128,7 +128,7 @@
     },
     {
       "path": "hostorbit/inventory.py",
-      "sha256": "427f87a897523aac7f22c98e1dd5cfe8597dd64c9bf026f39b564e7856925661"
+      "sha256": "c54ab59fc6c8262cbbcf7331e882500187d1270f970ddfd6fe7ec7c1b9a78cb0"
     },
     {
       "path": "hostorbit/queue.py",
@@ -136,11 +136,11 @@
     },
     {
       "path": "hostorbit/runtime/protocol.py",
-      "sha256": "2dd00cdea63ebc41ab6aca04d955549db65012077fa11a83f3585122eeecbefd"
+      "sha256": "e27f822c226159f382160edbebe1ee9f8365af32e8315a04a62bbaffe21db0bc"
     },
     {
       "path": "hostorbit/runtime/ssh.py",
-      "sha256": "ddd447fc8a15a6db2650f6d69f8628a92a40c9382a60960f0e96d649d721b106"
+      "sha256": "aa9c0146e407d45e3a01391d4182c737af391d3af4a3712c253a1b4be2076e7e"
     },
     {
       "path": "hostorbit/schema_v1.sql",
@@ -148,15 +148,15 @@
     },
     {
       "path": "hostorbit/worker.py",
-      "sha256": "89e34874397c0a8ed9c26dfa6b670e2ac119d981c43a72c2700a391f5defe16b"
+      "sha256": "80b1316b1183b1154ab126ed408d7fb21869b03500ae17f251d9706fa6d0360c"
     },
     {
       "path": "remote/ssh-gateway",
-      "sha256": "b0c3eed3e387de066278f1774bddfb9b7b4bab8c23b9d64600648f1ccadbb955"
+      "sha256": "595eb38d28f347d90f65724723d34f7c02d76309382b85289e93a6ee2123491b"
     },
     {
       "path": "remote/typed-helper",
-      "sha256": "094a2ebe694ba6919cbf851b75a4ca1d614b8e63b952777fe5ac22f2e76ae35e"
+      "sha256": "8d82dd19ee9bcaa02782e96df2c79c2292b653daab819b32fa721a1a30dbc5a5"
     },
     {
       "path": "tests_app/test_database.py",
@@ -172,18 +172,18 @@
     },
     {
       "path": "tests_runtime/lab/runtime_boundary.py",
-      "sha256": "2f024366124232e764b3bae6e28d4a170cd77828f13bb6988269febf26af0cb0"
+      "sha256": "b6eb962ced06744c0752105baf76e7fd40d8afb13ebd2e02628162509d19a405"
     },
     {
       "path": "tests_runtime/test_ssh_discovery.py",
-      "sha256": "b7492d985543201cdd17dcad00be75532506241923210dd0fb1f689013510297"
+      "sha256": "f1e844995759113d6c84ae0c5d526ac97a1d14d90c8010263fdc3f5a09c11490"
     },
     {
       "path": "tests_runtime/test_worker_broker.py",
-      "sha256": "ed3eb221f2ebe8b7e08f836a0ab671ced0d1e98f2c712983a301b3057ca2d2d2"
+      "sha256": "88a2e3a434514678264bedb0a0214fd5d021992e008e5347d0894147c5a5f818"
     }
   ],
-  "source_tree": "a52adc8700863b0e487de4bd5b60b19f55718b45",
+  "source_tree": "746280baede4c1d69a918fa06d96a8cfa3789ce8",
   "stage": "Stage1",
   "test_id": "Stage1.sqlite_audit_outbox"
 }

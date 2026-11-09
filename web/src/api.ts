@@ -5,6 +5,11 @@ export interface Session {
 
 export type Status = 'REACHABLE' | 'NOT_CHECKED' | 'UNKNOWN'
 export type Presence = 'PRESENT' | 'NOT_DETECTED' | 'UNKNOWN'
+export type ContainerState = 'CREATED' | 'RESTARTING' | 'RUNNING' | 'REMOVING' | 'PAUSED' | 'EXITED' | 'DEAD' | 'UNKNOWN' | 'NOT_FOUND'
+export interface DockerObservation {
+  status: 'OBSERVED' | 'NOT_CONFIGURED' | 'POLICY_INVALID' | 'UNAVAILABLE'
+  containers: Array<{ id: string; project: string; service: string; state: ContainerState }>
+}
 export interface Observation {
   status: Status
   reason: string
@@ -12,6 +17,7 @@ export interface Observation {
   last_success: {
     observed_at: number
     software?: Record<'docker' | 'nginx', Presence>
+    docker?: DockerObservation
   } | null
 }
 export interface Resource {

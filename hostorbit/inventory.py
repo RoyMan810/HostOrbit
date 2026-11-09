@@ -7,7 +7,7 @@ import time
 from .auth import AuthService, Role, etag
 from .errors import Denied
 from .queue import JobQueue
-from .runtime.protocol import ULID, software_summary
+from .runtime.protocol import ULID, docker_summary, software_summary
 
 
 _SELECT = """
@@ -43,6 +43,10 @@ def _sample(raw):
         sample = {k: value[k] for k in ('status', 'source', 'observed_at', 'boot_id')}
         if 'software' in value:
             sample['software'] = software_summary(value['software'])
+        if 'docker' in value:
+            if 'software' not in sample:
+                return None
+            sample['docker'] = docker_summary(value['docker'])
         return sample
     except (ValueError, TypeError, Denied):
         return None

@@ -239,6 +239,11 @@ jobs:
         run: |
           test "$(docker version --format '{{.Server.Version}}')" = "$HOSTORBIT_LAB_DOCKER_VERSION"
           bash tests/lab/broker-containers.sh
+      - name: Verify scoped discovery against the pinned Docker daemon
+        run: |
+          sudo -n /usr/bin/env "PATH=$PATH" "DOCKER_HOST=$DOCKER_HOST" GITHUB_ACTIONS=true \
+            "RUNNER_ENVIRONMENT=$RUNNER_ENVIRONMENT" python3 tests_runtime/lab/docker_discovery.py \
+            --isolated-vm --image "$HOSTORBIT_LAB_PYTHON_IMAGE"
 
   restricted-ssh:
     name: Restricted SSH account / Ubuntu

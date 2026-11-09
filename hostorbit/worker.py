@@ -5,7 +5,7 @@ from threading import Event
 from .database import identifier
 from .errors import Denied
 from .queue import JobQueue
-from .runtime.protocol import checksum, fields, integer, software_summary, text
+from .runtime.protocol import checksum, docker_summary, fields, integer, software_summary, text
 from .runtime.storage import process_lock
 
 
@@ -65,7 +65,11 @@ class Worker:
             if response["outcome"] == "SUCCEEDED":
                 value = response["observation"]
                 names = ("status", "source", "observed_at", "boot_id")
-                if isinstance(value, dict) and "software" in value:
+                if isinstance(value, dict) and "docker" in value:
+                    fields(value, names + ("software", "docker"))
+                    software_summary(value["software"])
+                    docker_summary(value["docker"])
+                elif isinstance(value, dict) and "software" in value:
                     fields(value, names + ("software",))
                     software_summary(value["software"])
                 else:

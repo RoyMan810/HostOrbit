@@ -75,3 +75,23 @@ def software_summary(value):
     if any(state not in ("PRESENT", "NOT_DETECTED", "UNKNOWN") for state in value.values()):
         raise Denied("PROBE_SOFTWARE_INVALID")
     return value
+
+
+def docker_summary(value):
+    fields(value, ("status", "containers"))
+    status, rows = value["status"], value["containers"]
+    if (status not in ("OBSERVED", "NOT_CONFIGURED", "POLICY_INVALID", "UNAVAILABLE")
+            or not isinstance(rows, list) or len(rows) > 8 or bool(rows) != (status == "OBSERVED")):
+        raise Denied("PROBE_DOCKER_INVALID")
+    seen = set()
+    for item in rows:
+        fields(item, ("id", "project", "service", "state"))
+        identity = text(item["id"], r"[0-9a-f]{64}")
+        text(item["project"], r"[a-z0-9][a-z0-9_-]{0,62}")
+        text(item["service"], r"[A-Za-z0-9][A-Za-z0-9_.-]{0,62}")
+        if identity in seen or item["state"] not in (
+            "CREATED", "RESTARTING", "RUNNING", "REMOVING", "PAUSED", "EXITED", "DEAD", "UNKNOWN", "NOT_FOUND",
+        ):
+            raise Denied("PROBE_DOCKER_INVALID")
+        seen.add(identity)
+    return value

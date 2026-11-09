@@ -8,11 +8,12 @@ import time
 import asyncssh
 
 from ..errors import Denied
-from .protocol import decode, fields, integer, software_summary, text
+from .protocol import decode, docker_summary, fields, integer, software_summary, text
 from .storage import new_private_file, protected_bytes
 
 
 PROBES = (
+    (3, "hostorbit.v3.probe", b'{"operation":"probe","version":3}\n'),
     (2, "hostorbit.v2.probe", b'{"operation":"probe","version":2}\n'),
     (1, "hostorbit.v1.probe", b'{"operation":"probe","version":1}\n'),
 )
@@ -28,14 +29,14 @@ def validate_private_key(key):
         raise Denied("SSH_KEY_FORMAT_UNSUPPORTED") from None
 
 
-async def bounded_read(stream):
+async def bounded_read(stream, limit=2048):
     result = bytearray()
     while True:
         chunk = await stream.read(1024)
         if not chunk:
             return bytes(result)
         result.extend(chunk)
-        if len(result) > 2048:
+        if len(result) > limit:
             raise Denied("SSH_UNSUPPORTED_OUTPUT")
 
 
@@ -52,11 +53,13 @@ async def exchange(target, key, known_hosts):
     try:
         for version, command, request in PROBES:
             process = await connection.create_process(command, input=request, encoding=None, request_pty=False)
-            output, error, _ = await asyncio.gather(bounded_read(process.stdout), bounded_read(process.stderr), process.wait_closed())
+            output, error, _ = await asyncio.gather(
+                bounded_read(process.stdout, 4096 if version == 3 else 2048),
+                bounded_read(process.stderr), process.wait_closed())
             if process.exit_status == 0:
                 return version, output
             # The old forced command silently rejects an unsupported command with 65.
-            if version != 2 or process.exit_status != 65 or output or error:
+            if version == 1 or process.exit_status != 65 or output or error:
                 break
         raise Denied("SSH_REMOTE_PROBE_FAILED")
     finally:
@@ -101,14 +104,19 @@ def parse_probe(output, version, *, now):
     except Denied:
         raise Denied("SSH_UNSUPPORTED_OUTPUT") from None
     names = ("v", "uid", "boot_id", "observed_at")
-    fields(value, names + ("software",) if version == 2 else names)
+    extra = {1: (), 2: ("software",), 3: ("software", "docker")}.get(version)
+    if extra is None:
+        raise Denied("SSH_PROBE_INVALID")
+    fields(value, names + extra)
     if type(value["v"]) is not int or value["v"] != version or type(value["uid"]) is not int or value["uid"] != 0:
         raise Denied("SSH_PROBE_INVALID")
     text(value["boot_id"], r"[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}")
     integer(value["observed_at"], now - 300, now + 2)
     result = {"status": "REACHABLE", "source": "restricted_helper", "observed_at": value["observed_at"], "boot_id": value["boot_id"]}
-    if version == 2:
+    if version >= 2:
         result["software"] = software_summary(value["software"])
+    if version == 3:
+        result["docker"] = docker_summary(value["docker"])
     return result
 
 
