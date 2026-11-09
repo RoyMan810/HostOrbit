@@ -3,7 +3,7 @@ import json
 from fastapi.testclient import TestClient
 
 from hostorbit.api import create_app
-from hostorbit.auth import COOKIE
+from hostorbit.auth import COOKIE, IDLE_SECONDS
 from hostorbit.config import Settings
 from test_auth_api import Fixture, ORIGIN, PASSWORD
 
@@ -62,6 +62,13 @@ class HttpBoundaryTests(Fixture):
         replay = self.client.get("/api/v1/events", headers={"Last-Event-ID": str(cursor)})
         self.assertNotIn("data:", replay.text)
         self.assertEqual(self.client.get("/api/v1/events", headers={"Last-Event-ID": "-1"}).status_code, 400)
+
+    def test_event_reconnections_do_not_extend_idle_session(self):
+        for _ in range(5):
+            self.now += 300
+            self.assertEqual(self.client.get("/api/v1/events").status_code, 200)
+        self.now += IDLE_SECONDS - 1500
+        self.assertEqual(self.client.get("/api/v1/events").status_code, 401)
 
     def test_failed_outbox_write_rolls_back_user_creation_and_does_not_emit_success(self):
         before = self.store.events_after(0)

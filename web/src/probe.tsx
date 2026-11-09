@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { ApiError, request } from './api'
 import type { Resource, Session } from './api'
-import type { Copy } from './copy'
+import type { Copy, Language } from './copy'
 
 type JobStatus = keyof Copy['probeStatus']
 const terminal = new Set<JobStatus>(['SUCCEEDED', 'FAILED', 'UNKNOWN_OUTCOME', 'CANCELLED_SAFE'])
@@ -42,10 +42,52 @@ function checkedJob(value: unknown, target: string, expectedId?: string): Job {
   return job
 }
 
-export function ProbeControl({ resource, session, t, expired, reload }: {
+interface TimelineItem { seq: number; at: number; status: JobStatus; reason: string | null }
+
+function JobTimeline({ job, t, lang, expired }: { job: Job; t: Copy; lang: Language; expired: () => void }) {
+  const [items, setItems] = useState<TimelineItem[] | null>(null)
+  const [error, setError] = useState<unknown>(null)
+  const [loading, setLoading] = useState(false)
+  const requestAbort = useRef<AbortController | null>(null)
+  useEffect(() => () => requestAbort.current?.abort(), [])
+
+  async function load() {
+    if (requestAbort.current) return
+    const abort = new AbortController()
+    requestAbort.current = abort
+    setItems(null)
+    setError(null)
+    setLoading(true)
+    try {
+      const result = await request<{ items: TimelineItem[] }>('/jobs/' + encodeURIComponent(job.id) + '/timeline', { signal: abort.signal })
+      if (!abort.signal.aborted) setItems(result.items)
+    } catch (err) {
+      if (abort.signal.aborted) return
+      if (err instanceof ApiError && err.status === 401) expired()
+      else setError(err)
+    } finally {
+      if (!abort.signal.aborted) { requestAbort.current = null; setLoading(false) }
+    }
+  }
+
+  return <div className="probe-timeline">
+    <button onClick={() => void load()} disabled={loading}>{t.timelineLoad}</button>
+    {loading && <p>{t.loading}</p>}
+    {error != null && <p className="error">{error instanceof ApiError && [403, 404].includes(error.status) ? t.probeUnavailable : t.requestError}</p>}
+    {items && (items.length === 0 ? <p>{t.timelineEmpty}</p> : <ol>
+      {items.map(item => <li key={item.seq}>
+        <time dateTime={new Date(item.at * 1000).toISOString()}>{new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(item.at * 1000))}</time>
+        {' — '}<span>{t.probeStatus[item.status]}</span>{item.reason && <> <code>{item.reason}</code></>}
+      </li>)}
+    </ol>)}
+  </div>
+}
+
+export function ProbeControl({ resource, session, t, lang, expired, reload }: {
   resource: Resource | null
   session: Session
   t: Copy
+  lang: Language
   expired: () => void
   reload: () => void
 }) {
@@ -139,6 +181,7 @@ export function ProbeControl({ resource, session, t, expired, reload }: {
         <p><strong>{t.probeStatus[run.job.status]}</strong></p>
         {run.job.status === 'UNKNOWN_OUTCOME' && <p>{t.probeUnknown}</p>}
         {run.job.reason === 'SSH_HOST_KEY_MISMATCH' && <p>{t.probeHostKey}</p>}
+        {!('readDenied' in run && run.readDenied) && <JobTimeline key={run.job.id} job={run.job} t={t} lang={lang} expired={expired}/>}
       </>}
       {run.phase === 'sending' && <p>{t.probeSending}</p>}
       {run.phase === 'rejected' && <p className="error">{t.probeDenied}</p>}

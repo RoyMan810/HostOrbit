@@ -158,7 +158,7 @@ class AuthService:
             raise Denied("API_RATE_LIMIT", 429, retry_after=60)
         db.execute("INSERT INTO api_calls VALUES(?,?,?)", (user_id, ip, now))
 
-    def authenticate(self, token, *, ip, csrf=None, mutating=False):
+    def authenticate(self, token, *, ip, csrf=None, mutating=False, activity=True):
         failure = None
         principal = None
         with self.store.write(kind="control") as db:
@@ -173,7 +173,7 @@ class AuthService:
                 self._budget(db, principal.id if principal else "anonymous", ip)
             except Denied as error:
                 failure = error
-            if failure is None:
+            if failure is None and activity:
                 db.execute("UPDATE sessions SET last_seen=? WHERE digest=?", (int(self.clock()), digest(token)))
         if failure:
             raise failure

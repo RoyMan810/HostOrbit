@@ -246,7 +246,7 @@ function Inventory({ t, lang, expired, session }: { t: Copy; lang: Language; exp
         </p> : current ? <Detail resource={current} t={t} lang={lang} now={now}
           expired={expired} canPreview={session.user.role !== 'Auditor'}/> :
           <p className="notice" role="status">{selected && !error ? t.loading : t.select}</p>}
-        <ProbeControl resource={current} session={session} t={t} expired={expired} reload={reload}/>
+        <ProbeControl resource={current} session={session} t={t} lang={lang} expired={expired} reload={reload}/>
       </section>
     </div>
   </main>

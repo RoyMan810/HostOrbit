@@ -209,6 +209,11 @@ def create_app(settings: Settings, *, auth: AuthService | None = None):
         service.require_permission(token(request), "audit:read", "*")
         return actor
 
+    def event_access(request: Request):
+        actor = service.authenticate(token(request), ip=request.state.client_ip, activity=False)
+        service.require_permission(token(request), "audit:read", "*")
+        return actor
+
     @app.get("/healthz", include_in_schema=False)
     def health():
         # Liveness only; does not assert remote health or recovery readiness.
@@ -295,8 +300,12 @@ def create_app(settings: Settings, *, auth: AuthService | None = None):
         response.headers["ETag"] = current
         return value
 
+    @app.get("/api/v1/jobs/{job_id}/timeline")
+    def job_timeline(job_id: str, request: Request, actor=Depends(principal)):
+        return queue.timeline(service, token(request), job_id)
+
     @app.get("/api/v1/events")
-    def events(request: Request, actor=Depends(audit_access)):
+    def events(request: Request, actor=Depends(event_access)):
         try:
             after = int(request.headers.get("last-event-id", "0"))
             if not 0 <= after < 2**63:

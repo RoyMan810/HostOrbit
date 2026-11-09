@@ -16,13 +16,17 @@ SELECT r.*, j.status AS job_status, j.reason AS job_reason, j.updated_at AS chec
        s.result AS success_result
 FROM resources r
 LEFT JOIN jobs j ON j.id=(
-    SELECT id FROM jobs WHERE resource_id=r.id
-    AND status IN ('SUCCEEDED','FAILED','UNKNOWN_OUTCOME','CANCELLED_SAFE')
-    ORDER BY created_at DESC,id DESC LIMIT 1)
+    SELECT candidate.id FROM audit a JOIN jobs candidate ON candidate.id=a.correlation_id
+    WHERE a.target_id=r.id AND candidate.resource_id=r.id
+    AND candidate.status IN ('SUCCEEDED','FAILED','UNKNOWN_OUTCOME','CANCELLED_SAFE')
+    AND (a.event='job.finished' OR (a.event='job.accepted' AND candidate.reason='RESTORE_QUARANTINE'))
+    ORDER BY a.seq DESC LIMIT 1)
 LEFT JOIN jobs s ON s.id=(
-    SELECT id FROM jobs WHERE resource_id=r.id AND status='SUCCEEDED'
-    AND scope_digest=r.scope_digest AND policy_revision=r.policy_revision
-    ORDER BY created_at DESC,id DESC LIMIT 1)
+    SELECT candidate.id FROM audit a JOIN jobs candidate ON candidate.id=a.correlation_id
+    WHERE a.target_id=r.id AND a.event='job.finished' AND candidate.resource_id=r.id
+    AND candidate.status='SUCCEEDED' AND candidate.scope_digest=r.scope_digest
+    AND candidate.policy_revision=r.policy_revision
+    ORDER BY a.seq DESC LIMIT 1)
 WHERE r.id>? AND (? IS NULL OR r.id=?)
 AND (? OR EXISTS (SELECT 1 FROM grants g WHERE g.user_id=?
                  AND g.permission='vps:read' AND g.resource_id IN (r.id,'*')))

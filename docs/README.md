@@ -2,15 +2,27 @@
 
 Текущий статус проекта находится в [README](../README.md), рабочий процесс — в [CONTRIBUTING](../CONTRIBUTING.md).
 
-## Структура
+## Структура репозитория
 
-- `hostorbit/` — Controller API, Auth, RBAC, SQLite, очередь, Worker и runtime.
-- `deploy/` — подписанные bundles, установщик, systemd и Compose profiles.
-- `remote/` — ограниченные SSH gateway/helper.
-- `stage0/` и `tests/` — принятые лабораторные прототипы и их регрессия.
-- `tests_app/`, `tests_runtime/` — прикладные проверки и native integration fixtures.
-- `tools/`, `tests_tools/` — проверки репозитория и обслуживание веток.
-- `evidence/` — принятые решения, отчёты и контрольные суммы проверенных ревизий.
+### Приложение и развёртывание
+
+- [hostorbit/](../hostorbit/) — API, Auth, RBAC, SQLite, очередь и Worker; `hostorbit/runtime/` — Broker, SSH, backup и recovery.
+- [web/](../web/) — интерфейс, его сборка и браузерные тесты.
+- [deploy/](../deploy/) — подписанные bundles, установщик и службы systemd.
+- [remote/](../remote/) — ограниченные SSH gateway/helper для управляемых серверов.
+
+### Проверки и инструменты
+
+- [tests_app/](../tests_app/) — прикладные проверки API, авторизации, базы и очереди.
+- [tests_runtime/](../tests_runtime/) — проверки runtime и интеграционные стенды в `lab/`.
+- [stage0/](../stage0/) и [tests/](../tests/) — лабораторные прототипы Stage0 и их действующие регрессионные проверки; `tests/lab/` содержит стенды.
+- [tools/](../tools/) и [tests_tools/](../tests_tools/) — проверки репозитория и инструменты обслуживания с тестами.
+- [.github/workflows/](../.github/workflows/) — автоматические проверки и обслуживание веток.
+
+### История и локальные файлы
+
+- [evidence/](../evidence/) — принятые решения, отчёты и контрольные суммы проверенных ревизий. Реестр требований и Stage0 используются текущим CI; не удаляйте их как временные данные.
+- `__pycache__/`, `.ruff_cache/` и `web/test-results/` — восстанавливаемые кэши и результаты локальных проверок. `.venv/` и `web/node_modules/` содержат установленные зависимости, а `web/dist/` — сборку интерфейса; они не входят в Git, но могут использоваться локально.
 
 ## Controller и развёртывание
 

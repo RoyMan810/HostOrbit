@@ -93,19 +93,61 @@ class JobQueue:
             self._event(db, row, "job.accepted")
             return self._public(row)
 
+    def _read_job(self, db, auth, token, job_id):
+        self._schema(db)
+        actor = auth._session(db, token)
+        row = db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
+        if row is None:
+            raise Denied("RESOURCE_NOT_FOUND", 404)
+        try:
+            self._actor(db, actor["id"], row["resource_id"], "vps:read")
+        except Denied:
+            raise Denied("RESOURCE_NOT_FOUND", 404) from None
+        return row
+
     def get(self, auth, token, job_id):
         with self.store.read() as db:
-            self._schema(db)
-            actor = auth._session(db, token)
-            row = db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone()
-            if row is None:
-                raise Denied("RESOURCE_NOT_FOUND", 404)
-            try:
-                self._actor(db, actor["id"], row["resource_id"], "vps:read")
-            except Denied:
-                raise Denied("RESOURCE_NOT_FOUND", 404) from None
+            row = self._read_job(db, auth, token, job_id)
             public = self._public(row)
             return public, etag(public, row["revision"])
+
+    def timeline(self, auth, token, job_id):
+        with self.store.read() as db:
+            job = self._read_job(db, auth, token, job_id)
+            rows = db.execute("""SELECT seq,at,event,outcome,details FROM audit
+                WHERE target_id=? AND correlation_id=?
+                AND event IN ('job.accepted','job.transition','job.finished')
+                ORDER BY seq LIMIT 101""", (job["resource_id"], job_id)).fetchall()
+            if len(rows) > 100:
+                raise Denied("JOB_TIMELINE_INVALID", 503)
+            items = []
+            previous = None
+            for revision, row in enumerate(rows, 1):
+                try:
+                    details = json.loads(row["details"])
+                    reason = details["reason"]
+                    status = row["outcome"]
+                    if (not isinstance(details, dict) or details.get("job_id") != job_id
+                            or type(details.get("revision")) is not int or details["revision"] != revision
+                            or type(row["at"]) is not int or not 0 <= row["at"] <= 253402300799
+                            or (row["event"] == "job.accepted" and (previous is not None or status != "QUEUED"))
+                            or (row["event"] == "job.transition" and
+                                (previous not in _NEXT or _NEXT[previous] != status or status == "SUCCEEDED"))
+                            or (row["event"] == "job.finished" and
+                                (previous is None or previous in _TERMINAL or status not in _TERMINAL
+                                 or (status == "SUCCEEDED" and previous != "VERIFYING")
+                                 or (status == "CANCELLED_SAFE" and previous not in ("QUEUED", "INTENT_PREPARED"))))
+                            or (row["event"] != "job.finished" and reason is not None)
+                            or (row["event"] == "job.finished" and (not isinstance(reason, str)
+                                or re.fullmatch(r"[A-Z][A-Z0-9_]{1,63}", reason) is None))):
+                        raise ValueError
+                except (ValueError, TypeError, KeyError):
+                    raise Denied("JOB_TIMELINE_INVALID", 503) from None
+                items.append({"seq": row["seq"], "at": row["at"], "status": status, "reason": reason})
+                previous = status
+            if not items or len(items) != job["revision"] or previous != job["status"] or items[-1]["reason"] != job["reason"]:
+                raise Denied("JOB_TIMELINE_INVALID", 503)
+            return {"items": items}
 
     def recover(self, classify=None):
         """The caller must hold the exclusive Worker process lock, never an expiring lease."""

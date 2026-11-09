@@ -67,6 +67,77 @@ class QueueApiTests(Fixture):
         headers["X-CSRF-Token"] = auditor.get("/api/v1/auth/session").json()["csrf_token"]
         self.assertEqual(auditor.post(f"/api/v1/resources/{SCOPE}/observations", json={}, headers=headers).status_code, 403)
 
+    def test_timeline_is_scoped_ordered_and_contains_only_safe_job_fields(self):
+        endpoint = f"/api/v1/resources/{SCOPE}/observations"
+        response = self.client.post(endpoint, json={}, headers=self.headers(**{"Idempotency-Key": "timeline-request-01"}))
+        job_id = response.json()["id"]
+        claim, row = self.queue.claim(identifier())
+        self.queue.advance(claim, "INTENT_PREPARED", permit={"claims": self.queue.binding(row)})
+        self.queue.advance(claim, "DISPATCHING")
+        self.queue.finish(claim, "UNKNOWN_OUTCOME", "SSH_TIMEOUT")
+        with self.store.write() as db:
+            self.store.event(db, at=self.now, actor="fixture", kind="job.finished", target=OTHER,
+                             outcome="FAILED", correlation=job_id, details={"job_id": job_id, "reason": "OTHER_TARGET"})
+        self.create_user(name="reader", role="Auditor", grants=[{"permission": "vps:read", "resource_id": SCOPE}])
+        reader = self.other_client("reader")
+        path = f"/api/v1/jobs/{job_id}/timeline"
+        result = reader.get(path)
+        self.assertEqual(result.status_code, 200, result.text)
+        self.assertEqual(result.headers["cache-control"], "no-store")
+        items = result.json()["items"]
+        self.assertEqual([item["status"] for item in items], ["QUEUED", "INTENT_PREPARED", "DISPATCHING", "UNKNOWN_OUTCOME"])
+        self.assertEqual(items[-1]["reason"], "SSH_TIMEOUT")
+        self.assertEqual(sorted(item["seq"] for item in items), [item["seq"] for item in items])
+        self.assertTrue(all(set(item) == {"seq", "at", "status", "reason"} for item in items))
+        foreign = self.client.post(f"/api/v1/resources/{OTHER}/observations", json={},
+                                   headers=self.headers(**{"Idempotency-Key": "timeline-foreign-01"})).json()["id"]
+        self.assertEqual(reader.get(f"/api/v1/jobs/{foreign}/timeline").status_code, 404)
+        self.assertEqual(reader.get(f"/api/v1/jobs/{identifier()}/timeline").status_code, 404)
+        with self.store.write() as db:
+            db.execute("DELETE FROM grants WHERE permission='vps:read' AND resource_id=?", (SCOPE,))
+        self.assertEqual(reader.get(path).status_code, 404)
+
+    def test_timeline_rejects_invalid_stored_event_instead_of_claiming_a_status(self):
+        response = self.client.post(f"/api/v1/resources/{SCOPE}/observations", json={},
+                                    headers=self.headers(**{"Idempotency-Key": "timeline-invalid-01"}))
+        job_id = response.json()["id"]
+        with self.store.write() as db:
+            self.store.event(db, at=self.now, actor="fixture", kind="job.finished", target=SCOPE,
+                             outcome="SUCCEEDED", correlation=job_id,
+                             details={"job_id": job_id, "reason": "unsafe secret"})
+        result = self.client.get(f"/api/v1/jobs/{job_id}/timeline")
+        self.assertEqual(result.status_code, 503)
+        self.assertEqual(result.json()["code"], "JOB_TIMELINE_INVALID")
+
+    def test_timeline_rejects_unconfirmed_success_and_missing_audit_transition(self):
+        response = self.client.post(f"/api/v1/resources/{SCOPE}/observations", json={},
+                                    headers=self.headers(**{"Idempotency-Key": "timeline-unconfirmed-01"}))
+        job_id = response.json()["id"]
+        path = f"/api/v1/jobs/{job_id}/timeline"
+        with self.store.write() as db:
+            self.store.event(db, at=self.now, actor="fixture", kind="job.finished", target=SCOPE,
+                             outcome="SUCCEEDED", correlation=job_id,
+                             details={"job_id": job_id, "revision": 2, "reason": "PROBE_VERIFIED"})
+        self.assertEqual(self.client.get(path).json()["code"], "JOB_TIMELINE_INVALID")
+        other = self.client.post(f"/api/v1/resources/{OTHER}/observations", json={},
+                                 headers=self.headers(**{"Idempotency-Key": "timeline-missing-01"})).json()["id"]
+        with self.store.write() as db:
+            db.execute("UPDATE jobs SET revision=revision+1,status='DISPATCHING' WHERE id=?", (other,))
+        self.assertEqual(self.client.get(f"/api/v1/jobs/{other}/timeline").json()["code"], "JOB_TIMELINE_INVALID")
+
+    def test_timeline_rejects_truncated_history(self):
+        response = self.client.post(f"/api/v1/resources/{SCOPE}/observations", json={},
+                                    headers=self.headers(**{"Idempotency-Key": "timeline-limit-0001"}))
+        job_id = response.json()["id"]
+        with self.store.write() as db:
+            for _ in range(100):
+                self.store.event(db, at=self.now, actor="fixture", kind="job.transition", target=SCOPE,
+                                 outcome="EXECUTING", correlation=job_id,
+                                 details={"job_id": job_id, "reason": None})
+        result = self.client.get(f"/api/v1/jobs/{job_id}/timeline")
+        self.assertEqual(result.status_code, 503)
+        self.assertEqual(result.json()["code"], "JOB_TIMELINE_INVALID")
+
     def test_schema_one_keeps_auth_and_blocks_queue_without_automatic_migration(self):
         with self.store.connect() as db:
             db.execute("PRAGMA user_version=1")

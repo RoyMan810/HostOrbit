@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from fastapi.testclient import TestClient
 
 from hostorbit.database import identifier
@@ -221,14 +223,35 @@ class InventoryTests(Fixture):
         with self.store.read() as db:
             self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 1)
 
-    def test_equal_attempt_timestamps_use_job_id_as_a_stable_tiebreaker(self):
-        first = self.complete()
-        second = self.complete('FAILED', 'SSH_TIMEOUT')
+    def test_equal_creation_times_use_completion_order_for_latest_and_last_success(self):
+        with patch('hostorbit.queue.identifier', side_effect=[OTHER, SCOPE]):
+            self.complete(docker=RUNNING_DOCKER)
+            self.now -= 1
+            self.complete('FAILED', 'SSH_TIMEOUT')
+        observation = self.detail().json()['observation']
+        self.assertEqual(observation['reason'], 'SSH_TIMEOUT')
+        self.assertIsNotNone(observation['last_success'])
+        self.assertEqual(self.restart_preview().status_code, 409)
+
+        with patch('hostorbit.queue.identifier', side_effect=['01JCYQZ4T9V8MNVYEH3D2M7Q1D', '01JCYQZ4T9V8MNVYEH3D2M7Q1C']):
+            self.complete(docker=RUNNING_DOCKER)
+            self.now -= 1
+            self.complete(docker={'status': 'UNAVAILABLE', 'containers': []})
+        observation = self.detail().json()['observation']
+        self.assertEqual(observation['status'], 'REACHABLE')
+        self.assertEqual(observation['last_success']['docker']['status'], 'UNAVAILABLE')
+        self.assertEqual(self.restart_preview().status_code, 409)
+
+    def test_quarantined_job_without_finish_event_is_visible(self):
+        self.complete()
+        self.client.post(f'/api/v1/resources/{SCOPE}/observations', json={},
+                         headers=self.headers(**{'Idempotency-Key': identifier()}))
         with self.store.write() as db:
-            db.execute('DELETE FROM request_keys')
-            db.execute('UPDATE jobs SET id=?,created_at=1000 WHERE id=?', (SCOPE, first))
-            db.execute('UPDATE jobs SET id=?,created_at=1000 WHERE id=?', (OTHER, second))
-        self.assertEqual(self.detail().json()['observation']['reason'], 'SSH_TIMEOUT')
+            db.execute("UPDATE jobs SET status='CANCELLED_SAFE',reason='RESTORE_QUARANTINE' WHERE status='QUEUED'")
+        observation = self.detail().json()['observation']
+        self.assertEqual(observation['status'], 'UNKNOWN')
+        self.assertEqual(observation['reason'], 'RESTORE_QUARANTINE')
+        self.assertIsNotNone(observation['last_success'])
 
     def test_policy_revision_change_alone_invalidates_the_success(self):
         self.complete()
