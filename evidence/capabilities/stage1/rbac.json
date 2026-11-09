@@ -1,12 +1,12 @@
 {
   "artifacts": [
     {
-      "path": "evidence/revalidation/stage2-docker-inventory-2026-11-09/source-manifest.json",
-      "sha256": "de6f58b87a39ebe245a791d59b538a40b1bf47c1c0c0b0abedd330a45c191209"
+      "path": "evidence/revalidation/stage2-docker-restart-preview-2026-11-09/source-manifest.json",
+      "sha256": "c17ea1df457550709ea2730e7320480211be4c623320dd9d0ba1cb6216449f18"
     },
     {
-      "path": "evidence/revalidation/stage2-docker-inventory-2026-11-09/verification.json",
-      "sha256": "309a233bfe80dddc8bc12561fdc53fa6db69919f215beff89622b4d7f5ad1250"
+      "path": "evidence/revalidation/stage2-docker-restart-preview-2026-11-09/verification.json",
+      "sha256": "790b3d16b68163e7bd6786f46789e230b94cc1c3f90d9fe679758ac4a670eeb6"
     },
     {
       "path": "evidence/acceptance/stage1-2026-11-08/sbom.cdx.json",
@@ -17,12 +17,12 @@
       "sha256": "84614c65af5e0186b012b3ef6bf9454defc96d33d6baf24ab146346b531651e1"
     }
   ],
-  "build_digest": "293804567d6882b9f5e3d9f814fa7126b7db3739860da0954f58ea79141460a9",
+  "build_digest": "a7bcf5bfeccb380aee287a4aad917d714cfdd5f0f81dc25716c6dcfb64b916a5",
   "capability": "rbac",
   "capability_assertion": "Foundation: Owner/Admin/Operator/Auditor, explicit server-side grants/scopes, no Owner bootstrap/delegation from Web, role/session revocation and manager-level authorization before queue dispatch.",
   "ci_jobs": [],
   "environment": "Local Linux Python 3.13.17 and SQLite 3.53.1, pinned dependencies and age. Native CI records are historical.",
-  "evidence_digest": "1d6643fce2087cc2b7ea1b1470a3931346d33a2e2c42b22e434f7475532f9b19",
+  "evidence_digest": "06db12f72baac39e52d805f53f243ba1fa0afde819dbaa5eadb2171676283eb6",
   "fault_injection": "test_no_operator_wildcard_or_view_secret_grant_and_owner_is_local_only; test_role_change_or_disable_revokes_all_sessions_and_invalidates_csrf; test_scope_changed_or_actor_revoked_after_enqueue_cancels_before_permit; test_fixed_numeric_targets_reject_loopback_metadata_zones_dns_and_unsupported_actions",
   "historical_ci_jobs": [
     {
@@ -72,37 +72,39 @@
     "Inventory is an initial read-only Stage2 component, not acceptance of AC-28/Stage2/MVP. Current native PR CI is pending; historical CI is not presented as a run on this source.",
     "Current native CI is tracked separately in the pull request. Prior CI records apply to their recorded source commits."
   ],
-  "manifest_digest": "de6f58b87a39ebe245a791d59b538a40b1bf47c1c0c0b0abedd330a45c191209",
+  "manifest_digest": "c17ea1df457550709ea2730e7320480211be4c623320dd9d0ba1cb6216449f18",
   "negative_checks": [
     "test_no_operator_wildcard_or_view_secret_grant_and_owner_is_local_only",
     "test_role_change_or_disable_revokes_all_sessions_and_invalidates_csrf",
     "test_scope_changed_or_actor_revoked_after_enqueue_cancels_before_permit",
     "test_fixed_numeric_targets_reject_loopback_metadata_zones_dns_and_unsupported_actions",
     "tests_app/test_inventory_api.py: unauthorized/foreign resource, revoked grants, stale/future/failed/unknown/cancelled probe, changed scope/policy, malformed result and no secret-field exposure",
-    "Wrong response versions, arbitrary software keys or values, noisy downgrade, and malformed software are rejected."
+    "Wrong response versions, arbitrary software keys or values, noisy downgrade, and malformed software are rejected.",
+    "The restart preview rejects missing grants and stale or ineligible observations."
   ],
-  "observation": "Current source passed 64 application, 151 runtime, 73 Stage0, 15 tools and 12 HTTPS browser tests. Local runtime tests verified the typed Docker summary, legacy SSH fallback and disallowed Docker result fields.",
+  "observation": "Current source passed 67 application, 151 runtime, 73 Stage0, 15 tools and 12 HTTPS browser tests. New application tests covered scoped authorization, stale and ineligible observations, and no job creation during preview.",
   "outcome": "PASS",
   "positive_checks": [
     "test_operator_scope_and_auditor_read_only_permissions_are_checked_in_manager",
     "test_admin_cannot_delegate_beyond_own_scope_or_modify_owner_or_admin",
     "tests_app/test_inventory_api.py: scoped list/detail, bounded output pagination, authenticated wheel routes and current observation state",
-    "Current local regression suites and fixed Docker/Nginx software states through restricted probe v2."
+    "Current local regression suites and fixed Docker/Nginx software states through restricted probe v2.",
+    "The preview returns a scoped snapshot without writing jobs or audit events."
   ],
-  "recorded_at_utc": "2026-11-09T15:49:17.715131+00:00",
+  "recorded_at_utc": "2026-11-09T16:06:46.564201+00:00",
   "revalidation_of": {
-    "evidence_digest": "bfe51a9cc3a823d34b213d51af547043fd1f643c29296f3c09635512c8369bec",
-    "source_commit": "26cbe870eab7c3a509888e09812ac2518cdf60ca"
+    "evidence_digest": "1d6643fce2087cc2b7ea1b1470a3931346d33a2e2c42b22e434f7475532f9b19",
+    "source_commit": "e00c8bf8f6ae02293d45cbd887e310c9df8f687b"
   },
   "reviewer": "Codex automated local revalidation.",
   "sbom_digest": "185b3062cfec008162196407a7089b30ace8b408f948e01f417d465c7d403b4c",
   "scenario": "Foundation: Owner/Admin/Operator/Auditor, explicit server-side grants/scopes, no Owner bootstrap/delegation from Web, role/session revocation and manager-level authorization before queue dispatch.",
   "scope": "FOUNDATION_ONLY",
-  "source_commit": "e00c8bf8f6ae02293d45cbd887e310c9df8f687b",
+  "source_commit": "285db2c39c77456e98a7b073b17e1432f62e99f5",
   "source_files": [
     {
       "path": "hostorbit/api.py",
-      "sha256": "4c07a9f0717ecd3e9f36909c4cf50d0605542997d2a33d71d58ce13e1063c440"
+      "sha256": "aca4cdab2625508aa172b25f85be268b3116538099721cd984ea33d7142ca4d2"
     },
     {
       "path": "hostorbit/auth.py",
@@ -110,7 +112,7 @@
     },
     {
       "path": "hostorbit/inventory.py",
-      "sha256": "c54ab59fc6c8262cbbcf7331e882500187d1270f970ddfd6fe7ec7c1b9a78cb0"
+      "sha256": "d4a748b4e6fd26b485a084d21a0619689e6abaf897637f7f3a92acb672ddc745"
     },
     {
       "path": "hostorbit/queue.py",
@@ -138,7 +140,7 @@
     },
     {
       "path": "tests_app/test_inventory_api.py",
-      "sha256": "d7b9c069ce17e6d9760607fc7c4eb6cec089e3378c16999f2094eae9acc8fd0b"
+      "sha256": "8ba456d1e38e016938ee1dafdcb4d3fc5d34817c2b850655e76fb0d22e17a7d5"
     },
     {
       "path": "tests_app/test_permissions.py",
@@ -165,7 +167,7 @@
       "sha256": "88a2e3a434514678264bedb0a0214fd5d021992e008e5347d0894147c5a5f818"
     }
   ],
-  "source_tree": "746280baede4c1d69a918fa06d96a8cfa3789ce8",
+  "source_tree": "fc297c2eafe83e139f11a35bd630c8d431409233",
   "stage": "Stage1",
   "test_id": "Stage1.rbac"
 }
