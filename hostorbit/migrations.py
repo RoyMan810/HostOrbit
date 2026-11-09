@@ -1,11 +1,11 @@
-"""Rehearse the exact historical schema 1 → 2 migration on private copies only.
+"""Rehearse exact adjacent SQLite migrations on private copies only.
 
 There is intentionally no live apply command. A rehearsal is neither a
 ControllerBackup nor permission to bypass maintenance, backup or time gates.
 """
 
 import base64
-from contextlib import closing
+from contextlib import closing, contextmanager
 import hashlib
 from importlib.resources import files
 import os
@@ -20,7 +20,23 @@ from .runtime.storage import directory_sync, new_private_file
 
 
 _HISTORICAL_SCHEMA_SHA256 = "825d6b23d2ac197fa0e62fd7a649ce8563ef84a5f0cdee3135817dd619894db3"
-_NEW_TABLES = ("resources", "jobs", "request_keys", "job_incidents")
+_QUEUE_TABLES = ("resources", "jobs", "request_keys", "job_incidents")
+_PLAN_SCHEMA = """
+CREATE TABLE change_plan_drafts (
+    id TEXT NOT NULL,
+    revision INTEGER NOT NULL CHECK(revision >= 1),
+    actor_id TEXT NOT NULL REFERENCES users(id),
+    resource_id TEXT NOT NULL REFERENCES resources(id),
+    action TEXT NOT NULL CHECK(action = 'docker.restart'),
+    baseline TEXT NOT NULL CHECK(json_valid(baseline) AND json_type(baseline) = 'object'),
+    plan_hash TEXT NOT NULL CHECK(length(plan_hash) = 64 AND plan_hash NOT GLOB '*[^0-9a-f]*'),
+    created_at INTEGER NOT NULL CHECK(created_at >= 0),
+    PRIMARY KEY(id, revision)
+) STRICT;
+CREATE INDEX change_plan_drafts_resource ON change_plan_drafts(resource_id, id);
+CREATE INDEX change_plan_drafts_hash ON change_plan_drafts(plan_hash);
+PRAGMA user_version = 3;
+"""
 
 
 def historical_schema():
@@ -35,18 +51,25 @@ def schema_rows(db):
         "SELECT type,name,tbl_name,sql FROM sqlite_schema WHERE name NOT GLOB 'sqlite_*' ORDER BY type,name")]
 
 
+def _schema_from_sql(script):
+    with closing(sqlite3.connect(":memory:")) as db:
+        db.executescript(script)
+        return schema_rows(db)
+
+
 def expected_schema(version):
     if version not in (1, 2):
         raise Denied("MIGRATION_SCHEMA_UNSUPPORTED")
-    with closing(sqlite3.connect(":memory:")) as db:
-        db.executescript(historical_schema() if version == 1 else _SCHEMA)
-        return schema_rows(db)
+    return _schema_from_sql(historical_schema() if version == 1 else _SCHEMA)
 
 
 def _verify(db, version):
     if SCHEMA_VERSION != 2 or db.execute("PRAGMA user_version").fetchone()[0] != version:
         raise Denied("MIGRATION_SCHEMA_UNSUPPORTED")
-    if schema_rows(db) != expected_schema(version):
+    # Schema 3 is a rehearsal output. The runtime and Rescue continue to use
+    # expected_schema(), which accepts only the supported release schemas.
+    expected = _schema_from_sql(_SCHEMA + _PLAN_SCHEMA) if version == 3 else expected_schema(version)
+    if schema_rows(db) != expected:
         raise Denied("MIGRATION_SCHEMA_DRIFT")
     if ([tuple(row) for row in db.execute("PRAGMA integrity_check")] != [("ok",)]
             or db.execute("PRAGMA foreign_key_check").fetchone() is not None):
@@ -58,10 +81,10 @@ def _value(value):
     return {"bytes": base64.b64encode(value).decode()} if isinstance(value, bytes) else value
 
 
-def _legacy_digest(db, audit_sequence):
-    """Hash every historical business row, with no credential values in reports."""
+def _source_digest(db, audit_sequence, version):
+    """Hash every source row, with no credential values in reports."""
     digest, counts = hashlib.sha256(), {}
-    for row in expected_schema(1):
+    for row in expected_schema(version):
         if row[0] != "table":
             continue
         name = row[1]
@@ -92,26 +115,30 @@ def _statements(script):
         raise Denied("MIGRATION_DEFINITION_INVALID")
 
 
-def _migrate_snapshot(store, *, audit_sequence, legacy_digest, at, correlation, progress):
+def _migrate_snapshot(store, *, to_schema, audit_sequence, source_digest, at, correlation, progress):
     """Internal copy executor; callers never pass the live database here."""
+    before = to_schema - 1
+    script, new_tables = (
+        (_SCHEMA[_SCHEMA.index("CREATE TABLE resources"):], _QUEUE_TABLES) if to_schema == 2
+        else (_PLAN_SCHEMA, ("change_plan_drafts",))
+    )
     with store.write() as db:
         db.set_progress_handler(progress, 1000)
-        _verify(db, 1)
-        if _legacy_digest(db, audit_sequence)[0] != legacy_digest:
+        _verify(db, before)
+        if _source_digest(db, audit_sequence, before)[0] != source_digest:
             raise Denied("MIGRATION_SNAPSHOT_CHANGED")
         # executescript() would implicitly commit an open transaction. Execute
         # each release-defined statement so DDL, audit and version commit once.
-        suffix = _SCHEMA[_SCHEMA.index("CREATE TABLE resources"):]
-        for statement in _statements(suffix):
+        for statement in _statements(script):
             db.execute(statement)
         seq = Store.event(db, at=at, actor="local-root", kind="database.schema_migrated",
                           target="controller", outcome="SUCCEEDED", correlation=correlation,
-                          details={"from_schema": 1, "to_schema": 2, "rehearsal": True,
-                                   "source_rows_sha256": legacy_digest})
-        head = _verify(db, 2)
-        if _legacy_digest(db, audit_sequence)[0] != legacy_digest:
+                          details={"from_schema": before, "to_schema": to_schema, "rehearsal": True,
+                                   "source_rows_sha256": source_digest})
+        head = _verify(db, to_schema)
+        if _source_digest(db, audit_sequence, before)[0] != source_digest:
             raise Denied("MIGRATION_PRESERVATION_FAILED")
-        for name in _NEW_TABLES:
+        for name in new_tables:
             if db.execute(f'SELECT count(*) FROM "{name}"').fetchone()[0]:
                 raise Denied("MIGRATION_NEW_TABLE_NOT_EMPTY")
         return seq, head
@@ -122,8 +149,24 @@ def _new_copy(path):
     return sqlite3.connect(path, autocommit=True, timeout=5)
 
 
-def rehearse(store, output, *, clock=time.monotonic):
+@contextmanager
+def _verify_copy_connection(store, version):
+    if version == SCHEMA_VERSION:
+        with store.connect(readonly=True) as db:
+            yield db
+        return
+    store._permissions()
+    with closing(sqlite3.connect(store.path.as_uri() + "?mode=ro", uri=True, autocommit=True, timeout=5)) as db:
+        db.row_factory = sqlite3.Row
+        db.execute("PRAGMA query_only=ON")
+        yield db
+
+
+def rehearse(store, output, *, to_schema=2, clock=time.monotonic):
     """Read-only SQLite source + bounded, coherent copies; never replace source."""
+    if type(to_schema) is not int or to_schema not in (2, 3):
+        raise Denied("MIGRATION_SCHEMA_UNSUPPORTED")
+    before = to_schema - 1
     output = Path(output).absolute()
     for parent in output.parents:
         info = parent.lstat()
@@ -136,7 +179,7 @@ def rehearse(store, output, *, clock=time.monotonic):
     output.chmod(0o700)
     directory_sync(output.parent)
     report = {"v": 1, "status": "RUNNING", "applied_to_source": False,
-              "live_apply": "BLOCKED", "schema_before": 1, "schema_after": 2,
+              "live_apply": "BLOCKED", "schema_before": before, "schema_after": to_schema,
               "required_live_gates": ["OWNER_UPDATE_APPROVAL", "SIGNED_COMPATIBLE_RELEASE",
                                       "HOST_MAINTENANCE", "CONTROLLER_BACKUP", "TIME_HEALTH"]}
     new_private_file(output / "rehearsal.json", canonical(report).encode())
@@ -156,9 +199,9 @@ def rehearse(store, output, *, clock=time.monotonic):
         with store.connect(readonly=True) as source:
             source.set_progress_handler(sql_deadline, 1000)
             source.execute("BEGIN")
-            head_before = _verify(source, 1)
+            head_before = _verify(source, before)
             sequence = source.execute("SELECT coalesce(max(seq),0) FROM audit").fetchone()[0]
-            legacy_digest, counts = _legacy_digest(source, sequence)
+            source_digest, counts = _source_digest(source, sequence, before)
             for destination in (source_path, migrated_path):
                 deadline()
                 with closing(_new_copy(destination)) as copy:
@@ -174,17 +217,19 @@ def rehearse(store, output, *, clock=time.monotonic):
         copied = Store(migrated_path)
         # The preservation verifier expects sqlite3.Row audit records.
         deadline()
-        seq, head_after = _migrate_snapshot(copied, audit_sequence=sequence, legacy_digest=legacy_digest,
+        seq, head_after = _migrate_snapshot(copied, to_schema=to_schema,
+                                            audit_sequence=sequence, source_digest=source_digest,
                                             at=int(time.time()), correlation=identifier(), progress=sql_deadline)
         deadline()
         # Verify again from a new connection after the durable commit.
-        with copied.connect(readonly=True) as db:
+        with _verify_copy_connection(copied, to_schema) as db:
             db.set_progress_handler(sql_deadline, 1000)
-            _verify(db, 2)
-            if _legacy_digest(db, sequence)[0] != legacy_digest:
+            db.execute("BEGIN")
+            _verify(db, to_schema)
+            if _source_digest(db, sequence, before)[0] != source_digest:
                 raise Denied("MIGRATION_PRESERVATION_FAILED")
         report.update(status="REHEARSAL_PASSED", source_snapshot_sha256=snapshot_hash,
-                      source_rows_sha256=legacy_digest, source_audit_sequence=sequence,
+                      source_rows_sha256=source_digest, source_audit_sequence=sequence,
                       source_audit_head=head_before, migrated_audit_sequence=seq,
                       migrated_audit_head=head_after, preserved_table_rows=counts)
     except BaseException:
