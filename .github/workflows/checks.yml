@@ -102,8 +102,7 @@ jobs:
         run: |
           age_dir="$RUNNER_TEMP/hostorbit-install-age"
           mkdir -p "$age_dir"
-          curl --proto '=https' --proto-redir '=https' --fail --silent --show-error --location --retry 2 \
-            -o "$age_dir/age.tar.gz" https://github.com/FiloSottile/age/releases/download/v1.3.2/age-v1.3.2-linux-amd64.tar.gz
+          python "$GITHUB_WORKSPACE/tools/fetch_age.py" --output "$age_dir/age.tar.gz"
           echo "cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10  $age_dir/age.tar.gz" | sha256sum -c -
           tar --no-same-owner -xzf "$age_dir/age.tar.gz" -C "$age_dir" -- age/age age/age-keygen
           python_image="$HOSTORBIT_INSTALL_PYTHON_IMAGE"
@@ -136,8 +135,7 @@ jobs:
         run: |
           age_dir="$RUNNER_TEMP/hostorbit-runtime-age"
           mkdir -p "$age_dir"
-          curl --proto '=https' --proto-redir '=https' --fail --silent --show-error --location --retry 2 \
-            -o "$age_dir/age.tar.gz" https://github.com/FiloSottile/age/releases/download/v1.3.2/age-v1.3.2-linux-amd64.tar.gz
+          python "$GITHUB_WORKSPACE/tools/fetch_age.py" --output "$age_dir/age.tar.gz"
           echo "cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10  $age_dir/age.tar.gz" | sha256sum -c -
           tar --no-same-owner -xzf "$age_dir/age.tar.gz" -C "$age_dir" -- age/age age/age-keygen
           export HOSTORBIT_TEST_AGE_DIR="$age_dir/age"
@@ -197,8 +195,7 @@ jobs:
           age_dir="$RUNNER_TEMP/hostorbit-age"
           mkdir -p "$age_dir"
           cd "$age_dir"
-          curl --proto '=https' --proto-redir '=https' --fail --silent --show-error --location --retry 2 \
-            -o age.tar.gz https://github.com/FiloSottile/age/releases/download/v1.3.2/age-v1.3.2-linux-amd64.tar.gz
+          python "$GITHUB_WORKSPACE/tools/fetch_age.py" --output age.tar.gz
           echo 'cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10  age.tar.gz' | sha256sum -c -
           tar --no-same-owner -xzf age.tar.gz -- age/age age/age-keygen
           echo "$age_dir/age" >> "$GITHUB_PATH"
