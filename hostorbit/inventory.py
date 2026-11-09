@@ -7,7 +7,7 @@ import time
 from .auth import AuthService, Role, etag
 from .errors import Denied
 from .queue import JobQueue
-from .runtime.protocol import ULID, docker_summary, software_summary
+from .runtime.protocol import SHA256, ULID, checksum, docker_summary, software_summary
 
 
 _SELECT = """
@@ -82,7 +82,7 @@ class Inventory:
                 'observation': {'status': status, 'reason': reason,
                                 'last_checked_at': row['checked_at'], 'last_success': success}}
 
-    def _rows(self, auth, token, *, after='', identity=None, limit=51):
+    def _rows(self, auth, token, *, after='', identity=None, limit=51, permission=None):
         with self.store.read() as db:
             JobQueue._schema(db)
             actor = auth._session(db, token)
@@ -91,6 +91,8 @@ class Inventory:
             now = int(self.clock())
             for row in rows:
                 AuthService.require(db, actor, 'vps:read', row['id'])
+                if permission is not None:
+                    AuthService.require(db, actor, permission, row['id'])
             return [self._public(row, now) for row in rows]
 
     def list(self, auth, token, *, after='', limit=50):
@@ -100,10 +102,43 @@ class Inventory:
         value = {'items': rows[:limit], 'next_after': rows[limit - 1]['id'] if len(rows) > limit else None}
         return value, etag(value, 0)
 
-    def get(self, auth, token, identity):
+    def _resource(self, auth, token, identity, *, permission=None):
         if re.fullmatch(ULID, identity) is None:
             raise Denied('RESOURCE_NOT_FOUND', 404)
-        rows = self._rows(auth, token, identity=identity, limit=1)
+        rows = self._rows(auth, token, identity=identity, limit=1, permission=permission)
         if not rows:
             raise Denied('RESOURCE_NOT_FOUND', 404)
-        return rows[0], etag(rows[0], rows[0]['revision'])
+        return rows[0]
+
+    def get(self, auth, token, identity):
+        value = self._resource(auth, token, identity)
+        return value, etag(value, value['revision'])
+
+    def restart_preview(self, auth, token, identity, container_id):
+        if re.fullmatch(SHA256, container_id) is None:
+            raise Denied('CONTAINER_NOT_FOUND', 404)
+        resource = self._resource(auth, token, identity, permission='vps:restart')
+        observation = resource['observation']
+        if observation['status'] != 'REACHABLE':
+            raise Denied('FRESH_OBSERVATION_REQUIRED', 409)
+        sample = observation['last_success']
+        docker = sample.get('docker') if sample else None
+        if docker is None or docker['status'] != 'OBSERVED':
+            raise Denied('DOCKER_OBSERVATION_REQUIRED', 409)
+        container = next((item for item in docker['containers'] if item['id'] == container_id), None)
+        if container is None:
+            raise Denied('CONTAINER_NOT_FOUND', 404)
+        if container['state'] != 'RUNNING':
+            raise Denied('CONTAINER_NOT_RUNNING', 409)
+        preview = {
+            'version': 1,
+            'action': 'docker.restart',
+            'status': 'PREVIEW_ONLY',
+            'target': {'resource_id': identity, **container},
+            'resource_revision': resource['revision'],
+            'policy_revision': resource['policy_revision'],
+            'observed_at': sample['observed_at'],
+            'boot_id': sample['boot_id'],
+            'risk': 'TEMPORARY_SERVICE_INTERRUPTION',
+        }
+        return {**preview, 'preview_digest': checksum(preview)}

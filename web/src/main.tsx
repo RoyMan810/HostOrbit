@@ -6,6 +6,7 @@ import type { InventoryPage, Presence, Resource, Session, Status } from './api'
 import { copy } from './copy'
 import type { Copy, Language } from './copy'
 import { ProbeControl } from './probe'
+import { RestartPreview } from './restart-preview'
 import './style.css'
 
 type Theme = 'system' | 'light' | 'dark'
@@ -91,14 +92,17 @@ function statusReason(reason: string, t: Copy) {
   }
 }
 
-function Detail({ resource, t, lang, now }: { resource: Resource; t: Copy; lang: Language; now: number }) {
+function Detail({ resource, t, lang, now, expired, canPreview }: {
+  resource: Resource; t: Copy; lang: Language; now: number; expired: () => void; canPreview: boolean
+}) {
   const observation = resource.observation
   const current = observationState(observation, now)
   const time = (seconds: number | null | undefined) => seconds == null ? '—' :
     new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(seconds * 1000))
   const presence = (value: Presence) => value === 'PRESENT' ? t.present : value === 'NOT_DETECTED' ? t.notDetected : t.unknown
   const software = observation.last_success?.software
-  const docker = observation.last_success?.docker
+  const sample = observation.last_success
+  const docker = sample?.docker
 
   return <>
     <div className="detail-id"><span>{t.host}</span><code>{resource.id}</code></div>
@@ -127,8 +131,17 @@ function Detail({ resource, t, lang, now }: { resource: Resource; t: Copy; lang:
       <p>{current.status === 'REACHABLE' ? t.dockerScope : t.dockerHistorical}</p>
       {docker.status === 'OBSERVED' ? <ul className="docker-list">
         {docker.containers.map(container => <li key={container.id}>
-          <div><strong>{container.project} / {container.service}</strong><code title={container.id}>{container.id.slice(0, 12)}</code></div>
-          <span className="pill">{t.containerState[container.state]}</span>
+          <div className="docker-row">
+            <div className="docker-label">
+              <strong>{container.project} / {container.service}</strong>
+              <code id={`docker-container-${container.id}`} title={container.id}>{container.id.slice(0, 12)}</code>
+            </div>
+            <span className="pill">{t.containerState[container.state]}</span>
+          </div>
+          {canPreview && resource.enabled && current.status === 'REACHABLE' && container.state === 'RUNNING' && sample &&
+            <RestartPreview key={JSON.stringify([resource.id, resource.revision, resource.policy_revision,
+              sample.observed_at, sample.boot_id, container.project, container.service])}
+              resource={resource} container={container} sample={sample} t={t} expired={expired}/>}
         </li>)}
       </ul> : <p>{t.dockerStatus[docker.status]}</p>}
     </div>}
@@ -229,7 +242,8 @@ function Inventory({ t, lang, expired, session }: { t: Copy; lang: Language; exp
         <div className="panel-heading"><h2 id="detail-heading">{t.detail}</h2><span className="pill">{t.readOnly}</span></div>
         {detailError != null ? <p className="notice error" role="alert">
           {detailError instanceof ApiError && [403, 404].includes(detailError.status) ? t.missing : message(detailError, t)}
-        </p> : current ? <Detail resource={current} t={t} lang={lang} now={now}/> :
+        </p> : current ? <Detail resource={current} t={t} lang={lang} now={now}
+          expired={expired} canPreview={session.user.role !== 'Auditor'}/> :
           <p className="notice" role="status">{selected && !error ? t.loading : t.select}</p>}
         <ProbeControl resource={current} session={session} t={t} expired={expired} reload={reload}/>
       </section>

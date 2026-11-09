@@ -1,0 +1,188 @@
+{
+  "build_digest": "a7bcf5bfeccb380aee287a4aad917d714cfdd5f0f81dc25716c6dcfb64b916a5",
+  "build_digest_algorithm": "SHA-256 of sorted file records in compact sorted-key JSON",
+  "files": [
+    {
+      "path": ".github/workflows/checks.yml",
+      "sha256": "4b8bfa59f96c0108a979227e257137df244378810a84f8062aaa6f819af9dec6"
+    },
+    {
+      "path": "deploy/installer.py",
+      "sha256": "86fcd9c7ee69c7d6e8088eaed389c56371af0e001fe40f25445e651f04f6e41e"
+    },
+    {
+      "path": "deploy/systemd/hostorbit-broker.service",
+      "sha256": "938d872594d6d2f8d39b97f049680849045328e0240729a15cc4a794c8ff60ad"
+    },
+    {
+      "path": "deploy/systemd/hostorbit-broker.socket",
+      "sha256": "c98272e8ed3ba222f12760fca246e928bed4cc34605ce453e354583fceba17ae"
+    },
+    {
+      "path": "hostorbit/api.py",
+      "sha256": "aca4cdab2625508aa172b25f85be268b3116538099721cd984ea33d7142ca4d2"
+    },
+    {
+      "path": "hostorbit/auth.py",
+      "sha256": "ec9c94b21e19a306a375ace7c42831e740f9abc6337649a310f31a9f7bdf488a"
+    },
+    {
+      "path": "hostorbit/cli.py",
+      "sha256": "5f8f0172c5f3217db2669cf6083229eb00e02d72aa5c389fcf194da174de4778"
+    },
+    {
+      "path": "hostorbit/config.py",
+      "sha256": "f606015fb8fa5c508d53b115a5e6afa37789d8085a1d7f600d5ed6a42939fe5c"
+    },
+    {
+      "path": "hostorbit/database.py",
+      "sha256": "2cb5c43e31dcabde08f2fad2815df382a6a5377d6d5743bec0ad6093fbb6b44b"
+    },
+    {
+      "path": "hostorbit/inventory.py",
+      "sha256": "d4a748b4e6fd26b485a084d21a0619689e6abaf897637f7f3a92acb672ddc745"
+    },
+    {
+      "path": "hostorbit/queue.py",
+      "sha256": "0616abc8a165911b6d9827982647823b2c822ed28e489cd43b0723cb0a6dd20c"
+    },
+    {
+      "path": "hostorbit/runtime/broker.py",
+      "sha256": "43f08dc9d08957c7f3de3083e8d9159f4f0c057ad6cba10bcdad846f72c4b769"
+    },
+    {
+      "path": "hostorbit/runtime/credentials.py",
+      "sha256": "b0f77cd3ed402c17c943a481212a768dae05d70f8d0cec1d9170ad9138573520"
+    },
+    {
+      "path": "hostorbit/runtime/ipc.py",
+      "sha256": "82a3e638f7fbd6f42dcb3b7e79b5e2da113151f1e97f65220826c6bb38d0a257"
+    },
+    {
+      "path": "hostorbit/runtime/policy.py",
+      "sha256": "1d0623c15bb600a2e334fa65a7e01c24d1dbd0a0b93577929412cad31c6970b6"
+    },
+    {
+      "path": "hostorbit/runtime/protocol.py",
+      "sha256": "e27f822c226159f382160edbebe1ee9f8365af32e8315a04a62bbaffe21db0bc"
+    },
+    {
+      "path": "hostorbit/runtime/recovery_keys.py",
+      "sha256": "98c7e5a8a9759abf54b538e4c78b4d31efb6f057fea35c312572b8428fb7aba0"
+    },
+    {
+      "path": "hostorbit/runtime/ssh.py",
+      "sha256": "aa9c0146e407d45e3a01391d4182c737af391d3af4a3712c253a1b4be2076e7e"
+    },
+    {
+      "path": "hostorbit/runtime/storage.py",
+      "sha256": "837f79bcd91342706cf9b4b6984fabed62ded833fdd91d3b363ed419805a66bc"
+    },
+    {
+      "path": "hostorbit/runtime/vault.py",
+      "sha256": "5ff3c737d2b5df3bf585d956f9d7413e2ac118aac6ecb0e210233229ff2181d6"
+    },
+    {
+      "path": "hostorbit/schema_v1.sql",
+      "sha256": "825d6b23d2ac197fa0e62fd7a649ce8563ef84a5f0cdee3135817dd619894db3"
+    },
+    {
+      "path": "hostorbit/worker.py",
+      "sha256": "80b1316b1183b1154ab126ed408d7fb21869b03500ae17f251d9706fa6d0360c"
+    },
+    {
+      "path": "remote/ssh-gateway",
+      "sha256": "595eb38d28f347d90f65724723d34f7c02d76309382b85289e93a6ee2123491b"
+    },
+    {
+      "path": "remote/typed-helper",
+      "sha256": "8d82dd19ee9bcaa02782e96df2c79c2292b653daab819b32fa721a1a30dbc5a5"
+    },
+    {
+      "path": "requirements-app.txt",
+      "sha256": "e8db2aaf88c7136cc13c488cbe859b51148feac1254253bc0cc335c2d926cdfb"
+    },
+    {
+      "path": "requirements-dev.txt",
+      "sha256": "44a795a5efa95d91b371309e76f546e06b3a6af0977b196693266e63d66dc962"
+    },
+    {
+      "path": "requirements-lab.txt",
+      "sha256": "c706e75de39b8a5815b3db5f7f05cc31510f3c37cd9d29f760702b7391ec61d1"
+    },
+    {
+      "path": "requirements-quality.txt",
+      "sha256": "6e564a064186fa0ba3bef3ca9d117edb8ec9a6e5c47aaf759e448f790a0a0e26"
+    },
+    {
+      "path": "tests/lab/ssh-profile.sh",
+      "sha256": "2a3e704c6c035483c71470eaa18173ef1837efbbab6702bb25b461c6fceb77d7"
+    },
+    {
+      "path": "tests_app/test_auth_api.py",
+      "sha256": "8cbb34f8cd7c68f6a5bee13fec7b4fa6aa1984425ae5d52811ee8e1fb7f40ea1"
+    },
+    {
+      "path": "tests_app/test_database.py",
+      "sha256": "3e9aba859e87b65435f94a200f3353ac25d12f9e5953418ee13a145786177aa7"
+    },
+    {
+      "path": "tests_app/test_http_boundary.py",
+      "sha256": "0c10ef58acd30600a2836c14fabeb3982cdbc956ecee529ad6db5e2bb58a9958"
+    },
+    {
+      "path": "tests_app/test_inventory_api.py",
+      "sha256": "8ba456d1e38e016938ee1dafdcb4d3fc5d34817c2b850655e76fb0d22e17a7d5"
+    },
+    {
+      "path": "tests_app/test_migrations.py",
+      "sha256": "f08fdca22ec8b7faeee433163cad85dff8e428ac02528372b20df7f4ebc1c892"
+    },
+    {
+      "path": "tests_app/test_permissions.py",
+      "sha256": "14b34a51ba7b087f17f9b35b71d4e0fba9273c90e756438df75e281cd3a5c167"
+    },
+    {
+      "path": "tests_app/test_queue_api.py",
+      "sha256": "12c6ddcb049df912466932870d367c2a98cafa22071343db76af01baf8eba196"
+    },
+    {
+      "path": "tests_runtime/lab/docker_discovery.py",
+      "sha256": "b873971527d9661a53e19591c679ab802dd075a5c30c0edf3b5c3691f4a30433"
+    },
+    {
+      "path": "tests_runtime/lab/installation.py",
+      "sha256": "88f0fddddb5644485a9a233f7557196378c1222942cc8ee7ed4ec239e38ebe9f"
+    },
+    {
+      "path": "tests_runtime/lab/runtime_boundary.py",
+      "sha256": "b6eb962ced06744c0752105baf76e7fd40d8afb13ebd2e02628162509d19a405"
+    },
+    {
+      "path": "tests_runtime/test_credentials.py",
+      "sha256": "696eab0acd4b1aa17168796debe3242b8cc12603f5afaaa73e086f8ac5732b96"
+    },
+    {
+      "path": "tests_runtime/test_docker_discovery.py",
+      "sha256": "dc35c18b1c70e42423f90972455b6aa8ef8df0f123bfd997816cc2c04a67987f"
+    },
+    {
+      "path": "tests_runtime/test_protocol_policy.py",
+      "sha256": "93e01954ad88f2b8481a48715fcc45d6442fc53595e87ea715440c19aaf43669"
+    },
+    {
+      "path": "tests_runtime/test_ssh_discovery.py",
+      "sha256": "f1e844995759113d6c84ae0c5d526ac97a1d14d90c8010263fdc3f5a09c11490"
+    },
+    {
+      "path": "tests_runtime/test_vault_pins.py",
+      "sha256": "fad28356ec1118f5038201ff764b039c302f9f7e5c1a0295eb86597bca3d7d6e"
+    },
+    {
+      "path": "tests_runtime/test_worker_broker.py",
+      "sha256": "88a2e3a434514678264bedb0a0214fd5d021992e008e5347d0894147c5a5f818"
+    }
+  ],
+  "source_commit": "285db2c39c77456e98a7b073b17e1432f62e99f5",
+  "source_tree": "fc297c2eafe83e139f11a35bd630c8d431409233"
+}
