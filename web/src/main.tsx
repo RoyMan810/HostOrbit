@@ -7,6 +7,7 @@ import { copy } from './copy'
 import type { Copy, Language } from './copy'
 import { ProbeControl } from './probe'
 import { RestartPreview } from './restart-preview'
+import { Audit } from './audit'
 import './style.css'
 
 type Theme = 'system' | 'light' | 'dark'
@@ -266,8 +267,9 @@ function App() {
   const [sessionError, setSessionError] = useState<unknown>(null)
   const [retry, setRetry] = useState(0)
   const [ending, setEnding] = useState(false)
+  const [view, setView] = useState<'inventory' | 'audit'>('inventory')
   const t = copy[lang]
-  const expired = useCallback(() => { setSession(null); setSessionError(null) }, [])
+  const expired = useCallback(() => { setSession(null); setSessionError(null); setView('inventory') }, [])
 
   useEffect(() => {
     document.documentElement.lang = lang
@@ -326,7 +328,14 @@ function App() {
     {restoring ? <main id="main" className="workspace" role="status">{t.loading}</main> :
       session ? <>
         {sessionError != null && <p className="session-error error" role="alert">{message(sessionError, t)}</p>}
-        <Inventory key={session.user.id} t={t} lang={lang} expired={expired} session={session}/>
+        <nav className="workspace-nav" aria-label={t.navigation}>
+          <button aria-current={view === 'inventory' ? 'page' : undefined} onClick={() => setView('inventory')}>{t.inventory}</button>
+          <button aria-current={view === 'audit' ? 'page' : undefined} onClick={() => setView('audit')}>{t.audit}</button>
+        </nav>
+        <div hidden={view !== 'inventory'}>
+          <Inventory key={session.user.id} t={t} lang={lang} expired={expired} session={session}/>
+        </div>
+        {view === 'audit' && <Audit key={session.user.id} t={t} lang={lang} expired={expired}/>}
       </> : sessionError != null ? <main id="main" className="workspace">
         <p role="alert" className="error">{message(sessionError, t)}</p>
         <button onClick={() => setRetry(value => value + 1)}>{t.retry}</button>

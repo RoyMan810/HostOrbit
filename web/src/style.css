@@ -77,6 +77,13 @@ code { font-family: ui-monospace, "Cascadia Code", monospace; overflow-wrap: any
 .primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
 .primary:hover:not(:disabled) { background: var(--accent); filter: brightness(.9); }
 .workspace { max-width: 1320px; margin: 0 auto; padding: clamp(24px, 5vw, 64px) clamp(16px, 5vw, 64px); }
+.workspace-nav { max-width: 1320px; margin: 16px auto 0; padding: 0 clamp(16px, 5vw, 64px); display: flex; flex-wrap: wrap; gap: 8px; }
+.workspace-nav [aria-current="page"] { background: var(--soft); border-color: var(--accent); }
+.audit-list { list-style: none; margin: 0; padding: 0; }
+.audit-list li { padding: 18px 20px; overflow-wrap: anywhere; }
+.audit-list li + li { border-top: 1px solid var(--line); }
+.audit-list span { color: var(--muted); font-size: 13px; }
+.audit-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 12px; margin: 12px 0 0; }
 .heading { display: flex; justify-content: space-between; align-items: end; flex-wrap: wrap; gap: 16px; margin-bottom: 26px; }
 .eyebrow { color: var(--accent); text-transform: uppercase; letter-spacing: .12em; font-size: 12px; font-weight: 750; }
 .heading h1 { font-size: clamp(28px, 4vw, 42px); line-height: 1.13; letter-spacing: -.045em; margin: 7px 0; }

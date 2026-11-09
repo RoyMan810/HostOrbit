@@ -14,6 +14,44 @@ async function signIn(page: Page, username = 'fixture-owner') {
   await expect(page.getByRole('heading', { name: 'VPS inventory' })).toBeVisible()
 }
 
+test('shows audit events only to authorised users and clears them on session loss', async ({ page, context }) => {
+  await signIn(page)
+  await page.getByRole('button', { name: 'Audit log', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Audit log' })).toBeVisible()
+  await expect(page.getByText('auth.login', { exact: true }).first()).toBeVisible()
+  await page.getByLabel('Language').selectOption('ru')
+  await expect(page.getByRole('heading', { name: 'Журнал аудита' })).toBeVisible()
+  await context.clearCookies()
+  await page.getByRole('button', { name: 'Обновить журнал аудита' }).click()
+  await expect(page.getByRole('button', { name: 'Войти' })).toBeVisible()
+  await expect(page.getByText('auth.login', { exact: true })).toHaveCount(0)
+})
+
+test('pages through the bounded audit API without retaining the previous page', async ({ page }) => {
+  await signIn(page)
+  await page.route('**/api/v1/audit?*', async route => {
+    const after = Number(new URL(route.request().url()).searchParams.get('after'))
+    const sequences = after === 0 ? Array.from({ length: 100 }, (_, index) => index + 1) : [101]
+    await route.fulfill({ json: { items: sequences.map(seq => ({ seq, event: {
+      at: 1700000000, actor_id: 'actor', event: `fixture.event.${seq}`,
+      target_id: 'target', outcome: 'OK', correlation_id: 'correlation',
+    } })) } })
+  })
+  await page.getByRole('button', { name: 'Audit log', exact: true }).click()
+  await expect(page.getByText('fixture.event.1', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Next page' }).click()
+  await expect(page.getByText('fixture.event.101', { exact: true })).toBeVisible()
+  await expect(page.getByText('fixture.event.1', { exact: true })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Previous page' }).click()
+  await expect(page.getByText('fixture.event.1', { exact: true })).toBeVisible()
+})
+
+test('shows the Controller denial for audit without permission', async ({ page }) => {
+  await signIn(page, 'fixture-operator')
+  await page.getByRole('button', { name: 'Audit log', exact: true }).click()
+  await expect(page.getByRole('alert')).toHaveText('You do not have permission to read the audit log.')
+})
+
 test('authenticates against the real Controller and restores the browser session', async ({ page, context }) => {
   await signIn(page)
   const cookie = (await context.cookies()).find(c => c.name === '__Host-hostorbit_session')
@@ -165,6 +203,10 @@ test('queues an authorised SSH check and refreshes the VPS after completion', as
   const job = await (await accepted).json()
   expect(job.resource_id).toBe(never)
   await expect(page.getByText('Queued', { exact: true })).toBeVisible()
+  await expect(page.getByText(job.id, { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Run SSH check' })).toBeDisabled()
+  await page.getByRole('button', { name: 'Audit log', exact: true }).click()
+  await page.getByRole('button', { name: 'VPS inventory', exact: true }).click()
   await expect(page.getByText(job.id, { exact: true })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Run SSH check' })).toBeDisabled()
   await finishProbe(page, job.id, 'SUCCEEDED')
