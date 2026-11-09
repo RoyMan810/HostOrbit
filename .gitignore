@@ -11,4 +11,4 @@ dist/
 .ruff_cache/
 .coverage
 htmlcov/
-.claude/
+.claude/*
