@@ -1,0 +1,99 @@
+{
+  "checks": [
+    {
+      "command": "python -m unittest discover -s tests -q",
+      "exit_code": 0,
+      "passed": 73,
+      "raw_log_sha256": "bbd0b45a69456def0bbdda508fa72a29ae02ef901aa3e1e4936335617ae75407",
+      "summary": [
+        "----------------------------------------------------------------------",
+        "Ran 73 tests in 6.485s",
+        "",
+        "OK"
+      ]
+    },
+    {
+      "command": "python -m unittest discover -s tests_app -q",
+      "exit_code": 0,
+      "passed": 69,
+      "raw_log_sha256": "039e3d927fa994772f6e6cb1a47f8d8ea396d722dfb4b617140b6fddfe961191",
+      "summary": [
+        "----------------------------------------------------------------------",
+        "Ran 69 tests in 23.009s",
+        "",
+        "OK"
+      ]
+    },
+    {
+      "command": "python -m unittest discover -s tests_runtime -q",
+      "exit_code": 0,
+      "passed": 151,
+      "raw_log_sha256": "7a55a5695a3ed7c8701679ceba8f01567bcac4a155232d2166fbdecd5762b89a",
+      "summary": [
+        "----------------------------------------------------------------------",
+        "Ran 151 tests in 22.825s",
+        "",
+        "OK"
+      ]
+    },
+    {
+      "command": "python -m unittest discover -s tests_tools -q",
+      "exit_code": 0,
+      "passed": 15,
+      "raw_log_sha256": "ebf8bf566b3bb643c4b68d647f5292399ed7bae6e25436a0aa7dec724fdfbf94",
+      "summary": [
+        "----------------------------------------------------------------------",
+        "Ran 15 tests in 3.115s",
+        "",
+        "OK"
+      ]
+    },
+    {
+      "command": "hostorbit migration-rehearsal --to-schema 3 (temporary SQLite fixture)",
+      "exit_code": 0,
+      "raw_log_sha256": "773754eb0a4eaea4c2d7729a359f0a2758f028887190d3f22739cf2256433508",
+      "summary": [
+        "CLI rehearsal passed. Source schema 2, private copy schema 3."
+      ]
+    },
+    {
+      "command": "ruff check . && python tools/check_repository.py && git diff --check",
+      "exit_code": 0,
+      "raw_log_sha256": "244e3fdbb1206ae8567da1c532e768f37f689ce3869e6440f908ed3b784da419",
+      "summary": [
+        "All checks passed!",
+        "Repository documentation links and dependency pins passed"
+      ]
+    },
+    {
+      "command": "cd web && npm run build",
+      "exit_code": 0,
+      "raw_log_sha256": "1005240e4ed6fda82d6a4358fd259e403a1587b437492ecf79893e637c52263e",
+      "summary": [
+        "dist/assets/index-C9HyukR_.js   246.82 kB │ gzip: 77.27 kB",
+        "",
+        "✓ built in 196ms"
+      ]
+    },
+    {
+      "command": "cd web && npm test",
+      "exit_code": 0,
+      "raw_log_sha256": "ff6b5cc906267d8976da4580d35b83e818aa76edea1ee1627eabb924483b6686",
+      "summary": [
+        "  ✓  15 tests/inventory.spec.ts:228:1 › a denied retry leaves the earlier acceptance uncertain and blocks a fresh key (539ms)",
+        "",
+        "  15 passed (22.0s)"
+      ]
+    }
+  ],
+  "limitations": [
+    "Schema 3 is exercised only on private copies. Runtime, recovery and live apply contracts are unchanged.",
+    "Native integration CI is tracked separately. This report does not establish Stage2 acceptance or production readiness."
+  ],
+  "python": "3.13.17 (main, Oct 21 2026, 17:49:22) [Clang 23.1.3 ]",
+  "recorded_at_utc": "2026-11-09T16:31:26.453107+00:00",
+  "scope": "Local automated regression with pinned age, SQLite, loopback SSH and HTTP fixtures, and Chromium",
+  "source_commit": "7af105f680228d75dbe1f8136e390aff3bef0d4d",
+  "source_tree": "362e9f3685935bf1bf90078927867bcbfa81f556",
+  "sqlite": "3.53.1"
+}

@@ -246,5 +246,68 @@ class MigrationTests(unittest.TestCase):
         self.assertFalse((self.store.path.parent / "rehearsal.json").exists())
 
 
+class PlanDraftMigrationTests(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.store = Store.initialize(self.root / "live" / "controller.sqlite3")
+        auth = AuthService(self.store)
+        password = "Fixture-owner-password-117!"
+        auth.create_owner(auth.issue_bootstrap(), "roman", password)
+        tokens, _ = auth.login("roman", password, ip="192.0.2.77", correlation="fixture")
+        queue = JobQueue(self.store)
+        resource = identifier()
+        queue.register_resource(resource, "a" * 64, 1)
+        queue.enqueue_probe(auth, tokens.session, tokens.csrf, resource, identifier())
+        claim, row = queue.claim(identifier())
+        queue.advance(claim, "INTENT_PREPARED", permit={"claims": queue.binding(row)})
+        queue.advance(claim, "DISPATCHING")
+        queue.finish(claim, "UNKNOWN_OUTCOME", "SSH_TIMEOUT")
+        self.output = self.root / "schema-three"
+
+    def test_rehearses_plan_schema_on_a_copy_without_losing_queue_rows(self):
+        tables = ("resources", "jobs", "request_keys", "job_incidents")
+        with self.store.read() as db:
+            before = {name: [tuple(row) for row in db.execute(f'SELECT * FROM "{name}"')] for name in tables}
+        head = self.store.verify_audit()
+        report = rehearse(self.store, self.output, to_schema=3)
+        self.assertEqual(report["status"], "REHEARSAL_PASSED")
+        self.assertEqual((report["schema_before"], report["schema_after"]), (2, 3))
+        self.assertEqual(report["source_audit_head"], head)
+        self.assertEqual(self.store.verify_audit(), head)
+        self.assertEqual(report["live_apply"], "BLOCKED")
+        for name in tables:
+            self.assertEqual(report["preserved_table_rows"][name], 1)
+        for file, version in (("source.sqlite3", 2), ("migrated.sqlite3", 3)):
+            with closing(sqlite3.connect(self.output / file)) as db:
+                self.assertEqual(db.execute("PRAGMA user_version").fetchone(), (version,))
+                for name in tables:
+                    self.assertEqual(db.execute(f'SELECT * FROM "{name}"').fetchall(), before[name])
+                if version == 3:
+                    self.assertEqual(db.execute("SELECT count(*) FROM change_plan_drafts").fetchone(), (0,))
+                    details = db.execute("SELECT details FROM audit ORDER BY seq DESC LIMIT 1").fetchone()[0]
+                    self.assertEqual(json.loads(details)["to_schema"], 3)
+        with self.store.read() as db:
+            self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 2)
+            self.assertEqual(schema_rows(db), expected_schema(2))
+        with self.assertRaisesRegex(RuntimeError, "DATABASE_CONTRACT_MISMATCH"):
+            with Store(self.output / "migrated.sqlite3").connect():
+                pass
+        with self.assertRaisesRegex(Denied, "MIGRATION_SCHEMA_UNSUPPORTED"):
+            expected_schema(3)
+
+    def test_rolls_back_plan_schema_when_audit_commit_fails(self):
+        head = self.store.verify_audit()
+        with patch.object(Store, "event", side_effect=sqlite3.IntegrityError("fixture outbox unavailable")):
+            with self.assertRaises(sqlite3.IntegrityError):
+                rehearse(self.store, self.output, to_schema=3)
+        with Store(self.output / "migrated.sqlite3").connect(readonly=True) as db:
+            self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 2)
+            self.assertEqual(schema_rows(db), expected_schema(2))
+            self.assertEqual(Store.verify_audit_connection(db), head)
+        report = json.loads((self.output / "rehearsal.json").read_bytes())
+        self.assertEqual(report["status"], "FAILED")
+        self.assertEqual(self.store.verify_audit(), head)
+
+
 if __name__ == "__main__":
     unittest.main()

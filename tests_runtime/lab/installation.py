@@ -125,6 +125,22 @@ print(s.verify_audit())
             raise RuntimeError("Rehearsal changed the source or failed to migrate its private copy")
     print("Installed wheel CLI rehearsed schema 1 to 2; Owner/session/audit survived and live schema stayed at 1.", flush=True)
 
+    schema_two = output / "migrated.sqlite3"
+    plan_output = root / "plan-migration-review"
+    response = run("/opt/hostorbit/venv/bin/hostorbit", "--database", schema_two,
+                   "migration-rehearsal", "--to-schema", "3", "--output", plan_output)
+    plan_report = json.loads(response.stdout)
+    if (plan_report["status"] != "REHEARSAL_PASSED" or plan_report["applied_to_source"] is not False
+            or (plan_report["schema_before"], plan_report["schema_after"]) != (2, 3)
+            or plan_report["source_audit_head"] != report["migrated_audit_head"]):
+        raise RuntimeError("Installed Change Plan migration rehearsal failed")
+    with sqlite3.connect(schema_two) as source, sqlite3.connect(plan_output / "migrated.sqlite3") as copied:
+        if (source.execute("PRAGMA user_version").fetchone() != (2,)
+                or copied.execute("PRAGMA user_version").fetchone() != (3,)
+                or copied.execute("SELECT count(*) FROM change_plan_drafts").fetchone() != (0,)):
+            raise RuntimeError("Plan migration changed the source or produced an invalid draft table")
+    print("Installed wheel CLI rehearsed schema 2 to 3 and created an empty draft table on a private copy.", flush=True)
+
 
 def writer_barrier(host, ids):
     """The installed wheel coordinates actual container UIDs and native services."""
