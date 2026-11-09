@@ -123,3 +123,10 @@ dd { margin: 5px 0 0; font-size: 14px; font-weight: 650; }
   .auth-layout { min-height: auto; padding-top: 38px; }
   .login { padding: 24px; }
 }
+.probe { padding: 18px 20px; border-top: 1px solid var(--line); }
+.probe-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.probe-heading h3 { font-size: 15px; }
+.probe-state { margin-top: 12px; padding: 12px; border-radius: 10px; background: var(--surface); }
+.probe-id { display: grid; gap: 3px; margin-bottom: 8px; font-size: 13px; }
+.probe-id span { color: var(--muted); }
+.probe-state p + p, .probe-state button { margin-top: 8px; }
