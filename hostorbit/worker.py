@@ -5,7 +5,7 @@ from threading import Event
 from .database import identifier
 from .errors import Denied
 from .queue import JobQueue
-from .runtime.protocol import checksum, fields, integer, text
+from .runtime.protocol import checksum, fields, integer, software_summary, text
 from .runtime.storage import process_lock
 
 
@@ -63,7 +63,13 @@ class Worker:
                 raise Denied("BROKER_RECEIPT_INVALID")
             text(response["code"], r"[A-Z][A-Z0-9_]{1,63}")
             if response["outcome"] == "SUCCEEDED":
-                value = fields(response["observation"], ("status", "source", "observed_at", "boot_id"))
+                value = response["observation"]
+                names = ("status", "source", "observed_at", "boot_id")
+                if isinstance(value, dict) and "software" in value:
+                    fields(value, names + ("software",))
+                    software_summary(value["software"])
+                else:
+                    fields(value, names)
                 if value["status"] != "REACHABLE" or value["source"] != "restricted_helper":
                     raise Denied("BROKER_OBSERVATION_INVALID")
                 integer(value["observed_at"], int(self.queue.clock()) - 300, int(self.queue.clock()) + 2)

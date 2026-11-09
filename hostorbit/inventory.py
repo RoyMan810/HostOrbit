@@ -7,7 +7,7 @@ import time
 from .auth import AuthService, Role, etag
 from .errors import Denied
 from .queue import JobQueue
-from .runtime.protocol import ULID
+from .runtime.protocol import ULID, software_summary
 
 
 _SELECT = """
@@ -40,8 +40,11 @@ def _sample(raw):
                 or not isinstance(value.get('boot_id'), str)
                 or not re.fullmatch(r'[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}', value['boot_id'])):
             return None
-        return {k: value[k] for k in ('status', 'source', 'observed_at', 'boot_id')}
-    except (ValueError, TypeError):
+        sample = {k: value[k] for k in ('status', 'source', 'observed_at', 'boot_id')}
+        if 'software' in value:
+            sample['software'] = software_summary(value['software'])
+        return sample
+    except (ValueError, TypeError, Denied):
         return None
 
 

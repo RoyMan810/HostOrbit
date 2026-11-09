@@ -7,8 +7,11 @@ import sys
 
 
 def main():
-    request = b'{"operation":"probe","version":1}\n'
-    if len(sys.argv) != 1 or os.environ.get("SSH_ORIGINAL_COMMAND") != "hostorbit.v1.probe":
+    request = {
+        "hostorbit.v1.probe": b'{"operation":"probe","version":1}\n',
+        "hostorbit.v2.probe": b'{"operation":"probe","version":2}\n',
+    }.get(os.environ.get("SSH_ORIGINAL_COMMAND"))
+    if len(sys.argv) != 1 or request is None:
         return 65
     signal.alarm(5)
     payload = sys.stdin.buffer.read(len(request) + 1)

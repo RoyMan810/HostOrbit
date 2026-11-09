@@ -4,8 +4,22 @@ import json
 import os
 from pathlib import Path
 import signal
+import stat
 import sys
 import time
+
+
+def tool_status(path):
+    try:
+        entry = Path(path).stat()
+    except FileNotFoundError:
+        return "NOT_DETECTED"
+    except OSError:
+        return "UNKNOWN"
+    if (stat.S_ISREG(entry.st_mode) and entry.st_uid == 0
+            and entry.st_mode & stat.S_IXUSR and not entry.st_mode & 0o022):
+        return "PRESENT"
+    return "UNKNOWN"
 
 
 def main():
@@ -15,9 +29,13 @@ def main():
     signal.alarm(5)
     payload = sys.stdin.buffer.read(len(request) + 1)
     signal.alarm(0)
-    if payload != request:
+    request_v2 = b'{"operation":"probe","version":2}\n'
+    if payload not in (request, request_v2):
         return 65
     value = {"v": 1, "uid": 0, "boot_id": Path("/proc/sys/kernel/random/boot_id").read_text().strip(), "observed_at": int(time.time())}
+    if payload == request_v2:
+        value["v"] = 2
+        value["software"] = {"docker": tool_status("/usr/bin/docker"), "nginx": tool_status("/usr/sbin/nginx")}
     print(json.dumps(value, sort_keys=True, separators=(",", ":")))
     return 0
 

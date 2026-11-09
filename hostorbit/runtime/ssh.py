@@ -8,12 +8,14 @@ import time
 import asyncssh
 
 from ..errors import Denied
-from .protocol import decode, fields, integer, text
+from .protocol import decode, fields, integer, software_summary, text
 from .storage import new_private_file, protected_bytes
 
 
-PROBE_REQUEST = b'{"operation":"probe","version":1}\n'
-PROBE_COMMAND = "hostorbit.v1.probe"
+PROBES = (
+    (2, "hostorbit.v2.probe", b'{"operation":"probe","version":2}\n'),
+    (1, "hostorbit.v1.probe", b'{"operation":"probe","version":1}\n'),
+)
 
 
 def validate_private_key(key):
@@ -48,11 +50,15 @@ async def exchange(target, key, known_hosts):
         agent_forwarding=False, connect_timeout=4, login_timeout=5,
     )
     try:
-        process = await connection.create_process(PROBE_COMMAND, input=PROBE_REQUEST, encoding=None, request_pty=False)
-        output, _, _ = await asyncio.gather(bounded_read(process.stdout), bounded_read(process.stderr), process.wait_closed())
-        if process.exit_status != 0:
-            raise Denied("SSH_REMOTE_PROBE_FAILED")
-        return output
+        for version, command, request in PROBES:
+            process = await connection.create_process(command, input=request, encoding=None, request_pty=False)
+            output, error, _ = await asyncio.gather(bounded_read(process.stdout), bounded_read(process.stderr), process.wait_closed())
+            if process.exit_status == 0:
+                return version, output
+            # The old forced command silently rejects an unsupported command with 65.
+            if version != 2 or process.exit_status != 65 or output or error:
+                break
+        raise Denied("SSH_REMOTE_PROBE_FAILED")
     finally:
         connection.close()
         try:
@@ -66,7 +72,7 @@ def probe(target, private_key, known_hosts):
     async def bounded():
         return await asyncio.wait_for(exchange(target, key, known_hosts), 12)
     try:
-        output = asyncio.run(bounded())
+        version, output = asyncio.run(bounded())
     except asyncssh.HostKeyNotVerifiable:
         raise Denied("SSH_HOST_KEY_MISMATCH") from None
     except asyncssh.PermissionDenied:
@@ -85,17 +91,25 @@ def probe(target, private_key, known_hosts):
         raise Denied(code) from None
     except asyncssh.Error:
         raise Denied("SSH_CONNECTION_FAILED") from None
+    return parse_probe(output, version, now=int(time.time()))
+
+
+def parse_probe(output, version, *, now):
     # Arbitrary third-party stdout/stderr is never a public result, log payload or exception message.
     try:
         value = decode(output.rstrip(b"\n"))
     except Denied:
         raise Denied("SSH_UNSUPPORTED_OUTPUT") from None
-    fields(value, ("v", "uid", "boot_id", "observed_at"))
-    if type(value["v"]) is not int or value["v"] != 1 or type(value["uid"]) is not int or value["uid"] != 0:
+    names = ("v", "uid", "boot_id", "observed_at")
+    fields(value, names + ("software",) if version == 2 else names)
+    if type(value["v"]) is not int or value["v"] != version or type(value["uid"]) is not int or value["uid"] != 0:
         raise Denied("SSH_PROBE_INVALID")
     text(value["boot_id"], r"[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}")
-    integer(value["observed_at"], int(time.time()) - 300, int(time.time()) + 2)
-    return {"status": "REACHABLE", "source": "restricted_helper", "observed_at": value["observed_at"], "boot_id": value["boot_id"]}
+    integer(value["observed_at"], now - 300, now + 2)
+    result = {"status": "REACHABLE", "source": "restricted_helper", "observed_at": value["observed_at"], "boot_id": value["boot_id"]}
+    if version == 2:
+        result["software"] = software_summary(value["software"])
+    return result
 
 
 def provision_known_hosts(path, policy):
