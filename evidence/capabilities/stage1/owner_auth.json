@@ -1,12 +1,12 @@
 {
   "artifacts": [
     {
-      "path": "evidence/revalidation/stage2-docker-inventory-2026-11-09/source-manifest.json",
-      "sha256": "de6f58b87a39ebe245a791d59b538a40b1bf47c1c0c0b0abedd330a45c191209"
+      "path": "evidence/revalidation/stage2-change-plan-schema-2026-11-09/source-manifest.json",
+      "sha256": "d0cde40cb1e769adbe06792d884d0796c5ca01d8e75b2dae7692b49854345c97"
     },
     {
-      "path": "evidence/revalidation/stage2-docker-inventory-2026-11-09/verification.json",
-      "sha256": "309a233bfe80dddc8bc12561fdc53fa6db69919f215beff89622b4d7f5ad1250"
+      "path": "evidence/revalidation/stage2-change-plan-schema-2026-11-09/verification.json",
+      "sha256": "da55876617da2631df1e176ec9464007291ae6ef02b28ab7f172d93005c9324b"
     },
     {
       "path": "evidence/acceptance/stage1-2026-11-08/sbom.cdx.json",
@@ -17,12 +17,12 @@
       "sha256": "84614c65af5e0186b012b3ef6bf9454defc96d33d6baf24ab146346b531651e1"
     }
   ],
-  "build_digest": "293804567d6882b9f5e3d9f814fa7126b7db3739860da0954f58ea79141460a9",
+  "build_digest": "fbf812591355447aecf74ea5908cadbc2e5f4114f42e1c58b4b045fc391079d3",
   "capability": "owner_auth",
   "capability_assertion": "Foundation: local-only one-time Owner bootstrap, Argon2id authentication, HTTPS session/cookie/CSRF/rate-limit and re-auth primitives with durable negative tests.",
   "ci_jobs": [],
-  "environment": "Local Linux Python 3.13.17 and SQLite 3.53.1, pinned dependencies and age. Native CI records are historical.",
-  "evidence_digest": "911ea144e8cf715ded269bdc3bdff9e3f7c332059adbf9da96410b2b2b623437",
+  "environment": "Local Linux Python 3.13.17 and SQLite 3.53.1. Prior native CI is historical.",
+  "evidence_digest": "0792ec6b620328e2c532af62c396ea61d06815179960d79f2b26fc966ddc1490",
   "fault_injection": "test_first_web_visitor_cannot_bootstrap_owner_and_token_is_local_single_use; test_bootstrap_expiry_rotation_and_concurrent_consumption; test_cookie_security_rotation_csrf_and_plaintext_absence; test_idle_and_absolute_expiry_persist_across_reopen_and_clock_rollback; test_account_ip_login_limit_and_untrusted_forwarding_do_not_allow_bypass; test_reauth_is_bound_to_session_plan_expiry_and_one_consumption",
   "historical_ci_jobs": [
     {
@@ -77,7 +77,7 @@
     "Inventory is an initial read-only Stage2 component, not acceptance of AC-28/Stage2/MVP. Current native PR CI is pending; historical CI is not presented as a run on this source.",
     "Current native CI is tracked separately in the pull request. Prior CI records apply to their recorded source commits."
   ],
-  "manifest_digest": "de6f58b87a39ebe245a791d59b538a40b1bf47c1c0c0b0abedd330a45c191209",
+  "manifest_digest": "d0cde40cb1e769adbe06792d884d0796c5ca01d8e75b2dae7692b49854345c97",
   "negative_checks": [
     "test_first_web_visitor_cannot_bootstrap_owner_and_token_is_local_single_use",
     "test_bootstrap_expiry_rotation_and_concurrent_consumption",
@@ -88,7 +88,7 @@
     "tests_app/test_inventory_api.py: unauthorized/foreign resource, revoked grants, stale/future/failed/unknown/cancelled probe, changed scope/policy, malformed result and no secret-field exposure",
     "Wrong response versions, arbitrary software keys or values, noisy downgrade, and malformed software are rejected."
   ],
-  "observation": "Current source passed 64 application, 151 runtime, 73 Stage0, 15 tools and 12 HTTPS browser tests. Local runtime tests verified the typed Docker summary, legacy SSH fallback and disallowed Docker result fields.",
+  "observation": "Current source passed 66 application, 151 runtime, 73 Stage0, 15 tools and 12 HTTPS browser tests. Migration tests verified schema 2 row and audit preservation, rollback after an audit failure, and runtime refusal of rehearsal schema 3.",
   "outcome": "PASS",
   "positive_checks": [
     "test_local_cli_creates_owner_without_password_or_token_in_arguments",
@@ -97,16 +97,16 @@
     "tests_app/test_inventory_api.py: scoped list/detail, bounded output pagination, authenticated wheel routes and current observation state",
     "Current local regression suites and fixed Docker/Nginx software states through restricted probe v2."
   ],
-  "recorded_at_utc": "2026-11-09T15:49:17.715131+00:00",
+  "recorded_at_utc": "2026-11-09T16:26:04.483245+00:00",
   "revalidation_of": {
-    "evidence_digest": "acf8532daf980cd17ceac53d375f69d386286a267e23b2d844efbc2088ffed15",
-    "source_commit": "26cbe870eab7c3a509888e09812ac2518cdf60ca"
+    "evidence_digest": "911ea144e8cf715ded269bdc3bdff9e3f7c332059adbf9da96410b2b2b623437",
+    "source_commit": "e00c8bf8f6ae02293d45cbd887e310c9df8f687b"
   },
   "reviewer": "Codex automated local revalidation.",
   "sbom_digest": "185b3062cfec008162196407a7089b30ace8b408f948e01f417d465c7d403b4c",
   "scenario": "Foundation: local-only one-time Owner bootstrap, Argon2id authentication, HTTPS session/cookie/CSRF/rate-limit and re-auth primitives with durable negative tests.",
   "scope": "FOUNDATION_ONLY",
-  "source_commit": "e00c8bf8f6ae02293d45cbd887e310c9df8f687b",
+  "source_commit": "445b4826609eaaee5d09d4744010a2a143ccdb61",
   "source_files": [
     {
       "path": "deploy/installer.py",
@@ -122,7 +122,7 @@
     },
     {
       "path": "hostorbit/cli.py",
-      "sha256": "5f8f0172c5f3217db2669cf6083229eb00e02d72aa5c389fcf194da174de4778"
+      "sha256": "91da9c6a51519f9d7b221cd3f6fce35e2d7940c34115b6a8cb33213d8f8dc38c"
     },
     {
       "path": "hostorbit/config.py",
@@ -166,7 +166,7 @@
     },
     {
       "path": "tests_runtime/lab/installation.py",
-      "sha256": "88f0fddddb5644485a9a233f7557196378c1222942cc8ee7ed4ec239e38ebe9f"
+      "sha256": "921c8d307a614cb0e946f94b159989af7aa32661d7a76ee6a2284c0a4325e4a7"
     },
     {
       "path": "tests_runtime/lab/runtime_boundary.py",
@@ -181,7 +181,7 @@
       "sha256": "88a2e3a434514678264bedb0a0214fd5d021992e008e5347d0894147c5a5f818"
     }
   ],
-  "source_tree": "746280baede4c1d69a918fa06d96a8cfa3789ce8",
+  "source_tree": "904e764dc5b42499ecf2eb733d16b6f7e54a572d",
   "stage": "Stage1",
   "test_id": "Stage1.owner_auth"
 }
