@@ -68,3 +68,10 @@ def integer(value, low, high):
     if type(value) is not int or not low <= value <= high:
         raise Denied("RPC_INVALID_REQUEST")
     return value
+
+
+def software_summary(value):
+    fields(value, ("docker", "nginx"))
+    if any(state not in ("PRESENT", "NOT_DETECTED", "UNKNOWN") for state in value.values()):
+        raise Denied("PROBE_SOFTWARE_INVALID")
+    return value

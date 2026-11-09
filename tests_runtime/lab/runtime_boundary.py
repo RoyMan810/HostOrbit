@@ -344,7 +344,14 @@ Match User {account}
             invoke("worker", "worker", "--once")
             assert job(job_id)["status"] == "SUCCEEDED", job(job_id)
             assert job(job_id)["result"]["status"] == "REACHABLE"
+            software = job(job_id)["result"]["software"]
+            assert software.keys() == {"docker", "nginx"}
+            assert set(software.values()) <= {"PRESENT", "NOT_DETECTED", "UNKNOWN"}
+            inventory = client.get(f"/api/v1/resources/{TARGET}")
+            assert inventory.status_code == 200
+            assert inventory.json()["observation"]["last_success"]["software"] == software
             print("Distinct API and Worker UIDs committed one verified SSH observation through Broker and host authority.", flush=True)
+            print("The restricted v2 helper returned a bounded Docker/Nginx software summary through the inventory API.", flush=True)
             for role in ("api", "worker"):
                 blocked = json.loads(invoke("access", role).stdout)
                 for name in ("vault", "gate_journal", "credential"):

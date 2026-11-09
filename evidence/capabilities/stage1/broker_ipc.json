@@ -1,8 +1,12 @@
 {
   "artifacts": [
     {
-      "path": "evidence/acceptance/stage1-2026-11-08/source-manifest.json",
-      "sha256": "c70c537315f38078a9a277819329dbf529da15f6fa350ff4c5e33de4e30ffded"
+      "path": "evidence/revalidation/stage2-discovery-2026-11-09/source-manifest.json",
+      "sha256": "bcfd1f49fc33f018e8137b45e3b06eba0c08200555d7e2f3f51489b4a59c4d3a"
+    },
+    {
+      "path": "evidence/revalidation/stage2-discovery-2026-11-09/verification.json",
+      "sha256": "0e27f96e89df894424ceb080f9611d5666f7a3247e7ed8041ab1aff69d67e8e2"
     },
     {
       "path": "evidence/acceptance/stage1-2026-11-08/sbom.cdx.json",
@@ -13,10 +17,14 @@
       "sha256": "84614c65af5e0186b012b3ef6bf9454defc96d33d6baf24ab146346b531651e1"
     }
   ],
-  "build_digest": "20b9e756bd6004e270a273369b6024351002e3affc96babbfd3e1f978162b7ef",
+  "build_digest": "2b304222d1cef8cbef7915375eb84f7e637edc09272e9b161ac5f954988a83a1",
   "capability": "broker_ipc",
   "capability_assertion": "Foundation: dedicated Broker/Worker identities and socket group, SO_PEERCRED, no API socket/Vault/DEK access, typed scoped signed one-use permit and purpose/target/consumer/revision/AEAD protected Secret Reference use.",
-  "ci_jobs": [
+  "ci_jobs": [],
+  "environment": "Local Linux Python 3.13.17 and SQLite 3.53.1, pinned dependencies and age. Native CI records are historical.",
+  "evidence_digest": "2ab1896c55a0dc8c5b743f1b26c3ca341a8e8be4113fecd4777c7eeac12cb9fc",
+  "fault_injection": "DAC denied API sockets and private stores; SO_PEERCRED denied a group member spoofing Worker; Replay and signature substitution were denied; test_vault_metadata_substitution_and_ciphertext_corruption_are_rejected; test_swapping_a_complete_secret_metadata_blob_pair_cannot_change_the_requested_reference; test_permit_replay_and_revoke_before_use_never_repeat_ssh",
+  "historical_ci_jobs": [
     {
       "conclusion": "success",
       "excerpts": [
@@ -94,34 +102,38 @@
       "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42415508424/job/128532587157"
     }
   ],
-  "environment": "GitHub-hosted Ubuntu 24.04 amd64, Python 3.13, SQLite >=3.45, pinned app dependencies/OCI; actual Linux UIDs, systemd and isolated SSH/Compose where stated.",
-  "evidence_digest": "1ad4bd23eedaede99bf76636d6429538638fd7e095efe0cf853bb34c655dba48",
-  "fault_injection": "DAC denied API sockets and private stores; SO_PEERCRED denied a group member spoofing Worker; Replay and signature substitution were denied; test_vault_metadata_substitution_and_ciphertext_corruption_are_rejected; test_swapping_a_complete_secret_metadata_blob_pair_cannot_change_the_requested_reference; test_permit_replay_and_revoke_before_use_never_repeat_ssh",
   "initial_state": "Fresh private or explicit shared-group SQLite; independently trusted signed development bundle and separate service identities; ephemeral fixture keys only.",
   "limitations": [
     "Backend/Worker/root/Broker remain in the declared TCB. No protection from valid in-scope approval abuse after Backend RCE, full DEK lifecycle/rotation, general secret export or arbitrary remote mutations is claimed.",
-    "No full AC status, FR completion, Stage2/3 gate or production/MVP readiness is promoted by this Foundation-only report."
+    "No full AC status, FR completion, Stage2/3 gate or production/MVP readiness is promoted by this Foundation-only report.",
+    "Current native CI is tracked separately in the pull request. Prior CI records apply to their recorded source commits."
   ],
-  "manifest_digest": "c70c537315f38078a9a277819329dbf529da15f6fa350ff4c5e33de4e30ffded",
+  "manifest_digest": "bcfd1f49fc33f018e8137b45e3b06eba0c08200555d7e2f3f51489b4a59c4d3a",
   "negative_checks": [
     "DAC denied API sockets and private stores; SO_PEERCRED denied a group member spoofing Worker",
     "Replay and signature substitution were denied",
     "test_vault_metadata_substitution_and_ciphertext_corruption_are_rejected",
     "test_swapping_a_complete_secret_metadata_blob_pair_cannot_change_the_requested_reference",
-    "test_permit_replay_and_revoke_before_use_never_repeat_ssh"
+    "test_permit_replay_and_revoke_before_use_never_repeat_ssh",
+    "Wrong response versions, arbitrary software keys or values, noisy downgrade, and malformed software are rejected."
   ],
-  "observation": "Reviewed code and successful exact-main CI job logs support each listed Foundation positive and negative component check.",
+  "observation": "Current source passed 64 application, 144 runtime, 73 Stage0 and 15 tool tests. SSH tests cover v2 and silent v1 fallback through a pinned real SSH test connection.",
   "outcome": "PASS",
   "positive_checks": [
     "test_committed_job_reaches_broker_without_returning_key_material",
-    "Real dedicated-UID native SSH observation and real container peer credential checks"
+    "Real dedicated-UID native SSH observation and real container peer credential checks",
+    "Current local regression suites and fixed Docker/Nginx software states through restricted probe v2."
   ],
-  "recorded_at_utc": "2026-11-07T21:39:42.371428+00:00",
-  "reviewer": "Codex automated code/evidence self-review; not an independent human security audit.",
+  "recorded_at_utc": "2026-11-09T09:48:47.243534+00:00",
+  "revalidation_of": {
+    "evidence_digest": "1ad4bd23eedaede99bf76636d6429538638fd7e095efe0cf853bb34c655dba48",
+    "source_commit": "688d1408004580d95ddd4d6bd1c75c576b1bb764"
+  },
+  "reviewer": "Codex automated local revalidation.",
   "sbom_digest": "185b3062cfec008162196407a7089b30ace8b408f948e01f417d465c7d403b4c",
   "scenario": "Foundation: dedicated Broker/Worker identities and socket group, SO_PEERCRED, no API socket/Vault/DEK access, typed scoped signed one-use permit and purpose/target/consumer/revision/AEAD protected Secret Reference use.",
   "scope": "FOUNDATION_ONLY",
-  "source_commit": "688d1408004580d95ddd4d6bd1c75c576b1bb764",
+  "source_commit": "26cbe870eab7c3a509888e09812ac2518cdf60ca",
   "source_files": [
     {
       "path": "deploy/systemd/hostorbit-broker.service",
@@ -130,6 +142,10 @@
     {
       "path": "deploy/systemd/hostorbit-broker.socket",
       "sha256": "c98272e8ed3ba222f12760fca246e928bed4cc34605ce453e354583fceba17ae"
+    },
+    {
+      "path": "hostorbit/inventory.py",
+      "sha256": "427f87a897523aac7f22c98e1dd5cfe8597dd64c9bf026f39b564e7856925661"
     },
     {
       "path": "hostorbit/runtime/broker.py",
@@ -145,11 +161,15 @@
     },
     {
       "path": "hostorbit/runtime/protocol.py",
-      "sha256": "82414baf37bf532dd3cb2c804051964caeb54223c18f684cf61bb64a7a43701f"
+      "sha256": "2dd00cdea63ebc41ab6aca04d955549db65012077fa11a83f3585122eeecbefd"
     },
     {
       "path": "hostorbit/runtime/recovery_keys.py",
       "sha256": "98c7e5a8a9759abf54b538e4c78b4d31efb6f057fea35c312572b8428fb7aba0"
+    },
+    {
+      "path": "hostorbit/runtime/ssh.py",
+      "sha256": "ddd447fc8a15a6db2650f6d69f8628a92a40c9382a60960f0e96d649d721b106"
     },
     {
       "path": "hostorbit/runtime/storage.py",
@@ -160,12 +180,28 @@
       "sha256": "5ff3c737d2b5df3bf585d956f9d7413e2ac118aac6ecb0e210233229ff2181d6"
     },
     {
+      "path": "hostorbit/worker.py",
+      "sha256": "89e34874397c0a8ed9c26dfa6b670e2ac119d981c43a72c2700a391f5defe16b"
+    },
+    {
+      "path": "remote/ssh-gateway",
+      "sha256": "b0c3eed3e387de066278f1774bddfb9b7b4bab8c23b9d64600648f1ccadbb955"
+    },
+    {
+      "path": "remote/typed-helper",
+      "sha256": "094a2ebe694ba6919cbf851b75a4ca1d614b8e63b952777fe5ac22f2e76ae35e"
+    },
+    {
       "path": "tests_runtime/lab/runtime_boundary.py",
-      "sha256": "547995bc8955b3d1a2687197aa6e56e2e6d9815e962d467d62a090038681a0c8"
+      "sha256": "2f024366124232e764b3bae6e28d4a170cd77828f13bb6988269febf26af0cb0"
     },
     {
       "path": "tests_runtime/test_credentials.py",
       "sha256": "696eab0acd4b1aa17168796debe3242b8cc12603f5afaaa73e086f8ac5732b96"
+    },
+    {
+      "path": "tests_runtime/test_ssh_discovery.py",
+      "sha256": "b7492d985543201cdd17dcad00be75532506241923210dd0fb1f689013510297"
     },
     {
       "path": "tests_runtime/test_vault_pins.py",
@@ -173,10 +209,10 @@
     },
     {
       "path": "tests_runtime/test_worker_broker.py",
-      "sha256": "578ce6314715e9e2ad3fbb41c7d621b7fdb2530cdaa95b763b8501f29915e93c"
+      "sha256": "ed3eb221f2ebe8b7e08f836a0ab671ced0d1e98f2c712983a301b3057ca2d2d2"
     }
   ],
-  "source_tree": "0cbeffc76fb5b494db138dc6a42aec081626285f",
+  "source_tree": "a52adc8700863b0e487de4bd5b60b19f55718b45",
   "stage": "Stage1",
   "test_id": "Stage1.broker_ipc"
 }

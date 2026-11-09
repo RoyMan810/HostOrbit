@@ -85,6 +85,20 @@ class RuntimeTests(unittest.TestCase):
         self.assertNotIn(private_key().decode(), raw)
         self.assertNotIn("PRIVATE KEY", json.dumps(result))
 
+    def test_v2_software_is_persisted_only_when_the_signed_result_is_valid(self):
+        summary = {"docker": "PRESENT", "nginx": "NOT_DETECTED"}
+        self.broker.execute = lambda *_: {**observation(), "software": summary}
+        job = self.enqueue()
+        self.worker.run(once=True)
+        self.assertEqual(self.job(job["id"])["result"]["software"], summary)
+        self.broker.execute = lambda *_: {**observation(), "software": {**summary, "nginx": "private-canary"}}
+        bad = self.enqueue("fixture-invalid-0001")
+        self.worker.run(once=True)
+        result = self.job(bad["id"])
+        self.assertEqual(result["status"], "UNKNOWN_OUTCOME")
+        self.assertIsNone(result["result"])
+        self.assertNotIn("private-canary", json.dumps(result))
+
     def test_closing_during_active_job_allows_completion_without_claiming_more_work(self):
         first, second = self.enqueue(), self.enqueue("fixture-request-0002")
         with self.store.write() as db:
