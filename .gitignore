@@ -12,3 +12,4 @@ dist/
 .coverage
 htmlcov/
 .claude/*
+.claude/settings.json
