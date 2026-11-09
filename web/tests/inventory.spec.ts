@@ -94,3 +94,108 @@ test('loads the next and previous cursor pages from the Controller', async ({ pa
   await page.getByRole('button', { name: 'Previous page' }).click()
   await expect(page.getByRole('button', { name: new RegExp(fresh) })).toBeVisible()
 })
+
+async function finishProbe(page: Page, id: string, outcome: 'SUCCEEDED' | 'UNKNOWN_OUTCOME') {
+  const response = await page.request.post('/__fixture__/jobs/' + id + '/finish', { params: { outcome } })
+  expect(response.status()).toBe(204)
+}
+
+function acceptedProbe(page: Page) {
+  return page.waitForResponse(response =>
+    response.url().endsWith('/observations') && response.request().method() === 'POST' && response.status() === 202)
+}
+
+test('queues an authorised SSH check and refreshes the VPS after completion', async ({ page }) => {
+  await signIn(page)
+  await page.getByRole('button', { name: new RegExp(never) }).click()
+  const detail = page.getByRole('region', { name: 'VPS details' })
+  await expect(detail.getByText('Not checked', { exact: true })).toBeVisible()
+  const accepted = acceptedProbe(page)
+  await page.getByRole('button', { name: 'Run SSH check' }).click()
+  const job = await (await accepted).json()
+  expect(job.resource_id).toBe(never)
+  await expect(page.getByText('Queued', { exact: true })).toBeVisible()
+  await expect(page.getByText(job.id, { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Run SSH check' })).toBeDisabled()
+  await finishProbe(page, job.id, 'SUCCEEDED')
+  await expect(page.getByText('Check completed', { exact: true })).toBeVisible()
+  await expect(detail.getByText('Reachable over SSH', { exact: true })).toBeVisible()
+})
+
+test('reuses the original request and VPS after the accepted reply is lost', async ({ page }) => {
+  await signIn(page)
+  let original: { id: string; key: string } | undefined
+  await page.route('**/api/v1/resources/' + fresh + '/observations', async route => {
+    const response = await route.fetch()
+    expect(response.status()).toBe(202)
+    original = { id: (await response.json()).id, key: route.request().headers()['idempotency-key'] }
+    await route.abort('failed')
+  }, { times: 1 })
+  await page.getByRole('button', { name: 'Run SSH check' }).click()
+  await expect(page.getByText('Request confirmation is unavailable.', { exact: true })).toBeVisible()
+  expect(original?.id).toBeTruthy()
+  await page.getByRole('button', { name: new RegExp(stale) }).click()
+  await expect(page.getByRole('region', { name: 'VPS details' }).getByText(stale, { exact: true })).toBeVisible()
+  const accepted = acceptedProbe(page)
+  await page.getByRole('button', { name: 'Retry the same request' }).click()
+  const response = await accepted
+  const job = await response.json()
+  expect(job.resource_id).toBe(fresh)
+  expect(job.id).toBe(original?.id)
+  expect(response.request().headers()['idempotency-key']).toBe(original?.key)
+  await finishProbe(page, job.id, 'SUCCEEDED')
+  await expect(page.getByText('Check completed', { exact: true })).toBeVisible()
+})
+
+test('resumes reading the accepted job and preserves an unknown outcome', async ({ page }) => {
+  await signIn(page)
+  let submissions = 0
+  page.on('request', request => {
+    if (request.url().endsWith('/observations') && request.method() === 'POST') submissions += 1
+  })
+  await page.route('**/api/v1/jobs/*', route => route.abort('failed'), { times: 1 })
+  const accepted = acceptedProbe(page)
+  await page.getByRole('button', { name: 'Run SSH check' }).click()
+  const job = await (await accepted).json()
+  await expect(page.getByRole('button', { name: 'Check job status' })).toBeVisible()
+  await expect(page.getByText('Outcome unknown', { exact: true })).toHaveCount(0)
+  await finishProbe(page, job.id, 'UNKNOWN_OUTCOME')
+  await page.getByRole('button', { name: 'Check job status' }).click()
+  await expect(page.getByText('Outcome unknown', { exact: true })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'VPS details' }).getByText('Unknown', { exact: true })).toBeVisible()
+  expect(submissions).toBe(1)
+})
+
+test('displays the Controller denial for an operator with read access only', async ({ page }) => {
+  await signIn(page, 'fixture-operator')
+  const denied = page.waitForResponse(response => response.url().endsWith('/observations') && response.status() === 403)
+  await page.getByRole('button', { name: 'Run SSH check' }).click()
+  await denied
+  await expect(page.getByText('The Controller denied this SSH check.', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Retry the same request' })).toHaveCount(0)
+})
+
+test('a denied retry leaves the earlier acceptance uncertain and blocks a fresh key', async ({ page }) => {
+  await signIn(page)
+  let acceptedId = ''
+  await page.route('**/api/v1/resources/' + fresh + '/observations', async route => {
+    const response = await route.fetch()
+    expect(response.status()).toBe(202)
+    acceptedId = (await response.json()).id
+    await route.abort('failed')
+  }, { times: 1 })
+  await page.getByRole('button', { name: 'Run SSH check' }).click()
+  const retry = page.getByRole('button', { name: 'Retry the same request' })
+  await expect(retry).toBeVisible()
+  expect(acceptedId).toBeTruthy()
+  const disabled = await page.request.post('/__fixture__/resources/' + fresh + '/disable')
+  expect(disabled.status()).toBe(204)
+  const denied = page.waitForResponse(response => response.url().endsWith('/observations') && response.status() === 404)
+  await retry.click()
+  await denied
+  await expect(page.getByText('The retry was denied. The original request is still unconfirmed.', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: new RegExp(stale) }).click()
+  await expect(page.getByRole('button', { name: 'Run SSH check' })).toBeDisabled()
+  const original = await page.request.get('/api/v1/jobs/' + acceptedId)
+  expect((await original.json()).status).toBe('QUEUED')
+})

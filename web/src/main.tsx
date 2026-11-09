@@ -5,6 +5,7 @@ import { ApiError, observationState, request } from './api'
 import type { InventoryPage, Presence, Resource, Session, Status } from './api'
 import { copy } from './copy'
 import type { Copy, Language } from './copy'
+import { ProbeControl } from './probe'
 import './style.css'
 
 type Theme = 'system' | 'light' | 'dark'
@@ -123,7 +124,7 @@ function Detail({ resource, t, lang, now }: { resource: Resource; t: Copy; lang:
   </>
 }
 
-function Inventory({ t, lang, expired }: { t: Copy; lang: Language; expired: () => void }) {
+function Inventory({ t, lang, expired, session }: { t: Copy; lang: Language; expired: () => void; session: Session }) {
   const [cursors, setCursors] = useState([''])
   const [revision, refresh] = useState(0)
   const [page, setPage] = useState<InventoryPage | null>(null)
@@ -133,6 +134,8 @@ function Inventory({ t, lang, expired }: { t: Copy; lang: Language; expired: () 
   const [detailError, setDetailError] = useState<unknown>(null)
   const [now, setNow] = useState(Date.now)
   const after = cursors[cursors.length - 1]
+  const reload = useCallback(() => refresh(value => value + 1), [])
+  const current = page && detail?.id === selected ? detail : null
 
   useEffect(() => {
     const start = performance.now()
@@ -181,7 +184,7 @@ function Inventory({ t, lang, expired }: { t: Copy; lang: Language; expired: () 
   return <main id="main" className="workspace">
     <div className="heading">
       <div><p className="eyebrow">{t.workspace}</p><h1>{t.inventory}</h1><p>{t.subtitle}</p></div>
-      <button onClick={() => refresh(value => value + 1)} disabled={!page && error == null}>
+      <button onClick={reload} disabled={!page && error == null}>
         <span aria-hidden="true">↻</span> {t.refresh}
       </button>
     </div>
@@ -215,8 +218,9 @@ function Inventory({ t, lang, expired }: { t: Copy; lang: Language; expired: () 
         <div className="panel-heading"><h2 id="detail-heading">{t.detail}</h2><span className="pill">{t.readOnly}</span></div>
         {detailError != null ? <p className="notice error" role="alert">
           {detailError instanceof ApiError && [403, 404].includes(detailError.status) ? t.missing : message(detailError, t)}
-        </p> : detail && detail.id === selected && page ? <Detail resource={detail} t={t} lang={lang} now={now}/> :
+        </p> : current ? <Detail resource={current} t={t} lang={lang} now={now}/> :
           <p className="notice" role="status">{selected && !error ? t.loading : t.select}</p>}
+        <ProbeControl resource={current} session={session} t={t} expired={expired} reload={reload}/>
       </section>
     </div>
   </main>
@@ -297,7 +301,7 @@ function App() {
     {restoring ? <main id="main" className="workspace" role="status">{t.loading}</main> :
       session ? <>
         {sessionError != null && <p className="session-error error" role="alert">{message(sessionError, t)}</p>}
-        <Inventory key={session.user.id} t={t} lang={lang} expired={expired}/>
+        <Inventory key={session.user.id} t={t} lang={lang} expired={expired} session={session}/>
       </> : sessionError != null ? <main id="main" className="workspace">
         <p role="alert" className="error">{message(sessionError, t)}</p>
         <button onClick={() => setRetry(value => value + 1)}>{t.retry}</button>

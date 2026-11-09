@@ -37,10 +37,12 @@ export async function request<T>(path: string, options: {
   signal?: AbortSignal
   body?: object
   csrf?: string
+  idempotencyKey?: string
 } = {}): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' }
   if (options.body) headers['Content-Type'] = 'application/json'
   if (options.csrf) headers['X-CSRF-Token'] = options.csrf
+  if (options.idempotencyKey) headers['Idempotency-Key'] = options.idempotencyKey
   const response = await fetch('/api/v1' + path, {
     method: options.body ? 'POST' : 'GET',
     body: options.body ? JSON.stringify(options.body) : undefined,
