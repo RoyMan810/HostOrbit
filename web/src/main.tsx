@@ -139,6 +139,18 @@ function Detail({ resource, t, lang, now, expired, canPreview }: {
             </div>
             <span className="pill">{t.containerState[container.state]}</span>
           </div>
+          <div className="docker-ports">
+            <strong>{t.dockerPorts}</strong>
+            {container.published_ports == null ? <p>{t.dockerPortsUnavailable}</p> :
+              container.published_ports.length === 0 ? <p>{t.dockerPortsEmpty}</p> :
+              <ul aria-label={t.dockerPorts}>
+                {container.published_ports.map(({ address, host_port, container_port, protocol }) => {
+                  const host = address.includes(':') ? `[${address}]` : address
+                  const binding = `${host}:${host_port} → ${container_port}/${protocol}`
+                  return <li key={binding}><code>{binding}</code></li>
+                })}
+              </ul>}
+          </div>
           {canPreview && resource.enabled && current.status === 'REACHABLE' && container.state === 'RUNNING' && sample &&
             <RestartPreview key={JSON.stringify([resource.id, resource.revision, resource.policy_revision,
               sample.observed_at, sample.boot_id, container.project, container.service])}

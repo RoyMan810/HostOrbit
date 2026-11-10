@@ -47,7 +47,16 @@ def fixture(directory):
         if index == 0:
             result["software"] = {"docker": "PRESENT", "nginx": "NOT_DETECTED"}
             result["docker"] = {"status": "OBSERVED", "containers": [
-                {"id": "a" * 64, "project": "fixture", "service": "web", "state": "RUNNING"},
+                {"id": "a" * 64, "project": "fixture", "service": "web", "state": "RUNNING",
+                 "published_ports": [
+                     {"address": "127.0.0.1", "host_port": 8443, "container_port": 443, "protocol": "tcp"},
+                     {"address": "2001:db8:abcd:1234:dead:beef:1234:5678", "host_port": 5353,
+                      "container_port": 53, "protocol": "udp"},
+                 ]},
+                {"id": "b" * 64, "project": "fixture", "service": "worker", "state": "CREATED",
+                 "published_ports": []},
+                {"id": "c" * 64, "project": "fixture", "service": "missing", "state": "NOT_FOUND",
+                 "published_ports": None},
             ]}
         queue.finish(claim, "SUCCEEDED", "PROBE_VERIFIED", result=result)
 

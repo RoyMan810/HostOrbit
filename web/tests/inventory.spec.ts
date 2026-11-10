@@ -144,6 +144,45 @@ test('shows imported Docker state and labels it historical when the sample expir
   await expect(detail.getByText('Historical container observation.', { exact: true })).toBeVisible()
 })
 
+test('shows Docker host bindings, unavailable data and historical observations in both languages', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 844 })
+  await page.clock.install()
+  await signIn(page)
+  const detail = page.getByRole('region', { name: 'VPS details' })
+  const web = detail.getByRole('listitem').filter({ hasText: 'fixture / web' })
+  const worker = detail.getByRole('listitem').filter({ hasText: 'fixture / worker' })
+  const missing = detail.getByRole('listitem').filter({ hasText: 'fixture / missing' })
+  await expect(web.getByText('Published host ports', { exact: true })).toBeVisible()
+  await expect(web.getByText('127.0.0.1:8443 → 443/tcp', { exact: true })).toBeVisible()
+  const ipv6 = '[2001:db8:abcd:1234:dead:beef:1234:5678]:5353 → 53/udp'
+  await expect(web.getByText(ipv6, { exact: true })).toBeVisible()
+  await expect(worker.getByText('No published host ports', { exact: true })).toBeVisible()
+  await expect(missing.getByText('Port bindings unavailable', { exact: true })).toBeVisible()
+  await page.getByLabel('Language').selectOption('ru')
+  await expect(page.getByText('Опубликованные порты хоста', { exact: true }).first()).toBeVisible()
+  await expect(page.getByText('Нет опубликованных портов хоста', { exact: true })).toBeVisible()
+  await expect(page.getByText('Данные о привязках портов недоступны', { exact: true })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320)
+  await page.clock.fastForward(301_000)
+  await expect(page.getByText('Историческое наблюдение контейнеров.', { exact: true })).toBeVisible()
+  await expect(page.getByText(ipv6, { exact: true })).toBeVisible()
+})
+
+test('treats the missing Docker v3 port field as unavailable', async ({ page }) => {
+  await page.route('**/api/v1/resources/' + fresh, async route => {
+    const response = await route.fetch()
+    const resource = await response.json()
+    for (const container of resource.observation.last_success.docker.containers) {
+      delete container.published_ports
+    }
+    await route.fulfill({ response, json: resource })
+  })
+  await signIn(page)
+  const detail = page.getByRole('region', { name: 'VPS details' })
+  await expect(detail.getByText('Port bindings unavailable', { exact: true })).toHaveCount(3)
+  await expect(detail.getByText('No published host ports', { exact: true })).toHaveCount(0)
+})
+
 test('opens a Docker restart preview through the real Controller and clears it on expiry', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
   await page.clock.install()
