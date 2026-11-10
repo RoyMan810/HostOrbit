@@ -4,7 +4,7 @@ import json
 import sqlite3
 
 from hostorbit.auth import COOKIE
-from hostorbit.change_drafts import get_draft, save_draft
+from hostorbit.change_drafts import check_draft_baseline, get_draft, save_draft
 from hostorbit.database import Store, identifier
 from hostorbit.errors import Denied
 from hostorbit.migrations import rehearse
@@ -47,6 +47,8 @@ class ChangeDraftTests(Fixture):
         with closing(sqlite3.connect(self.output / "migrated.sqlite3", autocommit=True)) as db:
             db.row_factory = sqlite3.Row
             db.execute("PRAGMA foreign_keys=ON")
+            if not write:
+                db.execute("PRAGMA query_only=ON")
             db.execute("BEGIN IMMEDIATE" if write else "BEGIN")
             yield db
             db.execute("COMMIT")
@@ -154,3 +156,63 @@ class ChangeDraftTests(Fixture):
         with self.assertRaisesRegex(Denied, "CHANGE_PLAN_SCHEMA_REQUIRES_VERIFIED_MIGRATION"):
             with self.store.write() as db:
                 save_draft(db, self.auth, self.token, self.csrf, SCOPE, CONTAINER)
+
+    def test_checks_exact_draft_without_writes_or_execution_authority(self):
+        draft, tag = self.save()
+        with self.transaction(write=False) as db:
+            self.assertEqual(check_draft_baseline(db, self.auth, self.token, draft["id"], if_match=tag), {
+                "draft_id": draft["id"], "revision": 1, "plan_hash": draft["plan_hash"],
+                "observation_id": self.probe_id, "checked_at": self.now,
+                "baseline_check": "MATCHED", "backup_gate": "NOT_EVALUATED", "execution": "BLOCKED",
+            })
+            with self.assertRaisesRegex(Denied, "IF_MATCH_REQUIRED"):
+                check_draft_baseline(db, self.auth, self.token, draft["id"], if_match=None)
+        self.save(draft_id=draft["id"], if_match=tag)
+        with self.transaction(write=False) as db:
+            with self.assertRaisesRegex(Denied, "STALE_REVISION"):
+                check_draft_baseline(db, self.auth, self.token, draft["id"], if_match=tag)
+
+    def test_baseline_check_rejects_changed_resource_and_expired_observation(self):
+        draft, tag = self.save()
+        with self.transaction() as db:
+            db.execute("UPDATE resources SET revision=revision+1 WHERE id=?", (SCOPE,))
+            with self.assertRaisesRegex(Denied, "STALE_BASELINE") as error:
+                check_draft_baseline(db, self.auth, self.token, draft["id"], if_match=tag)
+            self.assertEqual(error.exception.status, 409)
+            db.execute("UPDATE resources SET revision=revision-1 WHERE id=?", (SCOPE,))
+        self.now += 301
+        with self.transaction(write=False) as db:
+            with self.assertRaisesRegex(Denied, "FRESH_OBSERVATION_REQUIRED"):
+                check_draft_baseline(db, self.auth, self.token, draft["id"], if_match=tag)
+
+    def test_baseline_check_rejects_new_probe_with_identical_observation_data(self):
+        draft, tag = self.save()
+        replacement = identifier()
+        with self.transaction() as db:
+            # The live queue cannot write schema 3. Replay the completed job
+            # and its audit marker in the rehearsal fixture.
+            db.execute("""INSERT INTO jobs(id,actor_id,resource_id,action,payload_hash,scope_digest,policy_revision,
+                                           status,revision,result,reason,created_at,updated_at)
+                          SELECT ?,actor_id,resource_id,action,payload_hash,scope_digest,policy_revision,
+                                 status,revision,result,reason,created_at,updated_at FROM jobs WHERE id=?""",
+                       (replacement, self.probe_id))
+            Store.event(db, at=self.now, actor=self.owner, kind="job.finished", target=SCOPE,
+                        outcome="SUCCEEDED", correlation=replacement)
+        with self.transaction(write=False) as db:
+            with self.assertRaisesRegex(Denied, "STALE_BASELINE"):
+                check_draft_baseline(db, self.auth, self.token, draft["id"], if_match=tag)
+
+    def test_baseline_check_denies_revoked_restart_and_tampered_plan(self):
+        self.create_user(grants=[{"permission": "vps:read", "resource_id": SCOPE}])
+        observer = self.other_client("operator").cookies[COOKIE]
+        self.output = self.directory / "read-only-operator"
+        rehearse(self.store, self.output, to_schema=3)
+        draft, tag = self.save()
+        with self.transaction(write=False) as db:
+            with self.assertRaisesRegex(Denied, "FORBIDDEN"):
+                check_draft_baseline(db, self.auth, observer, draft["id"], if_match=tag)
+        with self.transaction() as db:
+            db.execute("UPDATE change_plan_drafts SET plan_hash=? WHERE id=?", ("0" * 64, draft["id"]))
+        with self.transaction(write=False) as db:
+            with self.assertRaisesRegex(Denied, "CHANGE_PLAN_INTEGRITY"):
+                check_draft_baseline(db, self.auth, self.token, draft["id"], if_match=tag)

@@ -16,12 +16,12 @@ def _session(db, auth, token, *, csrf=None, mutating=False):
     return auth._session(db, token, csrf=csrf, mutating=mutating)
 
 
-def _require(db, actor, resource_id, *, mutating):
+def _require(db, actor, resource_id, *, restart):
     try:
         AuthService.require(db, actor, "vps:read", resource_id)
     except Denied:
         raise Denied("RESOURCE_NOT_FOUND", 404) from None
-    if mutating:
+    if restart:
         AuthService.require(db, actor, "vps:restart", resource_id)
 
 
@@ -60,7 +60,7 @@ def get_draft(db, auth, token, draft_id):
     """Read the latest immutable revision within the caller's transaction."""
     actor = _session(db, auth, token)
     row = _latest(db, draft_id)
-    _require(db, actor, row["resource_id"], mutating=False)
+    _require(db, actor, row["resource_id"], restart=False)
     return _public(_stored(row), row["plan_hash"])
 
 
@@ -94,12 +94,29 @@ def _baseline(db, resource_id, container_id, now):
             "policy_revision": resource["policy_revision"]}
 
 
+def check_draft_baseline(db, auth, token, draft_id, *, if_match):
+    """Recheck the exact draft against the local read snapshot."""
+    actor = _session(db, auth, token)
+    row = _latest(db, draft_id)
+    _require(db, actor, row["resource_id"], restart=True)
+    draft = _stored(row)
+    check_etag(if_match, _public(draft, row["plan_hash"])[1])
+    checked_at = int(auth.clock())
+    baseline = draft["baseline"]
+    current = _baseline(db, row["resource_id"], baseline["target"]["id"], checked_at)
+    if current != baseline:
+        raise Denied("STALE_BASELINE", 409)
+    return {"draft_id": row["id"], "revision": row["revision"], "plan_hash": row["plan_hash"],
+            "observation_id": baseline["observation_id"], "checked_at": checked_at,
+            "baseline_check": "MATCHED", "backup_gate": draft["backup_gate"], "execution": draft["execution"]}
+
+
 def save_draft(db, auth, token, csrf, resource_id, container_id, *, draft_id=None, if_match=None):
     """Create or refresh inside BEGIN IMMEDIATE. The caller rolls back on error."""
     actor = _session(db, auth, token, csrf=csrf, mutating=True)
     if re.fullmatch(ULID, resource_id) is None:
         raise Denied("RESOURCE_NOT_FOUND", 404)
-    _require(db, actor, resource_id, mutating=True)
+    _require(db, actor, resource_id, restart=True)
     if re.fullmatch(SHA256, container_id) is None:
         raise Denied("CONTAINER_NOT_FOUND", 404)
     revision = 1
