@@ -4,7 +4,7 @@ Self-hosted система управления Linux-серверами по Т
 
 ## Текущее состояние
 
-**До production проект не готов.** [Stage0 принят](evidence/acceptance/stage0-2026-11-07/README.md) по 15 обязательным проверкам прототипов. [Stage1 Foundation был принят](evidence/acceptance/stage1-2026-11-08/README.md) на исторической ревизии, но на текущем коде его gate заблокирован: шесть отчётов требуют повторной проверки. Stage2 и полная приёмка MVP не пройдены.
+**До production проект не готов.** [Stage0 принят](evidence/acceptance/stage0-2026-11-07/README.md) по 15 обязательным проверкам прототипов. [Stage1 Foundation был принят](evidence/acceptance/stage1-2026-11-08/README.md) на исторической ревизии; на текущих исходниках подготовлены [новые автоматические отчёты](evidence/revalidation/stage1-current/README.md), локальный gate проходит. Полный CI для этих изменений ещё требуется. Stage2 и полная приёмка MVP не пройдены.
 
 Доступна подписанная **development**-установка на Ubuntu 24.04 и новее, amd64; native-установка проверена на 24.04 и 26.04. Единственный включённый remote adapter — read-only `host.probe`. Production mutations, A/B updates, live migration и независимая DR-приёмка остаются открытыми.
 
@@ -47,7 +47,7 @@ Self-hosted система управления Linux-серверами по Т
 | Задача | Требования / gate | Статус | Что осталось до production |
 |---|---|---|---|
 | Прототипы и базовые контроли | P0-1–P0-4, CTRL-B01–B04, CTRL-B06–B10; Stage0 | Принято | Историческая приёмка прототипов сохранена; она не подтверждает все соответствующие production-сценарии. |
-| Повторная проверка Foundation | Stage1 | Заблокировано | Выпустить новые evidence для `owner_auth`, `rbac`, `sqlite_audit_outbox`, `ssh_helper`, `broker_ipc`, `admission_supervisor`; добиться прохождения gate и CI на проверенной ревизии. |
+| Повторная проверка Foundation | Stage1 | Частично | Новые reports для шести capabilities и локальный gate готовы; подтвердить полный CI на итоговой ревизии. |
 | Сквозной сценарий и restore ресурса | Stage2; AC-28, CTRL-B05 / AC-B05 | Открыто | Проверить VPS → обнаружение → безопасное изменение → backup → audit; восстановить допустимый архив в новую пустую цель и отказать на занятой. |
 | Полная MVP-приёмка | Stage3; все применимые MVP AC и P0 | Открыто | Выполнить требования реестра с доказательствами, включая отрицательные сценарии; не считать Stage0/1 заменой MVP gate. |
 | Безопасность и границы доверия | NFR-01 | Частично | Принять least privilege, изоляцию API/Worker/Broker/Vault, SSH host keys, typed operations, защиту секретов и SSRF. |

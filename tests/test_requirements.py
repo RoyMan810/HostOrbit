@@ -199,6 +199,27 @@ class RegistryTests(unittest.TestCase):
         self.assertEqual(registry.blockers("Stage1", self.directory), [])
         self.assertEqual(registry.blockers("Stage3", self.directory), ["AC-28: NOT_RUN", "AC-B03: NOT_RUN"])
 
+    def test_stage1_current_revalidation_is_required_when_directory_exists(self):
+        report = self.foundation_report()
+        current = self.directory / "evidence/revalidation/stage1-current"
+        current.mkdir(parents=True)
+        registry = validate(self.data)
+        self.assertTrue(registry.blockers("Stage1", self.directory))
+        path = {"evidence_path": "evidence/revalidation/stage1-current/auth.json"}
+        self.write_report(path, report)
+        self.assertEqual(registry.blockers("Stage1", self.directory), [])
+        report["observation"] = "altered current revalidation"
+        self.write_report(path, report)
+        self.assertTrue(registry.blockers("Stage1", self.directory))
+        self.assertTrue((self.directory / "evidence/capabilities/stage1/auth.json").is_file())
+
+    def test_stage1_current_revalidation_cannot_escape_evidence_root(self):
+        self.foundation_report()
+        current = self.directory / "evidence/revalidation/stage1-current"
+        current.parent.mkdir(parents=True)
+        current.symlink_to(self.directory / "outside", target_is_directory=True)
+        self.assertTrue(validate(self.data).blockers("Stage1", self.directory))
+
     def test_stage1_requires_negative_checks_and_foundation_scope(self):
         for field, value in (("negative_checks", []), ("scope", "FULL_MVP"), ("outcome", "FAIL"), ("capability", "different")):
             report = self.foundation_report()

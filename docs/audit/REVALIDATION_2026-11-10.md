@@ -29,7 +29,11 @@
 - Проверены отказ preflight при отсутствующем Buildx и принятие версии Compose с дистрибутивным суффиксом. На локальном Python 3.14 прошли 77 app, 172 runtime, 73 Stage0 и 17 tools тестов, Ruff и проверка репозитория. Первый запуск runtime без заданного `HOSTORBIT_TEST_AGE_DIR` завершился ошибками отсутствующего age; повтор с проверенным бинарным файлом прошёл. Сообщения git о stale ref в tools tests относятся к проверяемому отрицательному сценарию.
 - Три отдельные VM на одной физической машине: создан реальный подписанный Controller backup размером 531 504 008 байт (БД намеренно увеличена до 531 271 680 байт удалённым тестовым zeroblob), затем выполнен настоящий offline Rescue preflight без swap/hibernation в изолированном network namespace, repackage и импорт в отдельный target. Восстановлены Owner login и Audit, business write отклонён, статус `READ_ONLY_RECOVERY`. Из этого импорта выполнена signed development installation нового Controller с `owner_setup=RESTORED_OWNER` и `READ_ONLY_RECOVERY`; после restart Compose API отвечал, а writer profile оставался `READ_ONLY_RECOVERY`. Это искусственно увеличенная БД, не реальный dataset; процедуры используют автоматизированную fixture-передачу секретов и digest, не ручную аттестацию Owner. Разные VM на одной машине не подтверждают независимую физическую площадку или off-host DR.
 
-## Открытые блокировки
+## Повторная проверка Stage1 после отказа CI
+
+После описанных выше блокировок созданы отдельные [текущие capability reports](../../evidence/revalidation/stage1-current/README.md) на коде `3a2be3c`. Локальный Stage1 gate проходит. Исторические reports не изменялись. Новая проверка опирается на успешные Foundation/native jobs указанного commit, а не на общий статус workflow: тот run завершился failure, полный CI для изменений gate и tools tests требуется повторить. Другие блокировки, включая независимый DR и нагрузочную приёмку, сохраняются.
+
+## Открытые блокировки на момент исходной проверки
 
 1. Stage1 gate отклоняет шесть исторических capability reports: источники изменились. Новые полные reports на проверенной ревизии и актуальное native CI ещё не предоставлены. Исторические hashes не переписывались.
 2. Нормативный mixed soak на 30-дневном dataset, 25 VPS и 200 объектах не проводился. Изменение аппаратного профиля не доказывает выполнение задержек, отказоустойчивости и retention. Production mutating adapters ещё закрыты.

@@ -1,0 +1,3 @@
+# Raw Ed25519 evidence must not undergo text or newline conversion.
+evidence/revalidation/stage1-current/bundle-manifest.sig binary
+evidence/revalidation/stage1-current/test-signer.pub binary

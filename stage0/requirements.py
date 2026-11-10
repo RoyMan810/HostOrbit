@@ -277,7 +277,12 @@ def _check_capability_evidence(root: Path, capability: str) -> None:
     """
     if re.fullmatch(r"[a-z][a-z0-9_]{0,63}", capability) is None:
         raise InvalidRegistry("unsafe capability ID")
-    descriptor = {"id": "Stage1." + capability, "evidence_path": f"evidence/capabilities/stage1/{capability}.json"}
+    current = Path("evidence/revalidation/stage1-current")
+    if (root / current).exists() or (root / current).is_symlink():
+        path = current / f"{capability}.json"
+    else:
+        path = Path(f"evidence/capabilities/stage1/{capability}.json")
+    descriptor = {"id": "Stage1." + capability, "evidence_path": str(path)}
     _check_evidence(root, descriptor)
     root = root.resolve()
     report = _read_json(root / descriptor["evidence_path"])
