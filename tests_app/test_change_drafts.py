@@ -4,7 +4,7 @@ import json
 import sqlite3
 
 from hostorbit.auth import COOKIE
-from hostorbit.change_drafts import check_draft_baseline, check_draft_probe, get_draft, save_draft
+from hostorbit.change_drafts import check_draft_baseline, check_draft_probe, get_draft, request_draft_probe, save_draft
 from hostorbit.database import Store, identifier
 from hostorbit.errors import Denied
 from hostorbit.migrations import rehearse
@@ -28,7 +28,12 @@ class ChangeDraftTests(Fixture):
 
     def probe(self, outcome="SUCCEEDED", *, boot_id="11111111-1111-1111-1111-111111111111"):
         job = self.queue.enqueue_probe(self.auth, self.client.cookies[COOKIE], self.csrf, SCOPE, identifier())
+        self.complete_probe(job["id"], outcome=outcome, boot_id=boot_id)
+        return job["id"]
+
+    def complete_probe(self, job_id, *, outcome="SUCCEEDED", boot_id="11111111-1111-1111-1111-111111111111"):
         claim, row = self.queue.claim(identifier())
+        self.assertEqual(row["id"], job_id)
         self.queue.advance(claim, "INTENT_PREPARED", permit={"claims": self.queue.binding(row)})
         for state in ("DISPATCHING", "EXECUTING", "VERIFYING"):
             self.queue.advance(claim, state)
@@ -40,7 +45,6 @@ class ChangeDraftTests(Fixture):
                   ]}}
         self.queue.finish(claim, outcome, "PROBE_COMPLETE" if outcome == "SUCCEEDED" else "SSH_TIMEOUT",
                           result=result if outcome == "SUCCEEDED" else None)
-        return job["id"]
 
     @contextmanager
     def transaction(self, *, write=True):
@@ -251,3 +255,37 @@ class ChangeDraftTests(Fixture):
                        ("0" * 64, self.probe_id))
         with self.assertRaisesRegex(Denied, "PROBE_SOURCE_MISMATCH"):
             self.check_probe(draft, tag, fresh)
+
+    def request_probe(self, draft, tag, *, key="preflight-request-one", csrf=None):
+        with self.transaction(write=False) as db:
+            return request_draft_probe(db, self.queue, self.auth, self.token, self.csrf if csrf is None else csrf,
+                                       draft["id"], if_match=tag, request_key=key)
+
+    def test_probe_request_reuses_one_queued_job_and_can_check_its_result(self):
+        draft, tag = self.save()
+        self.now += 1
+        job = self.request_probe(draft, tag)
+        self.assertEqual((job["action"], job["status"], job["resource_id"]), ("host.probe", "QUEUED", SCOPE))
+        self.assertEqual(self.request_probe(draft, tag)["id"], job["id"])
+        self.complete_probe(job["id"])
+        self.assertEqual(self.check_probe(draft, tag, job["id"])["execution"], "BLOCKED")
+        revised, revised_tag = self.save(draft_id=draft["id"], if_match=tag)
+        self.now += 1
+        self.assertNotEqual(self.request_probe(revised, revised_tag)["id"], job["id"])
+
+    def test_probe_request_refuses_invalid_inputs_and_stale_scope_before_enqueue(self):
+        draft, tag = self.save()
+        with self.assertRaisesRegex(Denied, "NEW_PROBE_REQUIRED"):
+            self.request_probe(draft, tag)
+        self.now += 1
+        for args, reason in (({"csrf": "bad"}, "CSRF_REQUIRED"), ({"key": "short"}, "IDEMPOTENCY_KEY_REQUIRED")):
+            with self.subTest(reason=reason), self.assertRaisesRegex(Denied, reason):
+                self.request_probe(draft, tag, **args)
+        with self.assertRaisesRegex(Denied, "STALE_REVISION"):
+            self.request_probe(draft, '"wrong"')
+        with self.store.write() as db:
+            db.execute("UPDATE resources SET policy_revision=policy_revision+1 WHERE id=?", (SCOPE,))
+        with self.assertRaisesRegex(Denied, "STALE_BASELINE"):
+            self.request_probe(draft, tag)
+        with self.store.read() as db:
+            self.assertEqual(db.execute("SELECT count(*) FROM jobs").fetchone()[0], 1)
