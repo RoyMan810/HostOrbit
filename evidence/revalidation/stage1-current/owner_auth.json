@@ -2,70 +2,68 @@
   "artifacts": [
     {
       "path": "evidence/revalidation/stage1-current/source-manifest.json",
-      "sha256": "b406da4b51732ac130c42ed0c41f6add32551eb0ea9a987ea9429e56ac93d7ed"
+      "sha256": "361eae33e30f533b3c6da81e83b98781dda164a813d887a478ba1db8888ecc3c"
     },
     {
       "path": "evidence/revalidation/stage1-current/bundle-manifest.json",
-      "sha256": "b34ef41e37e9464fd3a2370e45c5afe877aa0881fcf6cba04cd1e55dd998566e"
+      "sha256": "96f6ddc0d01b4fd78e7aca5980abd2315f5b5e45e48eda8f0f6f955835a65905"
     },
     {
       "path": "evidence/revalidation/stage1-current/bundle-manifest.sig",
-      "sha256": "1f67f65f2cdbda32792e9bdfae7358be30eaebdfe24843b3ef3dcf592e3ac973"
+      "sha256": "e16ff097c98962fdad881d6de01235b7e14066db6875c5a355cf55aea1e51efe"
     },
     {
       "path": "evidence/revalidation/stage1-current/test-signer.pub",
-      "sha256": "af75ae3300605bf9d8f494c882bba4b6d269117c4e51d299174cffebe33f3a09"
+      "sha256": "da855de9181f8a32d61a6acb439d176a96f62e9804f23edd6f73517f4ad7a346"
     },
     {
       "path": "evidence/revalidation/stage1-current/sbom.cdx.json",
-      "sha256": "3aacfd6d203fc641bc4b0f1d01e13acb555e02e788dc7989f8f0ab491b49599f"
+      "sha256": "97fdb5984f14f106849e4f79a0f7826dac3fb6da4a5a40f66da81f59816f1cbf"
     },
     {
       "path": "evidence/revalidation/stage1-current/ci-observations.json",
-      "sha256": "e6da5e079a52b4a8e48857004ce4ddca72d00a87f01ad9136ae5beb84070f29f"
+      "sha256": "34f2bc9b8ff4e2d640f9b44a6969b4149a8d6118853fa05d650d46a45bb5be9c"
     }
   ],
-  "build_digest": "b34ef41e37e9464fd3a2370e45c5afe877aa0881fcf6cba04cd1e55dd998566e",
+  "build_digest": "96f6ddc0d01b4fd78e7aca5980abd2315f5b5e45e48eda8f0f6f955835a65905",
   "capability": "owner_auth",
   "ci_job_ids": [
-    129773609773,
-    129773609293
+    129971639034,
+    129971638981
   ],
-  "environment": "GitHub-hosted Ubuntu 24.04 CI, Python 3.15.2 where applicable; separate Python 3.15.2 bundle build on disposable Ubuntu 24.04 VPS.",
-  "evidence_digest": "ca178aaaa000419b76da3bb0080fb94873af121c2c6e9a675c6e8e36aaee6e25",
+  "environment": "GitHub-hosted Ubuntu 24.04 runners. The signed development bundle uses Python 3.15.2.",
+  "evidence_digest": "6b01c5cb9f23b4766427fcae7e0faf5dfed6ae457b4845be10a5b620703bbab3",
   "fault_injection": "test_first_web_visitor_cannot_bootstrap_owner_and_token_is_local_single_use",
   "initial_state": "Clean committed source and disposable GitHub-hosted Ubuntu 24.04 CI runners; development install and ephemeral test signer.",
   "limitations": [
-    "Foundation-only automated revalidation, not Stage2/MVP or production acceptance.",
-    "Public CI job and step conclusions are available; detailed raw job logs were not accessible for independent inspection.",
-    "The referenced CI run was not green overall. The artifacts do not claim subsequent CI success.",
-    "Development bundle uses an ephemeral test key; SBOM excludes the complete OS and base image.",
-    "Independent DR, Owner restore attestation and capacity soak are not established."
+    "Foundation-only automated revalidation. Stage2, MVP and production acceptance have separate gates.",
+    "The signed development bundle uses an ephemeral test signer. SBOM scope excludes the complete OS and OCI base image.",
+    "Independent disaster recovery, Owner restore attestation and capacity soak require separate validation."
   ],
-  "manifest_digest": "b406da4b51732ac130c42ed0c41f6add32551eb0ea9a987ea9429e56ac93d7ed",
+  "manifest_digest": "361eae33e30f533b3c6da81e83b98781dda164a813d887a478ba1db8888ecc3c",
   "negative_checks": [
     "test_first_web_visitor_cannot_bootstrap_owner_and_token_is_local_single_use"
   ],
-  "observation": "The named positive and negative tests ran in successful app/runtime suites or successful named native integration jobs on the source commit. The overall GitHub workflow failed independently in quality and Stage1 evidence validation; see ci-observations.json.",
+  "observation": "The listed application, runtime and native integration jobs succeeded on the recorded source tree. See ci-observations.json for the full workflow result.",
   "outcome": "PASS",
   "positive_checks": [
     "test_local_cli_creates_owner_without_password_or_token_in_arguments"
   ],
-  "recorded_at_utc": "2026-11-10T10:50:56.195019+00:00",
+  "recorded_at_utc": "2026-11-10T16:44:58.164273+00:00",
   "revalidation_of": {
     "evidence_digest": "5985960a9e4c823822999dce34cd3008770d25b607a0a7b9193afc8d78a3605b",
     "path": "evidence/capabilities/stage1/owner_auth.json",
     "source_commit": "7af105f680228d75dbe1f8136e390aff3bef0d4d"
   },
-  "reviewer": "Automated revalidation using public CI job/step results and source-bound test bundle; independent human review not claimed.",
-  "sbom_digest": "3aacfd6d203fc641bc4b0f1d01e13acb555e02e788dc7989f8f0ab491b49599f",
+  "reviewer": "Automated revalidation against GitHub CI and the source-bound signed development bundle metadata.",
+  "sbom_digest": "97fdb5984f14f106849e4f79a0f7826dac3fb6da4a5a40f66da81f59816f1cbf",
   "scenario": "Foundation: local-only one-time Owner bootstrap, Argon2id authentication, HTTPS session/cookie/CSRF/rate-limit and re-auth primitives with durable negative tests.",
   "scope": "FOUNDATION_ONLY",
-  "source_commit": "3a2be3cb9dd6767740e9111c64ae22fdd8a53fd5",
+  "source_commit": "4459cb2285ff6274f338b44d8d4694cd126864f4",
   "source_files": [
     {
       "path": ".github/workflows/checks.yml",
-      "sha256": "e751ca534ee8f100feed69e6bf9d18866254d6478ca70ce4eaf6027895a34071"
+      "sha256": "9b3ec10e40145d5545e029b793e96f7df0246c55c8346e21fd095710730e2496"
     },
     {
       "path": "deploy/Controller.Dockerfile",
@@ -165,7 +163,7 @@
     },
     {
       "path": "hostorbit/inventory.py",
-      "sha256": "4910a3d084a1b0ce05b03d894f5ef7e649040edae663ff86cfbd8242aa166c24"
+      "sha256": "0de054a59cc0a2de2be182376d605a332d9885b5283183ad2dbe2c62ff885a0f"
     },
     {
       "path": "hostorbit/migrations.py",
@@ -249,7 +247,7 @@
     },
     {
       "path": "hostorbit/runtime/protocol.py",
-      "sha256": "e27f822c226159f382160edbebe1ee9f8365af32e8315a04a62bbaffe21db0bc"
+      "sha256": "a278be6fa4c9f83628af755c97f4d2840a7803fcf2a4e250060c7097cc4ed36f"
     },
     {
       "path": "hostorbit/runtime/publication.py",
@@ -289,7 +287,7 @@
     },
     {
       "path": "hostorbit/runtime/ssh.py",
-      "sha256": "aa9c0146e407d45e3a01391d4182c737af391d3af4a3712c253a1b4be2076e7e"
+      "sha256": "0da2d805af133841c8018ceecaec159e06a0cd0bd7c18971013634bd46a8c4bd"
     },
     {
       "path": "hostorbit/runtime/storage.py",
@@ -317,11 +315,11 @@
     },
     {
       "path": "remote/ssh-gateway",
-      "sha256": "595eb38d28f347d90f65724723d34f7c02d76309382b85289e93a6ee2123491b"
+      "sha256": "8b8d0a9479f20f26c7ae46f426e05d502d28d5699de33bd4cfd2b251437d2821"
     },
     {
       "path": "remote/typed-helper",
-      "sha256": "8d82dd19ee9bcaa02782e96df2c79c2292b653daab819b32fa721a1a30dbc5a5"
+      "sha256": "726ee90f5c002b13b6f8b14c519c72403c76b214894840dfc74d4397a1e4c397"
     },
     {
       "path": "requirements-app.txt",
@@ -349,7 +347,7 @@
     },
     {
       "path": "tests_app/test_inventory_api.py",
-      "sha256": "289b5d0bb913e65916c3827d486ba82935f807d52ea1012217cd4758bb831b5d"
+      "sha256": "9f504f59c9087b69d34610be993df7c14be979ad7f315491fd603426f7972b95"
     },
     {
       "path": "tests_app/test_migrations.py",
@@ -369,7 +367,7 @@
     },
     {
       "path": "tests_runtime/lab/docker_discovery.py",
-      "sha256": "b873971527d9661a53e19591c679ab802dd075a5c30c0edf3b5c3691f4a30433"
+      "sha256": "86058088d2d28d8064b5766c9b33e0cf2d24bbde2934bf9542043f4ea5e81b9c"
     },
     {
       "path": "tests_runtime/lab/installation.py",
@@ -381,7 +379,7 @@
     },
     {
       "path": "tests_runtime/lab/runtime_boundary.py",
-      "sha256": "b6eb962ced06744c0752105baf76e7fd40d8afb13ebd2e02628162509d19a405"
+      "sha256": "e8bf8aa2a0629fefd0656fd2bb465431efe70df64f9b1212498d51db3198989b"
     },
     {
       "path": "tests_runtime/lab/sftp_receiver.py",
@@ -413,7 +411,7 @@
     },
     {
       "path": "tests_runtime/test_docker_discovery.py",
-      "sha256": "dc35c18b1c70e42423f90972455b6aa8ef8df0f123bfd997816cc2c04a67987f"
+      "sha256": "72cea1396f48f76cca6303cb291e3909fc525ae35ac85be6aa6cb193674e6ce1"
     },
     {
       "path": "tests_runtime/test_installation.py",
@@ -453,7 +451,7 @@
     },
     {
       "path": "tests_runtime/test_ssh_discovery.py",
-      "sha256": "f1e844995759113d6c84ae0c5d526ac97a1d14d90c8010263fdc3f5a09c11490"
+      "sha256": "e28ca530f0df35acff0c9064edf4fa95835eab56162a20394412c947350ae624"
     },
     {
       "path": "tests_runtime/test_timehealth.py",
@@ -465,7 +463,7 @@
     },
     {
       "path": "tests_runtime/test_worker_broker.py",
-      "sha256": "88a2e3a434514678264bedb0a0214fd5d021992e008e5347d0894147c5a5f818"
+      "sha256": "189eae4346e84bdb22fc89e3e85e2d6bea3db630ebf42148ec45f0ca7a8f987e"
     },
     {
       "path": "tests_runtime/test_writer_barrier.py",

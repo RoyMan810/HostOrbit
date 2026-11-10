@@ -1,15 +1,15 @@
 {
-  "source_commit": "3a2be3cb9dd6767740e9111c64ae22fdd8a53fd5",
-  "workflow_run": "https://github.com/RoyMan810/HostOrbit/actions/runs/42799650204",
+  "source_commit": "4459cb2285ff6274f338b44d8d4694cd126864f4",
+  "workflow_run": "https://github.com/RoyMan810/HostOrbit/actions/runs/42856716693",
   "overall_conclusion": "failure",
-  "method": "Public GitHub jobs API metadata; detailed job logs were not accessible without authentication.",
+  "method": "GitHub Actions run and job conclusions and signature verification of the signed installation metadata artifact.",
   "jobs": [
     {
-      "id": 129773609293,
-      "name": "Stage 1 signed fresh installation / systemd and Compose",
+      "id": 129971638191,
+      "name": "Restricted SSH account / Ubuntu",
       "status": "completed",
       "conclusion": "success",
-      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42799650204/job/129773609293",
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42856716693/job/129971638191",
       "steps": [
         {
           "name": "Set up job",
@@ -20,31 +20,11 @@
           "conclusion": "success"
         },
         {
-          "name": "Run actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
+          "name": "Install OpenSSH server if absent",
           "conclusion": "success"
         },
         {
-          "name": "Run docker/setup-docker-action@3f1ab1ab0e29231562e4db4ca600c1a49653bac6",
-          "conclusion": "success"
-        },
-        {
-          "name": "Install fixed builder dependencies and generate an ephemeral lab signer",
-          "conclusion": "success"
-        },
-        {
-          "name": "Build the signed wheel bundle without placing its private signer inside",
-          "conclusion": "success"
-        },
-        {
-          "name": "Install and verify the actual host services and container namespaces",
-          "conclusion": "success"
-        },
-        {
-          "name": "Post Run docker/setup-docker-action@3f1ab1ab0e29231562e4db4ca600c1a49653bac6",
-          "conclusion": "success"
-        },
-        {
-          "name": "Post Run actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
+          "name": "Exercise the restricted account",
           "conclusion": "success"
         },
         {
@@ -58,101 +38,11 @@
       ]
     },
     {
-      "id": 129773609446,
-      "name": "Stage 1 process boundary / Linux UIDs and SSH",
+      "id": 129971638608,
+      "name": "Stage 1 host TimeHealth / timesyncd",
       "status": "completed",
       "conclusion": "success",
-      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42799650204/job/129773609446",
-      "steps": [
-        {
-          "name": "Set up job",
-          "conclusion": "success"
-        },
-        {
-          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-          "conclusion": "success"
-        },
-        {
-          "name": "Run actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
-          "conclusion": "success"
-        },
-        {
-          "name": "Install fixed application dependencies and SSH tools",
-          "conclusion": "success"
-        },
-        {
-          "name": "Verify isolated API, Worker, Broker and authority with a real managed SSH namespace",
-          "conclusion": "success"
-        },
-        {
-          "name": "Post Run actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
-          "conclusion": "success"
-        },
-        {
-          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-          "conclusion": "success"
-        },
-        {
-          "name": "Complete job",
-          "conclusion": "success"
-        }
-      ]
-    },
-    {
-      "id": 129773609456,
-      "name": "Repository quality / Python 3.15",
-      "status": "completed",
-      "conclusion": "failure",
-      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42799650204/job/129773609456",
-      "steps": [
-        {
-          "name": "Set up job",
-          "conclusion": "success"
-        },
-        {
-          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-          "conclusion": "success"
-        },
-        {
-          "name": "Run actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
-          "conclusion": "success"
-        },
-        {
-          "name": "Run python -m pip install -r requirements-quality.txt",
-          "conclusion": "success"
-        },
-        {
-          "name": "Run ruff check .",
-          "conclusion": "success"
-        },
-        {
-          "name": "Run python tools/check_repository.py",
-          "conclusion": "success"
-        },
-        {
-          "name": "Run python -m unittest discover -s tests_tools -v",
-          "conclusion": "failure"
-        },
-        {
-          "name": "Post Run actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
-          "conclusion": "skipped"
-        },
-        {
-          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-          "conclusion": "success"
-        },
-        {
-          "name": "Complete job",
-          "conclusion": "success"
-        }
-      ]
-    },
-    {
-      "id": 129773609546,
-      "name": "Stage 1 host TimeHealth / chrony",
-      "status": "completed",
-      "conclusion": "success",
-      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42799650204/job/129773609546",
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42856716693/job/129971638608",
       "steps": [
         {
           "name": "Set up job",
@@ -189,11 +79,93 @@
       ]
     },
     {
-      "id": 129773609551,
+      "id": 129971638857,
+      "name": "Stage 1 process boundary / Linux UIDs and SSH",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42856716693/job/129971638857",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install fixed application dependencies and SSH tools",
+          "conclusion": "success"
+        },
+        {
+          "name": "Verify isolated API, Worker, Broker and authority with a real managed SSH namespace",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "id": 129971638862,
+      "name": "Stage 1 host TimeHealth / chrony",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42856716693/job/129971638862",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install fixed application dependencies and the selected host time daemon",
+          "conclusion": "success"
+        },
+        {
+          "name": "Verify actual daemon telemetry, protected IPC and kernel clock-step recovery",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "id": 129971638880,
       "name": "Stage 0 prototypes / Python 3.15",
       "status": "completed",
       "conclusion": "failure",
-      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42799650204/job/129773609551",
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42856716693/job/129971638880",
       "steps": [
         {
           "name": "Set up job",
@@ -246,52 +218,11 @@
       ]
     },
     {
-      "id": 129773609587,
-      "name": "Broker peer credentials / Docker",
+      "id": 129971638934,
+      "name": "Repository quality / Python 3.15",
       "status": "completed",
       "conclusion": "success",
-      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42799650204/job/129773609587",
-      "steps": [
-        {
-          "name": "Set up job",
-          "conclusion": "success"
-        },
-        {
-          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-          "conclusion": "success"
-        },
-        {
-          "name": "Run docker/setup-docker-action@3f1ab1ab0e29231562e4db4ca600c1a49653bac6",
-          "conclusion": "success"
-        },
-        {
-          "name": "Verify Worker, Backend and stranger access",
-          "conclusion": "success"
-        },
-        {
-          "name": "Verify scoped discovery against the pinned Docker daemon",
-          "conclusion": "success"
-        },
-        {
-          "name": "Post Run docker/setup-docker-action@3f1ab1ab0e29231562e4db4ca600c1a49653bac6",
-          "conclusion": "success"
-        },
-        {
-          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-          "conclusion": "success"
-        },
-        {
-          "name": "Complete job",
-          "conclusion": "success"
-        }
-      ]
-    },
-    {
-      "id": 129773609619,
-      "name": "Stage 1 host TimeHealth / timesyncd",
-      "status": "completed",
-      "conclusion": "success",
-      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42799650204/job/129773609619",
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42856716693/job/129971638934",
       "steps": [
         {
           "name": "Set up job",
@@ -306,11 +237,19 @@
           "conclusion": "success"
         },
         {
-          "name": "Install fixed application dependencies and the selected host time daemon",
+          "name": "Run python -m pip install -r requirements-quality.txt",
           "conclusion": "success"
         },
         {
-          "name": "Verify actual daemon telemetry, protected IPC and kernel clock-step recovery",
+          "name": "Run ruff check .",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run python tools/check_repository.py",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run python -m unittest discover -s tests_tools -v",
           "conclusion": "success"
         },
         {
@@ -328,11 +267,11 @@
       ]
     },
     {
-      "id": 129773609651,
-      "name": "Restricted SSH account / Ubuntu",
+      "id": 129971638981,
+      "name": "Stage 1 signed fresh installation / systemd and Compose",
       "status": "completed",
       "conclusion": "success",
-      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42799650204/job/129773609651",
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42856716693/job/129971638981",
       "steps": [
         {
           "name": "Set up job",
@@ -343,11 +282,35 @@
           "conclusion": "success"
         },
         {
-          "name": "Install OpenSSH server if absent",
+          "name": "Run actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
           "conclusion": "success"
         },
         {
-          "name": "Exercise the restricted account",
+          "name": "Run docker/setup-docker-action@3f1ab1ab0e29231562e4db4ca600c1a49653bac6",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install fixed builder dependencies and generate an ephemeral lab signer",
+          "conclusion": "success"
+        },
+        {
+          "name": "Build the signed wheel bundle without placing its private signer inside",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install and verify the actual host services and container namespaces",
+          "conclusion": "success"
+        },
+        {
+          "name": "Preserve public metadata for Stage1 revalidation",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run docker/setup-docker-action@3f1ab1ab0e29231562e4db4ca600c1a49653bac6",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
           "conclusion": "success"
         },
         {
@@ -361,11 +324,11 @@
       ]
     },
     {
-      "id": 129773609773,
+      "id": 129971639034,
       "name": "Stage 1 Auth, RBAC and Audit / Python 3.15",
       "status": "completed",
       "conclusion": "success",
-      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42799650204/job/129773609773",
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42856716693/job/129971639034",
       "steps": [
         {
           "name": "Set up job",
@@ -410,11 +373,52 @@
       ]
     },
     {
-      "id": 129773609793,
+      "id": 129971639123,
+      "name": "Broker peer credentials / Docker",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42856716693/job/129971639123",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run docker/setup-docker-action@3f1ab1ab0e29231562e4db4ca600c1a49653bac6",
+          "conclusion": "success"
+        },
+        {
+          "name": "Verify Worker, Backend and stranger access",
+          "conclusion": "success"
+        },
+        {
+          "name": "Verify scoped discovery against the pinned Docker daemon",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run docker/setup-docker-action@3f1ab1ab0e29231562e4db4ca600c1a49653bac6",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "id": 129971639170,
       "name": "Delegated restart effect / SSH, systemd and Docker",
       "status": "completed",
       "conclusion": "success",
-      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42799650204/job/129773609793",
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/42856716693/job/129971639170",
       "steps": [
         {
           "name": "Set up job",

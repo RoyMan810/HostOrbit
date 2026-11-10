@@ -1,11 +1,11 @@
 {
   "scope": "Tracked Foundation application, deploy, remote and test paths plus historical report paths and CI/build inputs; each file matches the checked commit.",
-  "source_commit": "3a2be3cb9dd6767740e9111c64ae22fdd8a53fd5",
-  "source_tree": "6be674298fec81cb37048f6fd9edffc836940288",
+  "source_commit": "4459cb2285ff6274f338b44d8d4694cd126864f4",
+  "source_tree": "931a6f48d4cc42ca91d814d7735e85ba615e0f11",
   "files": [
     {
       "path": ".github/workflows/checks.yml",
-      "sha256": "e751ca534ee8f100feed69e6bf9d18866254d6478ca70ce4eaf6027895a34071"
+      "sha256": "9b3ec10e40145d5545e029b793e96f7df0246c55c8346e21fd095710730e2496"
     },
     {
       "path": "deploy/Controller.Dockerfile",
@@ -105,7 +105,7 @@
     },
     {
       "path": "hostorbit/inventory.py",
-      "sha256": "4910a3d084a1b0ce05b03d894f5ef7e649040edae663ff86cfbd8242aa166c24"
+      "sha256": "0de054a59cc0a2de2be182376d605a332d9885b5283183ad2dbe2c62ff885a0f"
     },
     {
       "path": "hostorbit/migrations.py",
@@ -189,7 +189,7 @@
     },
     {
       "path": "hostorbit/runtime/protocol.py",
-      "sha256": "e27f822c226159f382160edbebe1ee9f8365af32e8315a04a62bbaffe21db0bc"
+      "sha256": "a278be6fa4c9f83628af755c97f4d2840a7803fcf2a4e250060c7097cc4ed36f"
     },
     {
       "path": "hostorbit/runtime/publication.py",
@@ -229,7 +229,7 @@
     },
     {
       "path": "hostorbit/runtime/ssh.py",
-      "sha256": "aa9c0146e407d45e3a01391d4182c737af391d3af4a3712c253a1b4be2076e7e"
+      "sha256": "0da2d805af133841c8018ceecaec159e06a0cd0bd7c18971013634bd46a8c4bd"
     },
     {
       "path": "hostorbit/runtime/storage.py",
@@ -257,11 +257,11 @@
     },
     {
       "path": "remote/ssh-gateway",
-      "sha256": "595eb38d28f347d90f65724723d34f7c02d76309382b85289e93a6ee2123491b"
+      "sha256": "8b8d0a9479f20f26c7ae46f426e05d502d28d5699de33bd4cfd2b251437d2821"
     },
     {
       "path": "remote/typed-helper",
-      "sha256": "8d82dd19ee9bcaa02782e96df2c79c2292b653daab819b32fa721a1a30dbc5a5"
+      "sha256": "726ee90f5c002b13b6f8b14c519c72403c76b214894840dfc74d4397a1e4c397"
     },
     {
       "path": "requirements-app.txt",
@@ -289,7 +289,7 @@
     },
     {
       "path": "tests_app/test_inventory_api.py",
-      "sha256": "289b5d0bb913e65916c3827d486ba82935f807d52ea1012217cd4758bb831b5d"
+      "sha256": "9f504f59c9087b69d34610be993df7c14be979ad7f315491fd603426f7972b95"
     },
     {
       "path": "tests_app/test_migrations.py",
@@ -309,7 +309,7 @@
     },
     {
       "path": "tests_runtime/lab/docker_discovery.py",
-      "sha256": "b873971527d9661a53e19591c679ab802dd075a5c30c0edf3b5c3691f4a30433"
+      "sha256": "86058088d2d28d8064b5766c9b33e0cf2d24bbde2934bf9542043f4ea5e81b9c"
     },
     {
       "path": "tests_runtime/lab/installation.py",
@@ -321,7 +321,7 @@
     },
     {
       "path": "tests_runtime/lab/runtime_boundary.py",
-      "sha256": "b6eb962ced06744c0752105baf76e7fd40d8afb13ebd2e02628162509d19a405"
+      "sha256": "e8bf8aa2a0629fefd0656fd2bb465431efe70df64f9b1212498d51db3198989b"
     },
     {
       "path": "tests_runtime/lab/sftp_receiver.py",
@@ -353,7 +353,7 @@
     },
     {
       "path": "tests_runtime/test_docker_discovery.py",
-      "sha256": "dc35c18b1c70e42423f90972455b6aa8ef8df0f123bfd997816cc2c04a67987f"
+      "sha256": "72cea1396f48f76cca6303cb291e3909fc525ae35ac85be6aa6cb193674e6ce1"
     },
     {
       "path": "tests_runtime/test_installation.py",
@@ -393,7 +393,7 @@
     },
     {
       "path": "tests_runtime/test_ssh_discovery.py",
-      "sha256": "f1e844995759113d6c84ae0c5d526ac97a1d14d90c8010263fdc3f5a09c11490"
+      "sha256": "e28ca530f0df35acff0c9064edf4fa95835eab56162a20394412c947350ae624"
     },
     {
       "path": "tests_runtime/test_timehealth.py",
@@ -405,7 +405,7 @@
     },
     {
       "path": "tests_runtime/test_worker_broker.py",
-      "sha256": "88a2e3a434514678264bedb0a0214fd5d021992e008e5347d0894147c5a5f818"
+      "sha256": "189eae4346e84bdb22fc89e3e85e2d6bea3db630ebf42148ec45f0ca7a8f987e"
     },
     {
       "path": "tests_runtime/test_writer_barrier.py",
