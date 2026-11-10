@@ -4,7 +4,7 @@ import json
 import sqlite3
 
 from hostorbit.auth import COOKIE
-from hostorbit.change_drafts import check_draft_baseline, get_draft, save_draft
+from hostorbit.change_drafts import check_draft_baseline, check_draft_probe, get_draft, save_draft
 from hostorbit.database import Store, identifier
 from hostorbit.errors import Denied
 from hostorbit.migrations import rehearse
@@ -26,14 +26,14 @@ class ChangeDraftTests(Fixture):
         self.output = self.directory / "rehearsal"
         rehearse(self.store, self.output, to_schema=3)
 
-    def probe(self, outcome="SUCCEEDED"):
+    def probe(self, outcome="SUCCEEDED", *, boot_id="11111111-1111-1111-1111-111111111111"):
         job = self.queue.enqueue_probe(self.auth, self.client.cookies[COOKIE], self.csrf, SCOPE, identifier())
         claim, row = self.queue.claim(identifier())
         self.queue.advance(claim, "INTENT_PREPARED", permit={"claims": self.queue.binding(row)})
         for state in ("DISPATCHING", "EXECUTING", "VERIFYING"):
             self.queue.advance(claim, state)
         result = {"status": "REACHABLE", "source": "restricted_helper", "observed_at": self.now,
-                  "boot_id": "11111111-1111-1111-1111-111111111111",
+                  "boot_id": boot_id,
                   "software": {"docker": "PRESENT", "nginx": "UNKNOWN"},
                   "docker": {"status": "OBSERVED", "containers": [
                       {"id": CONTAINER, "project": "fixture", "service": "web", "state": "RUNNING"},
@@ -216,3 +216,38 @@ class ChangeDraftTests(Fixture):
         with self.transaction(write=False) as db:
             with self.assertRaisesRegex(Denied, "CHANGE_PLAN_INTEGRITY"):
                 check_draft_baseline(db, self.auth, self.token, draft["id"], if_match=tag)
+
+    def check_probe(self, draft, tag, probe_id):
+        with self.transaction(write=False) as draft_db, self.store.connect(readonly=True) as source_db:
+            source_db.execute("BEGIN")
+            return check_draft_probe(draft_db, source_db, self.auth, self.token, draft["id"],
+                                     if_match=tag, probe_id=probe_id)
+
+    def test_probe_check_requires_fresh_job_from_the_source_controller(self):
+        draft, tag = self.save()
+        with self.assertRaisesRegex(Denied, "NEW_PROBE_REQUIRED"):
+            self.check_probe(draft, tag, self.probe_id)
+        self.now += 1
+        fresh = self.probe()
+        result = self.check_probe(draft, tag, fresh)
+        self.assertEqual(result["observation_id"], fresh)
+        self.assertEqual(result["plan_hash"], draft["plan_hash"])
+        self.assertEqual(result["execution"], "BLOCKED")
+        self.assertEqual(result["backup_gate"], "NOT_EVALUATED")
+        self.now += 1
+        self.probe("FAILED")
+        with self.assertRaisesRegex(Denied, "FRESH_OBSERVATION_REQUIRED"):
+            self.check_probe(draft, tag, fresh)
+
+    def test_probe_check_rejects_reboot_or_diverged_source_audit(self):
+        draft, tag = self.save()
+        self.now += 1
+        fresh = self.probe(boot_id="22222222-2222-2222-2222-222222222222")
+        with self.assertRaisesRegex(Denied, "STALE_BASELINE"):
+            self.check_probe(draft, tag, fresh)
+        with self.transaction() as db:
+            db.execute("DROP TRIGGER audit_no_update")
+            db.execute("UPDATE audit SET digest=? WHERE event='job.finished' AND correlation_id=?",
+                       ("0" * 64, self.probe_id))
+        with self.assertRaisesRegex(Denied, "PROBE_SOURCE_MISMATCH"):
+            self.check_probe(draft, tag, fresh)

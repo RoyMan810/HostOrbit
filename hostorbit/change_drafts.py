@@ -94,13 +94,18 @@ def _baseline(db, resource_id, container_id, now):
             "policy_revision": resource["policy_revision"]}
 
 
-def check_draft_baseline(db, auth, token, draft_id, *, if_match):
-    """Recheck the exact draft against the local read snapshot."""
+def _checked_draft(db, auth, token, draft_id, if_match):
     actor = _session(db, auth, token)
     row = _latest(db, draft_id)
     _require(db, actor, row["resource_id"], restart=True)
     draft = _stored(row)
     check_etag(if_match, _public(draft, row["plan_hash"])[1])
+    return row, draft
+
+
+def check_draft_baseline(db, auth, token, draft_id, *, if_match):
+    """Recheck the exact draft against the local read snapshot."""
+    row, draft = _checked_draft(db, auth, token, draft_id, if_match)
     checked_at = int(auth.clock())
     baseline = draft["baseline"]
     current = _baseline(db, row["resource_id"], baseline["target"]["id"], checked_at)
@@ -109,6 +114,40 @@ def check_draft_baseline(db, auth, token, draft_id, *, if_match):
     return {"draft_id": row["id"], "revision": row["revision"], "plan_hash": row["plan_hash"],
             "observation_id": baseline["observation_id"], "checked_at": checked_at,
             "baseline_check": "MATCHED", "backup_gate": draft["backup_gate"], "execution": draft["execution"]}
+
+
+def _probe_audit(db, resource_id, probe_id):
+    return db.execute("""SELECT seq,digest FROM audit WHERE target_id=? AND correlation_id=?
+                         AND event='job.finished' AND outcome='SUCCEEDED' ORDER BY seq DESC LIMIT 1""",
+                      (resource_id, probe_id)).fetchone()
+
+
+def check_draft_probe(draft_db, source_db, auth, token, draft_id, *, if_match, probe_id):
+    """Validate a new queued observation on the Controller that supplied the rehearsal copy."""
+    row, draft = _checked_draft(draft_db, auth, token, draft_id, if_match)
+    if (not source_db.in_transaction or source_db.execute("PRAGMA query_only").fetchone()[0] != 1
+            or source_db.execute("PRAGMA user_version").fetchone()[0] != 2):
+        raise Denied("PROBE_SOURCE_UNSUPPORTED", 503)
+    resource_id = row["resource_id"]
+    _require(source_db, auth._session(source_db, token), resource_id, restart=True)
+    baseline = draft["baseline"]
+    original = _probe_audit(draft_db, resource_id, baseline["observation_id"])
+    if original is None or original != _probe_audit(source_db, resource_id, baseline["observation_id"]):
+        raise Denied("PROBE_SOURCE_MISMATCH", 409)
+    checked_at = int(auth.clock())
+    current = _baseline(source_db, resource_id, baseline["target"]["id"], checked_at)
+    if probe_id != current["observation_id"] or probe_id == baseline["observation_id"]:
+        raise Denied("NEW_PROBE_REQUIRED", 409)
+    completed = _probe_audit(source_db, resource_id, probe_id)
+    requested_at = source_db.execute("SELECT created_at FROM jobs WHERE id=?", (probe_id,)).fetchone()[0]
+    if (completed is None or completed["seq"] <= original["seq"]
+            or not row["created_at"] < requested_at <= current["observed_at"]):
+        raise Denied("NEW_PROBE_REQUIRED", 409)
+    if any(current[key] != baseline[key] for key in ("target", "boot_id", "scope_digest", "resource_revision", "policy_revision")):
+        raise Denied("STALE_BASELINE", 409)
+    return {"draft_id": row["id"], "revision": row["revision"], "plan_hash": row["plan_hash"],
+            "observation_id": probe_id, "checked_at": checked_at, "baseline_check": "MATCHED",
+            "backup_gate": draft["backup_gate"], "execution": draft["execution"]}
 
 
 def save_draft(db, auth, token, csrf, resource_id, container_id, *, draft_id=None, if_match=None):
