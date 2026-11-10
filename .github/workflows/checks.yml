@@ -141,6 +141,14 @@ jobs:
           export HOSTORBIT_TEST_AGE_DIR="$age_dir/age"
           python -m unittest discover -s tests_app -v
           python -m unittest discover -s tests_runtime -v
+      - name: Exercise Controller SFTP publication against OpenSSH
+        run: |
+          if ! test -x /usr/sbin/sshd; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends openssh-server
+          fi
+          sudo -n /usr/bin/env "PATH=$PATH" "PYTHONPATH=$PWD" PYTHONDONTWRITEBYTECODE=1 \
+            "$(command -v python)" tests/lab/runtime_sftp_publication.py --isolated-vm
       - name: Build the Controller package and check its manifest
         run: |
           python -m pip wheel --no-deps --wheel-dir "$RUNNER_TEMP/hostorbit-wheels" .
