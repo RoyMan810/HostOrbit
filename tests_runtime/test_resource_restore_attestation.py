@@ -194,29 +194,44 @@ class RestoreAttestationTests(unittest.TestCase):
         with self.assertRaisesRegex(Denied, "RESTORE_STAGE_TARGET_EXISTS"):
             stage_restore_source(*args, destination=destination, **options)
 
-    def test_staging_cli_requires_independent_digest_before_reading_the_identity(self):
-        root, _, source, options = self.signed_source()
+    def cli_args(self, root, source, options, destination):
         archive, provenance, key, _ = source
         for name, content in (("provenance", canonical(provenance)), ("archive-key", key),
                               ("owner-key", options["owner_key"]), ("attestation", options["attestation"]),
                               ("evidence", options["evidence"])):
             (root / name).write_bytes(content)
-        args = ["--ciphertext", str(archive),
+        return ["--ciphertext", str(archive),
                 "--provenance", str(root / "provenance"), "--trusted-key", str(root / "archive-key"),
                 "--owner-key", str(root / "owner-key"), "--attestation", str(root / "attestation"),
-                "--evidence", str(root / "evidence"), "--destination", str(root / "staged"),
-                "--application-schema", options["application_schema"], "--procedure-sha256", PROCEDURE]
+                "--evidence", str(root / "evidence"), "--destination", str(destination),
+                "--application-schema", options["application_schema"], "--procedure-sha256", PROCEDURE,
+                "--age-tool", str(options["age_path"])]
+
+    def test_staging_cli_requires_independent_digest_before_reading_the_identity(self):
+        root, _, source, options = self.signed_source()
+        args = self.cli_args(root, source, options, root / "staged")
+        self.assert_cli_refuses_confirmation(args, ["0" * 64], "RESTORE_STAGE_CONFIRMATION_MISMATCH")
+        self.assertFalse((root / "staged").exists())
+
+    def test_docker_restore_cli_requires_exact_target_before_reading_the_identity(self):
+        root, _, source, options = self.signed_source()
+        args = self.cli_args(root, source, options, root / "staged")
+        digest = source[1]["claims"]["ciphertext_sha256"]
+        self.assert_cli_refuses_confirmation(args + ["--docker-volume", "new-volume"],
+                                             [digest, "other-volume"], "RESTORE_DOCKER_CONFIRMATION_MISMATCH")
+        self.assertFalse((root / "staged").exists())
+
+    def assert_cli_refuses_confirmation(self, args, replies, reason):
         error = io.StringIO()
         with (patch("hostorbit.runtime.resource_restore_cli.harden"),
               patch("hostorbit.runtime.resource_restore_cli.offline_profile"),
               patch("hostorbit.runtime.resource_restore_cli.console"),
-              patch("builtins.input", return_value="0" * 64),
+              patch("builtins.input", side_effect=replies),
               patch("hostorbit.runtime.resource_restore_cli.getpass.getpass") as read_identity,
               redirect_stderr(error), redirect_stdout(io.StringIO())):
             self.assertEqual(main(args), 2)
         read_identity.assert_not_called()
-        self.assertEqual(error.getvalue().splitlines()[-1], "RESTORE_STAGE_CONFIRMATION_MISMATCH")
-        self.assertFalse((root / "staged").exists())
+        self.assertEqual(error.getvalue().splitlines()[-1], reason)
 
     @unittest.skipUnless(os.environ.get("HOSTORBIT_LAB_RESTORE_IMAGE"), "requires disposable Docker CI")
     def test_restored_data_is_usable_in_a_new_docker_volume(self):
@@ -233,23 +248,38 @@ class RestoreAttestationTests(unittest.TestCase):
             source.execute("INSERT INTO settings VALUES ('recovered')")
             source.commit()
             payload = source.serialize()
-        root, _, args, options = self.signed_source(payload)
-        destination = root / "staged"
-        stage_restore_source(*args, destination=destination, **options)
-
+        root, _, source, options = self.signed_source(payload)
         name = f"hostorbit-ac-b05-{uuid4().hex}"
-        docker("volume", "create", name)
+        docker_socket = Path("/run/docker.sock")
+        original_mode = stat.S_IMODE(docker_socket.stat().st_mode)
+        docker_socket.chmod(0o600)
+        self.addCleanup(docker_socket.chmod, original_mode)
+
+        def restore(destination):
+            args = self.cli_args(root, source, options, destination) + ["--docker-volume", name]
+            output, error = io.StringIO(), io.StringIO()
+            digest = source[1]["claims"]["ciphertext_sha256"]
+            with (patch("hostorbit.runtime.resource_restore_cli.harden"),
+                  patch("hostorbit.runtime.resource_restore_cli.offline_profile"),
+                  patch("hostorbit.runtime.resource_restore_cli.console"),
+                  patch("hostorbit.runtime.resource_restore_cli.time.time", return_value=NOW),
+                  patch("builtins.input", side_effect=[digest, name]),
+                  patch("hostorbit.runtime.resource_restore_cli.getpass.getpass", return_value=source[3].decode()),
+                  redirect_stdout(output), redirect_stderr(error)):
+                code = main(args)
+            return code, output.getvalue(), error.getvalue()
+
+        code, output, error = restore(root / "staged")
+        self.assertEqual(code, 0, error)
         self.addCleanup(docker, "volume", "rm", name)
-        volume, = json.loads(docker("volume", "inspect", name))
-        docker_root = Path(docker("info", "--format", "{{.DockerRootDir}}").decode().strip())
-        target = {"expected_created_at": volume["CreatedAt"], "docker_root": docker_root,
-                  "required_bytes": len(payload), "required_inodes": 3}
-        self.assertEqual(check_restore_target(name, **target)["status"], "EMPTY_TARGET_CHECKED")
+        result = json.loads(output)
+        self.assertEqual((result["status"], result["volume"], result["application_verification"]),
+                         ("RESTORE_WRITTEN", name, "REQUIRED"))
+        code, _, error = restore(root / "second-stage")
+        self.assertEqual(code, 2)
+        self.assertEqual(error.splitlines()[-1], "RESTORE_DOCKER_TARGET_EXISTS")
 
         mount = f"type=volume,src={name},dst=/volume,volume-nocopy"
-        docker("run", "--rm", "--network", "none", "--mount", mount,
-               "--mount", f"type=bind,src={destination / 'data'},dst=/restore,readonly",
-               image, "cp", "-a", "/restore/.", "/volume/")
         check_application = (
             "import os, sqlite3; "
             "path = '/volume/state/database'; "
@@ -260,5 +290,7 @@ class RestoreAttestationTests(unittest.TestCase):
         )
         docker("run", "--rm", "--network", "none", "--mount", mount + ",readonly",
                image, "python", "-c", check_application)
+        volume, = json.loads(docker("volume", "inspect", name))
         with self.assertRaisesRegex(Denied, "RESTORE_TARGET_OCCUPIED"):
-            check_restore_target(name, **target)
+            check_restore_target(name, expected_created_at=volume["CreatedAt"],
+                                 required_bytes=len(payload), required_inodes=3)
