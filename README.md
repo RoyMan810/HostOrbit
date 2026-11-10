@@ -28,7 +28,7 @@ Self-hosted система управления Linux-серверами по Т
 | Изменения Firewall/SSH | FR-012.1 | Заблокировано | Оставить `UNSUPPORTED`, пока не доказан независимый Safe Apply и откат; диагностику отделить от изменений. Это не разрешение включать такие изменения в MVP. |
 | Задания, Timeline и восстановление после сбоев | FR-013.1 | Частично | Принять durable queue, checkpoints, отмену, child jobs, сериализацию и reconciliation `UNKNOWN_OUTCOME` без автоматического повтора эффекта. |
 | Change Plan, diff и approval | FR-014.1 | Частично | Довести версионированные drafts, semantic diff, optimistic concurrency, approval и apply-time baseline CAS до полного безопасного применения. |
-| Controller и Resource Backup | FR-015.1 | Частично | Принять согласованный backup и SFTP; реализовать/принять заявленные scope ресурсных архивов, retention, защиту последней проверенной копии и ручной test restore. |
+| Controller и Resource Backup | FR-015.1 | Частично | Реализованы [офлайн-проверка архива Docker volume и проверка подписанной аттестации процедуры](docs/stage1-rescue.md#проверка-архива-ресурса-stage2). Остаются создание ресурсных архивов, проверка новой пустой цели, ручной test restore, retention и приёмка SFTP. |
 | Audit Center | FR-016.1 | Частично | Довести события, связанные планы/Timeline, проверку целостности и безопасный экспорт до полной приёмки. |
 | Secrets Center и Vault | FR-017.1 | Частично | Завершить управление Secret References, scope, ротацию/отзыв и защиту связанных секретов без раскрытия значений. |
 | Dashboard и диагностика ресурсов | FR-018.1 | Частично | Довести карточки, порты, диагностику и честные `MANAGED / READ_ONLY / UNSUPPORTED` с причинами и допустимыми действиями. |
