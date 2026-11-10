@@ -170,9 +170,11 @@ def check_draft_probe(draft_db, source_db, auth, token, draft_id, *, if_match, p
         raise Denied("NEW_PROBE_REQUIRED", 409)
     if any(current[key] != baseline[key] for key in ("target", "boot_id", "scope_digest", "resource_revision", "policy_revision")):
         raise Denied("STALE_BASELINE", 409)
+    # §33.3 exempts the read-only probe. Docker restart has no assigned gate class.
     return {"draft_id": row["id"], "revision": row["revision"], "plan_hash": row["plan_hash"],
             "observation_id": probe_id, "checked_at": checked_at, "baseline_check": "MATCHED",
-            "backup_gate": draft["backup_gate"], "execution": draft["execution"]}
+            "backup_gate": "BACKUP_GATE_DENIED", "backup_gate_reason": "RESTART_BACKUP_POLICY_UNCLASSIFIED",
+            "execution": draft["execution"]}
 
 
 def save_draft(db, auth, token, csrf, resource_id, container_id, *, draft_id=None, if_match=None):

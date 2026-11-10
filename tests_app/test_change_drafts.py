@@ -237,7 +237,8 @@ class ChangeDraftTests(Fixture):
         self.assertEqual(result["observation_id"], fresh)
         self.assertEqual(result["plan_hash"], draft["plan_hash"])
         self.assertEqual(result["execution"], "BLOCKED")
-        self.assertEqual(result["backup_gate"], "NOT_EVALUATED")
+        self.assertEqual(result["backup_gate"], "BACKUP_GATE_DENIED")
+        self.assertEqual(result["backup_gate_reason"], "RESTART_BACKUP_POLICY_UNCLASSIFIED")
         self.now += 1
         self.probe("FAILED")
         with self.assertRaisesRegex(Denied, "FRESH_OBSERVATION_REQUIRED"):
@@ -268,7 +269,10 @@ class ChangeDraftTests(Fixture):
         self.assertEqual((job["action"], job["status"], job["resource_id"]), ("host.probe", "QUEUED", SCOPE))
         self.assertEqual(self.request_probe(draft, tag)["id"], job["id"])
         self.complete_probe(job["id"])
-        self.assertEqual(self.check_probe(draft, tag, job["id"])["execution"], "BLOCKED")
+        preflight = self.check_probe(draft, tag, job["id"])
+        self.assertEqual(preflight["baseline_check"], "MATCHED")
+        self.assertEqual(preflight["backup_gate"], "BACKUP_GATE_DENIED")
+        self.assertEqual(preflight["execution"], "BLOCKED")
         revised, revised_tag = self.save(draft_id=draft["id"], if_match=tag)
         self.now += 1
         self.assertNotEqual(self.request_probe(revised, revised_tag)["id"], job["id"])
