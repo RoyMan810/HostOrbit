@@ -3,13 +3,13 @@ from contextlib import closing, contextmanager
 import json
 import sqlite3
 
-from hostorbit.auth import COOKIE
+from hostorbit.auth import COOKIE, etag
 from hostorbit.change_drafts import check_draft_baseline, check_draft_probe, get_draft, request_draft_probe, save_draft
 from hostorbit.database import Store, identifier
 from hostorbit.errors import Denied
 from hostorbit.migrations import rehearse
 from hostorbit.queue import JobQueue
-from hostorbit.runtime.protocol import checksum
+from hostorbit.runtime.protocol import canonical, checksum
 from test_auth_api import Fixture, OTHER, SCOPE
 
 
@@ -251,6 +251,40 @@ class ChangeDraftTests(Fixture):
         unrelated = self.probe()
         with self.assertRaisesRegex(Denied, "PREFLIGHT_PROBE_NOT_BOUND"):
             self.check_probe(draft, tag, unrelated)
+
+    def test_generic_queue_cannot_forge_a_draft_probe_key_from_public_fields(self):
+        draft, tag = self.save()
+        self.assertNotIn("probe_nonce", draft["baseline"])
+        self.now += 1
+        key = "preflight-request-one"
+        forged = checksum({"purpose": "docker.restart.preflight", "plan_hash": draft["plan_hash"], "key": key})
+        unrelated = self.queue.enqueue_probe(self.auth, self.token, self.csrf, SCOPE, forged)["id"]
+        self.complete_probe(unrelated)
+        with self.assertRaisesRegex(Denied, "PREFLIGHT_PROBE_NOT_BOUND"):
+            self.check_probe(draft, tag, unrelated, key=key)
+        self.assertNotEqual(self.request_probe(draft, tag, key=key)["id"], unrelated)
+
+    def test_legacy_draft_requires_refresh_for_new_probe_binding(self):
+        draft, _ = self.save()
+        with self.transaction() as db:
+            baseline = json.loads(db.execute("SELECT baseline FROM change_plan_drafts").fetchone()[0])
+            del baseline["probe_nonce"]
+            value = {key: item for key, item in draft.items() if key != "plan_hash"}
+            digest = checksum({**value, "baseline": baseline})
+            db.execute("UPDATE change_plan_drafts SET baseline=?, plan_hash=?",
+                       (canonical(baseline).decode(), digest))
+        legacy = {**value, "plan_hash": digest}
+        tag = etag(legacy, legacy["revision"])
+        with self.transaction(write=False) as db:
+            self.assertEqual(get_draft(db, self.auth, self.token, legacy["id"]), (legacy, tag))
+            self.assertEqual(check_draft_baseline(db, self.auth, self.token, legacy["id"], if_match=tag)
+                             ["baseline_check"], "MATCHED")
+        self.now += 1
+        with self.assertRaisesRegex(Denied, "PREFLIGHT_DRAFT_REFRESH_REQUIRED"):
+            self.request_probe(legacy, tag)
+        updated, updated_tag = self.save(draft_id=legacy["id"], if_match=tag)
+        self.now += 1
+        self.assertEqual(self.request_probe(updated, updated_tag)["status"], "QUEUED")
 
     def test_probe_check_rejects_reboot_or_diverged_source_audit(self):
         draft, tag = self.save()

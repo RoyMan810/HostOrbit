@@ -1,7 +1,9 @@
 """Versioned Docker restart drafts for a rehearsed schema 3 transaction."""
 
+import hmac
 import json
 import re
+import secrets
 
 from .auth import AuthService, check_etag, etag
 from .database import Store, identifier
@@ -42,7 +44,7 @@ def _value(draft_id, revision, baseline):
 
 
 def _public(value, plan_hash):
-    baseline = {key: item for key, item in value["baseline"].items() if key != "scope_digest"}
+    baseline = {key: item for key, item in value["baseline"].items() if key not in ("scope_digest", "probe_nonce")}
     public = {**value, "baseline": baseline, "plan_hash": plan_hash}
     return public, etag(public, public["revision"])
 
@@ -109,7 +111,7 @@ def check_draft_baseline(db, auth, token, draft_id, *, if_match):
     checked_at = int(auth.clock())
     baseline = draft["baseline"]
     current = _baseline(db, row["resource_id"], baseline["target"]["id"], checked_at)
-    if current != baseline:
+    if current != {key: value for key, value in baseline.items() if key != "probe_nonce"}:
         raise Denied("STALE_BASELINE", 409)
     return {"draft_id": row["id"], "revision": row["revision"], "plan_hash": row["plan_hash"],
             "observation_id": baseline["observation_id"], "checked_at": checked_at,
@@ -134,18 +136,22 @@ def _probe_source(draft_db, source_db, auth, token, resource_id, original_probe_
     return original, actor["id"]
 
 
-def _probe_key(plan_hash, request_key):
+def _probe_key(plan_hash, baseline, request_key):
     if not isinstance(request_key, str) or re.fullmatch(r"[A-Za-z0-9_-]{16,128}", request_key) is None:
         raise Denied("IDEMPOTENCY_KEY_REQUIRED", 400)
-    return checksum({"purpose": "docker.restart.preflight", "plan_hash": plan_hash, "key": request_key})
+    nonce = baseline.get("probe_nonce")
+    if not isinstance(nonce, str) or re.fullmatch(SHA256, nonce) is None:
+        raise Denied("PREFLIGHT_DRAFT_REFRESH_REQUIRED", 409)
+    context = canonical({"purpose": "docker.restart.preflight", "plan_hash": plan_hash, "key": request_key})
+    return hmac.digest(bytes.fromhex(nonce), context, "sha256").hex()
 
 
 def request_draft_probe(draft_db, queue, auth, token, csrf, draft_id, *, if_match, request_key):
     """Queue one read-only observation for this rehearsal revision and retry key."""
     row, draft = _checked_draft(draft_db, auth, token, draft_id, if_match)
-    scoped_key = _probe_key(row["plan_hash"], request_key)
     resource_id = row["resource_id"]
     baseline = draft["baseline"]
+    scoped_key = _probe_key(row["plan_hash"], baseline, request_key)
     with queue.store.connect(readonly=True) as source_db:
         source_db.execute("BEGIN")
         _probe_source(draft_db, source_db, auth, token, resource_id, baseline["observation_id"])
@@ -165,7 +171,7 @@ def check_draft_probe(draft_db, source_db, auth, token, draft_id, *, if_match, p
     baseline = draft["baseline"]
     original, actor_id = _probe_source(draft_db, source_db, auth, token, resource_id, baseline["observation_id"])
     checked_at = int(auth.clock())
-    scoped_key = _probe_key(row["plan_hash"], request_key)
+    scoped_key = _probe_key(row["plan_hash"], baseline, request_key)
     binding = source_db.execute("""SELECT job_id FROM request_keys
                                    WHERE actor_id=? AND namespace='host.probe' AND request_key=? AND expires_at>?""",
                                 (actor_id, scoped_key, checked_at)).fetchone()
@@ -210,6 +216,7 @@ def save_draft(db, auth, token, csrf, resource_id, container_id, *, draft_id=Non
         draft_id = identifier()
     now = int(auth.clock())
     baseline = _baseline(db, resource_id, container_id, now)
+    baseline["probe_nonce"] = secrets.token_hex(32)
     value = _value(draft_id, revision, baseline)
     plan_hash = checksum(value)
     db.execute("""INSERT INTO change_plan_drafts
