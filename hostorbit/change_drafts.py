@@ -126,18 +126,24 @@ def _probe_source(draft_db, source_db, auth, token, resource_id, original_probe_
     if (not source_db.in_transaction or source_db.execute("PRAGMA query_only").fetchone()[0] != 1
             or source_db.execute("PRAGMA user_version").fetchone()[0] != 2):
         raise Denied("PROBE_SOURCE_UNSUPPORTED", 503)
-    _require(source_db, auth._session(source_db, token), resource_id, restart=True)
+    actor = auth._session(source_db, token)
+    _require(source_db, actor, resource_id, restart=True)
     original = _probe_audit(draft_db, resource_id, original_probe_id)
     if original is None or original != _probe_audit(source_db, resource_id, original_probe_id):
         raise Denied("PROBE_SOURCE_MISMATCH", 409)
-    return original
+    return original, actor["id"]
+
+
+def _probe_key(plan_hash, request_key):
+    if not isinstance(request_key, str) or re.fullmatch(r"[A-Za-z0-9_-]{16,128}", request_key) is None:
+        raise Denied("IDEMPOTENCY_KEY_REQUIRED", 400)
+    return checksum({"purpose": "docker.restart.preflight", "plan_hash": plan_hash, "key": request_key})
 
 
 def request_draft_probe(draft_db, queue, auth, token, csrf, draft_id, *, if_match, request_key):
     """Queue one read-only observation for this rehearsal revision and retry key."""
     row, draft = _checked_draft(draft_db, auth, token, draft_id, if_match)
-    if not isinstance(request_key, str) or re.fullmatch(r"[A-Za-z0-9_-]{16,128}", request_key) is None:
-        raise Denied("IDEMPOTENCY_KEY_REQUIRED", 400)
+    scoped_key = _probe_key(row["plan_hash"], request_key)
     resource_id = row["resource_id"]
     baseline = draft["baseline"]
     with queue.store.connect(readonly=True) as source_db:
@@ -149,17 +155,22 @@ def request_draft_probe(draft_db, queue, auth, token, csrf, draft_id, *, if_matc
             raise Denied("STALE_BASELINE", 409)
     if int(queue.clock()) <= row["created_at"]:
         raise Denied("NEW_PROBE_REQUIRED", 409)
-    scoped_key = checksum({"purpose": "docker.restart.preflight", "plan_hash": row["plan_hash"], "key": request_key})
     return queue.enqueue_probe(auth, token, csrf, resource_id, scoped_key)
 
 
-def check_draft_probe(draft_db, source_db, auth, token, draft_id, *, if_match, probe_id):
-    """Validate a new queued observation on the Controller that supplied the rehearsal copy."""
+def check_draft_probe(draft_db, source_db, auth, token, draft_id, *, if_match, probe_id, request_key):
+    """Validate the queued observation bound to this draft revision and request."""
     row, draft = _checked_draft(draft_db, auth, token, draft_id, if_match)
     resource_id = row["resource_id"]
     baseline = draft["baseline"]
-    original = _probe_source(draft_db, source_db, auth, token, resource_id, baseline["observation_id"])
+    original, actor_id = _probe_source(draft_db, source_db, auth, token, resource_id, baseline["observation_id"])
     checked_at = int(auth.clock())
+    scoped_key = _probe_key(row["plan_hash"], request_key)
+    binding = source_db.execute("""SELECT job_id FROM request_keys
+                                   WHERE actor_id=? AND namespace='host.probe' AND request_key=? AND expires_at>?""",
+                                (actor_id, scoped_key, checked_at)).fetchone()
+    if binding is None or binding["job_id"] != probe_id:
+        raise Denied("PREFLIGHT_PROBE_NOT_BOUND", 409)
     current = _baseline(source_db, resource_id, baseline["target"]["id"], checked_at)
     if probe_id != current["observation_id"] or probe_id == baseline["observation_id"]:
         raise Denied("NEW_PROBE_REQUIRED", 409)

@@ -221,18 +221,19 @@ class ChangeDraftTests(Fixture):
             with self.assertRaisesRegex(Denied, "CHANGE_PLAN_INTEGRITY"):
                 check_draft_baseline(db, self.auth, self.token, draft["id"], if_match=tag)
 
-    def check_probe(self, draft, tag, probe_id):
+    def check_probe(self, draft, tag, probe_id, *, key="preflight-request-one"):
         with self.transaction(write=False) as draft_db, self.store.connect(readonly=True) as source_db:
             source_db.execute("BEGIN")
             return check_draft_probe(draft_db, source_db, self.auth, self.token, draft["id"],
-                                     if_match=tag, probe_id=probe_id)
+                                     if_match=tag, probe_id=probe_id, request_key=key)
 
     def test_probe_check_requires_fresh_job_from_the_source_controller(self):
         draft, tag = self.save()
-        with self.assertRaisesRegex(Denied, "NEW_PROBE_REQUIRED"):
+        with self.assertRaisesRegex(Denied, "PREFLIGHT_PROBE_NOT_BOUND"):
             self.check_probe(draft, tag, self.probe_id)
         self.now += 1
-        fresh = self.probe()
+        fresh = self.request_probe(draft, tag)["id"]
+        self.complete_probe(fresh)
         result = self.check_probe(draft, tag, fresh)
         self.assertEqual(result["observation_id"], fresh)
         self.assertEqual(result["plan_hash"], draft["plan_hash"])
@@ -244,10 +245,18 @@ class ChangeDraftTests(Fixture):
         with self.assertRaisesRegex(Denied, "FRESH_OBSERVATION_REQUIRED"):
             self.check_probe(draft, tag, fresh)
 
+    def test_probe_check_rejects_a_fresh_generic_probe_of_the_same_vps(self):
+        draft, tag = self.save()
+        self.now += 1
+        unrelated = self.probe()
+        with self.assertRaisesRegex(Denied, "PREFLIGHT_PROBE_NOT_BOUND"):
+            self.check_probe(draft, tag, unrelated)
+
     def test_probe_check_rejects_reboot_or_diverged_source_audit(self):
         draft, tag = self.save()
         self.now += 1
-        fresh = self.probe(boot_id="22222222-2222-2222-2222-222222222222")
+        fresh = self.request_probe(draft, tag)["id"]
+        self.complete_probe(fresh, boot_id="22222222-2222-2222-2222-222222222222")
         with self.assertRaisesRegex(Denied, "STALE_BASELINE"):
             self.check_probe(draft, tag, fresh)
         with self.transaction() as db:
@@ -256,6 +265,24 @@ class ChangeDraftTests(Fixture):
                        ("0" * 64, self.probe_id))
         with self.assertRaisesRegex(Denied, "PROBE_SOURCE_MISMATCH"):
             self.check_probe(draft, tag, fresh)
+
+    def test_probe_check_rejects_other_revision_wrong_key_and_expired_binding(self):
+        draft, tag = self.save()
+        self.now += 1
+        job = self.request_probe(draft, tag)["id"]
+        self.complete_probe(job)
+        with self.assertRaisesRegex(Denied, "PREFLIGHT_PROBE_NOT_BOUND"):
+            self.check_probe(draft, tag, job, key="preflight-request-two")
+        revised, revised_tag = self.save(draft_id=draft["id"], if_match=tag)
+        with self.assertRaisesRegex(Denied, "PREFLIGHT_PROBE_NOT_BOUND"):
+            self.check_probe(revised, revised_tag, job)
+        self.now += 1
+        current_job = self.request_probe(revised, revised_tag)["id"]
+        self.complete_probe(current_job)
+        with self.store.write() as db:
+            db.execute("UPDATE request_keys SET expires_at=? WHERE job_id=?", (self.now, current_job))
+        with self.assertRaisesRegex(Denied, "PREFLIGHT_PROBE_NOT_BOUND"):
+            self.check_probe(revised, revised_tag, current_job)
 
     def request_probe(self, draft, tag, *, key="preflight-request-one", csrf=None):
         with self.transaction(write=False) as db:
