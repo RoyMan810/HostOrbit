@@ -244,9 +244,12 @@ class RestoreAttestationTests(unittest.TestCase):
         docker_root = Path(docker("info", "--format", "{{.DockerRootDir}}").decode().strip())
         target = {"expected_created_at": volume["CreatedAt"], "docker_root": docker_root,
                   "required_bytes": len(payload), "required_inodes": 3}
-        self.assertEqual(check_restore_target(name, **target)["status"], "EMPTY_TARGET_CHECKED")
+        preflight = check_restore_target(name, **target)
+        self.assertEqual(preflight["status"], "EMPTY_TARGET_CHECKED")
+        target["expected_fingerprint"] = preflight["target_fingerprint"]
 
         mount = f"type=volume,src={name},dst=/volume,volume-nocopy"
+        self.assertEqual(check_restore_target(name, **target), preflight)
         docker("run", "--rm", "--network", "none", "--mount", mount,
                "--mount", f"type=bind,src={destination / 'data'},dst=/restore,readonly",
                image, "cp", "-a", "/restore/.", "/volume/")

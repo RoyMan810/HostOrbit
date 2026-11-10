@@ -11,7 +11,7 @@ import struct
 from urllib.parse import urlencode
 
 from ..errors import Denied
-from .protocol import canonical, integer, text, unique_object
+from .protocol import SHA256, canonical, checksum, integer, text, unique_object
 from .resource_archive import _NAME
 
 
@@ -95,13 +95,19 @@ def _inspect_directory(root, name, owner, required_bytes, required_inodes):
             if (space.f_flag & os.ST_RDONLY or space.f_frsize <= 0
                     or space.f_bavail * space.f_frsize < required_bytes or space.f_favail < required_inodes):
                 raise Denied("RESTORE_TARGET_CAPACITY", 409)
+            if os.fstat(fd).st_ctime_ns != entry.st_ctime_ns:
+                raise Denied("RESTORE_TARGET_CHANGED", 409)
+            return mount, entry.st_dev, entry.st_ino, entry.st_ctime_ns
     except (OSError, ValueError):
         raise Denied("RESTORE_TARGET_UNTRUSTED") from None
 
 
 def check_restore_target(name, *, expected_created_at, required_bytes, required_inodes,
-                         docker_root=Path("/var/lib/docker"), socket_path=Path("/run/docker.sock"), owner=0):
-    """Check a caller-pinned volume and capacity budget without reserving either."""
+                         docker_root=Path("/var/lib/docker"), socket_path=Path("/run/docker.sock"), owner=0,
+                         expected_fingerprint=None):
+    """Inspect a volume or recheck its fingerprint without reserving the target."""
+    if expected_fingerprint is not None:
+        text(expected_fingerprint, SHA256, "RESTORE_TARGET_FINGERPRINT_INVALID")
     text(name, _NAME, "RESTORE_TARGET_UNTRUSTED")
     text(expected_created_at, _CREATED_AT, "RESTORE_TARGET_UNTRUSTED")
     integer(required_bytes, 0, 2**63 - 1)
@@ -113,11 +119,22 @@ def check_restore_target(name, *, expected_created_at, required_bytes, required_
                 "Mountpoint": str(docker_root / "volumes" / name / "_data")}
     if not _matches(_get(socket_path, owner, "/volumes/" + name), expected):
         raise Denied("RESTORE_TARGET_UNTRUSTED")
-    _inspect_directory(docker_root, name, owner, required_bytes, required_inodes)
+    directory = _inspect_directory(docker_root, name, owner, required_bytes, required_inodes)
     query = urlencode({"filters": canonical({"dangling": ["true"], "name": [name]}).decode()})
     listing = _get(socket_path, owner, "/volumes?" + query).get("Volumes")
     matching = [volume for volume in listing if _matches(volume, expected)] if isinstance(listing, list) else []
     if len(matching) != 1:
         raise Denied("RESTORE_TARGET_REFERENCED", 409)
+    if _inspect_directory(docker_root, name, owner, required_bytes, required_inodes) != directory:
+        raise Denied("RESTORE_TARGET_CHANGED", 409)
+    try:
+        boot_id = Path("/proc/sys/kernel/random/boot_id").read_text().strip()
+    except OSError:
+        raise Denied("RESTORE_TARGET_UNTRUSTED") from None
+    fingerprint = checksum({"v": 1, "boot_id": boot_id, "socket": str(socket_path), "owner": owner,
+                            "volume": expected, "directory": directory,
+                            "required_bytes": required_bytes, "required_inodes": required_inodes})
+    if expected_fingerprint is not None and expected_fingerprint != fingerprint:
+        raise Denied("RESTORE_TARGET_CHANGED", 409)
     return {"status": "EMPTY_TARGET_CHECKED", "target": name, "created_at": expected_created_at,
-            "restore_eligibility": "NOT_EVALUATED"}
+            "target_fingerprint": fingerprint, "restore_eligibility": "NOT_EVALUATED"}

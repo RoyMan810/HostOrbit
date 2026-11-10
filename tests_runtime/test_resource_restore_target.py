@@ -70,11 +70,12 @@ class RestoreTargetTests(unittest.TestCase):
         self.assertEqual(result["status"], "EMPTY_TARGET_CHECKED")
         self.assertEqual(len(self.requests), 2)
 
-    def check(self, *, required_bytes=1, required_inodes=1):
-        with patch("hostorbit.runtime.resource_restore_target._get", side_effect=self.reply):
+    def check(self, *, required_bytes=1, required_inodes=1, expected_fingerprint=None, reply=None):
+        with patch("hostorbit.runtime.resource_restore_target._get", side_effect=reply or self.reply):
             return check_restore_target(self.name, expected_created_at=self.created, required_bytes=required_bytes,
                                         required_inodes=required_inodes, docker_root=self.docker_root,
-                                        socket_path=self.socket, owner=os.geteuid())
+                                        socket_path=self.socket, owner=os.geteuid(),
+                                        expected_fingerprint=expected_fingerprint)
 
     def test_checks_empty_unreferenced_volume_without_writing(self):
         result = self.check()
@@ -84,6 +85,30 @@ class RestoreTargetTests(unittest.TestCase):
         self.assertEqual(list(self.data.iterdir()), [])
         query = parse_qs(urlsplit(self.requests[-1]).query)
         self.assertEqual(json.loads(query["filters"][0]), {"dangling": ["true"], "name": [self.name]})
+
+    def test_rechecks_the_same_empty_directory_and_capacity_budget(self):
+        initial = self.check()["target_fingerprint"]
+        self.assertRegex(initial, r"^[0-9a-f]{64}$")
+        self.assertEqual(self.check(expected_fingerprint=initial)["target_fingerprint"], initial)
+        with self.assertRaisesRegex(Denied, "RESTORE_TARGET_CHANGED"):
+            self.check(expected_fingerprint=initial, required_bytes=2)
+
+    def test_rejects_recreated_directory_with_identical_docker_metadata(self):
+        initial = self.check()["target_fingerprint"]
+        self.data.rename(self.data.with_name("_old"))
+        self.data.mkdir()
+        with self.assertRaisesRegex(Denied, "RESTORE_TARGET_CHANGED"):
+            self.check(expected_fingerprint=initial)
+
+    def test_detects_replacement_between_directory_and_docker_reference_checks(self):
+        def replace_after_first_check(socket_path, owner, endpoint):
+            if urlsplit(endpoint).path == "/volumes":
+                self.data.rename(self.data.with_name("_old"))
+                self.data.mkdir()
+            return self.reply(socket_path, owner, endpoint)
+
+        with self.assertRaisesRegex(Denied, "RESTORE_TARGET_CHANGED"):
+            self.check(reply=replace_after_first_check)
 
     def test_refuses_occupied_and_referenced_targets(self):
         marker = self.data / ".owner-data"
