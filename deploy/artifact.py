@@ -126,7 +126,7 @@ def manifest(bundle, key, *, allow_development=False):
                 "platform", "python", "sqlite_schema", "remote_mutation_enabled", "signing_key_sha256"}
     if (not isinstance(value, dict) or value.keys() != expected or type(value["v"]) is not int or value["v"] != 1
             or value["application"] != "HostOrbit" or value["platform"] != "ubuntu-24.04-amd64"
-            or value["python"] != "3.13" or type(value["sqlite_schema"]) is not int or value["sqlite_schema"] != 2
+            or value["python"] not in ("3.13", "3.15") or type(value["sqlite_schema"]) is not int or value["sqlite_schema"] != 2
             or value["remote_mutation_enabled"] is not False or value["channel"] != "development"
             or not allow_development or not isinstance(value["version"], str)
             or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+\.dev[0-9]+", value["version"])

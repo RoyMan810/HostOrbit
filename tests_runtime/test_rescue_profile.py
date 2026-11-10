@@ -20,6 +20,11 @@ class RescueProfileTests(unittest.TestCase):
 
     def test_exact_supported_profile(self):
         self.assertEqual(self.profile()["profile"], "ubuntu-24.04-amd64-offline-v1")
+        self.assertEqual(self.profile(**{"/etc/os-release": 'ID=ubuntu\nVERSION_ID="26.04"\n'})["profile"],
+                         "ubuntu-26.04-amd64-offline-v1")
+        for version in ("22.04", "24.03", "24.04-extra"):
+            with self.subTest(version=version), self.assertRaisesRegex(Denied, "RESCUE_PLATFORM_UNSUPPORTED"):
+                self.profile(**{"/etc/os-release": f'ID=ubuntu\nVERSION_ID="{version}"\n'})
 
     def test_swap_hibernation_network_memory_and_platform_refuse(self):
         for path, value, code in (("/proc/swaps", "header\n/dev/zram0 partition 1 0 -2\n", "RESCUE_SWAP_ENABLED"),

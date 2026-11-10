@@ -4,10 +4,10 @@
 
 ## Установка для разработки
 
-Нужны Python 3.13 и локальный POSIX-том с SQLite 3.45 или новее. Зависимости закреплены в `requirements-app.txt`; `requirements-dev.txt` добавляет средства испытаний.
+Для текущей разработки и CI используется Python 3.15 и локальный POSIX-том с SQLite 3.45 или новее. Пакет сохраняет минимум Python 3.13. Зависимости закреплены в `requirements-app.txt`; `requirements-dev.txt` добавляет средства испытаний.
 
 ```bash
-python3.13 -m venv .venv
+python3.15 -m venv .venv
 .venv/bin/python -m pip install -r requirements-dev.txt
 .venv/bin/python -m hostorbit --database "$PWD/.hostorbit-state/controller.sqlite3" init
 .venv/bin/python -m hostorbit --database "$PWD/.hostorbit-state/controller.sqlite3" bootstrap-token
@@ -52,6 +52,6 @@ Owner управляет прикладными правами. Admin испол
 .venv/bin/python -m unittest discover -s tests_app -v
 ```
 
-Тесты включают гонку bootstrap, реальный SIGKILL до commit, ошибку записи Outbox, конкурентные ETag updates, обход RBAC, отзыв сессий, CSRF, лимиты и подмену proxy headers. В CI выделен отдельный Python 3.13 job.
+Тесты включают гонку bootstrap, реальный SIGKILL до commit, ошибку записи Outbox, конкурентные ETag updates, обход RBAC, отзыв сессий, CSRF, лимиты и подмену proxy headers. В CI выделен отдельный Python 3.15 job.
 
 [Runtime contour](stage1-runtime.md) добавляет фиксированный read-only SSH probe через очередь, отдельные Worker/Broker и host authority. Browser получает только нормализованное наблюдение. [Development-установка](stage1-installation.md) разворачивает проверенный подписанный bundle; [репетиция миграции](stage1-migrations.md) работает с приватными копиями. Docker mutations, обновления и generic decrypt не входят в installed registry. Stage2 Change Plan/UI, live schema migration, полноценный production release и полные MVP AC остаются открытыми. Stage1 Foundation gate принят в ограниченном объёме §40; canonical registry и отдельные evidence определяют остальные переходы.

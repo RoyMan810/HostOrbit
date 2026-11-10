@@ -14,7 +14,7 @@ React-интерфейс Stage2 показывает зарегистриров�
 
 ## Сборка и запуск
 
-Соберите frontend на Node.js 24 из зафиксированного исходного кода.
+Соберите frontend на Node.js 26 из зафиксированного исходного кода.
 
 ```sh
 cd web
@@ -49,7 +49,7 @@ location / {
 
 ## Браузерные проверки
 
-Установите зависимости из `requirements-dev.txt` в Python 3.13, доступный как `python`. Для тестов нужны OpenSSL и Chrome или Chromium. Тесты поднимают локальный HTTPS Controller с одноразовой SQLite и тестовыми учётными записями.
+Установите зависимости из `requirements-dev.txt` в Python 3.15, доступный как `python`. Для тестов нужны OpenSSL и Chrome или Chromium. Тесты поднимают локальный HTTPS Controller с одноразовой SQLite и тестовыми учётными записями.
 
 ```sh
 npm run build

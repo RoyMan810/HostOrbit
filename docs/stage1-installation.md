@@ -4,13 +4,13 @@
 
 Постоянные родительские каталоги установки (`/opt`, `/etc`, `/var/lib`, `/run` и их ancestors) должны принадлежать root и не допускать group/other write. Preflight отказывает с `INSTALLATION_PARENT_UNTRUSTED` до создания состояния и не меняет права чужих системных каталогов. Disposable CI fixture отдельно проверяет отказ на `/opt` 0777, затем готовит защищённый профиль 0755 только в своей временной VM.
 
-Установщик разворачивает **development-сборку** на свежей Ubuntu Server 24.04 amd64. Он устанавливает API и Worker через Compose, host-native Broker и supervisor через systemd. Доступно только наблюдение `host.probe`; production mutation, автоматическое обновление и миграция существующей БД этим установщиком не разрешены.
+Установщик разворачивает **development-сборку** на Ubuntu Server 24.04 и новее, amd64. На данный момент native-профиль проверялся только на 24.04; будущие выпуски требуют отдельной проверки systemd, Docker и безопасности. Он устанавливает API и Worker через Compose, host-native Broker и supervisor через systemd. Доступно только наблюдение `host.probe`; production mutation, автоматическое обновление и миграция существующей БД этим установщиком не разрешены.
 
-Нужны rootful Docker Engine 29.x, Compose plugin v2, host Python 3.13 с SQLite ≥3.45, OpenSSL 3 и systemd. Интерпретатор Python должен находиться по постоянному доверенному пути: host supervisor использует его независимо от контейнеров. Минимум установщика Controller — 1 vCPU, VPS с 2 GiB RAM и 40 GiB диска: для учёта резервирования ядром проверяется `MemTotal` не менее 1792 MiB, а также не менее 2 GiB свободного места в `/var/lib`. Владелец изменил аппаратный профиль ТЗ на 1 vCPU / 2 GiB; capacity/soak на новой конфигурации ещё не пройден. Offline Rescue имеет отдельные [требования к памяти и изоляции](stage1-rescue.md). Установщик проверяет свободный высокий loopback-порт, существующие namespace, пользователей и units до создания данных. Установка Docker/Python и подписанные самостоятельные host-runtime artifacts относятся к следующей упаковке bootstrap/release.
+Нужны rootful Docker Engine 29.x, Compose plugin v2 или v5, host Python 3.15 для нового комплекта (Python 3.13 для старого), SQLite ≥3.45, OpenSSL 3 и systemd. Интерпретатор Python должен находиться по постоянному доверенному пути: host supervisor использует его независимо от контейнеров. Минимум установщика Controller — 1 vCPU, VPS с 2 GiB RAM и 40 GiB диска: для учёта резервирования ядром проверяется `MemTotal` не менее 1792 MiB, а также не менее 2 GiB свободного места в `/var/lib`. Владелец изменил аппаратный профиль ТЗ на 1 vCPU / 2 GiB; capacity/soak на новой конфигурации ещё не пройден. Offline Rescue имеет отдельные [требования к памяти и изоляции](stage1-rescue.md). Установщик проверяет свободный высокий loopback-порт, существующие namespace, пользователей и units до создания данных. Установка Docker/Python и подписанные самостоятельные host-runtime artifacts относятся к следующей упаковке bootstrap/release.
 
 ## Подписанный комплект
 
-На доверенной build-машине Python 3.13 создайте комплект из **зафиксированного коммита**. `--signing-key` указывает на внешнее хранилище 32-байтного Ed25519 seed издателя. Этот ключ отличается от offline Owner age identity и не копируется в комплект или на Controller. Первичный доверенный публичный ключ доставляется на Controller независимо от комплекта.
+На доверенной build-машине Python 3.15 создайте комплект из **зафиксированного коммита**. `--signing-key` указывает на внешнее хранилище 32-байтного Ed25519 seed издателя. Этот ключ отличается от offline Owner age identity и не копируется в комплект или на Controller. Первичный доверенный публичный ключ доставляется на Controller независимо от комплекта.
 
 ```bash
 python deploy/build_bundle.py --output /path/hostorbit-bundle \
@@ -30,7 +30,7 @@ Builder также требует официальный binary `age` v1.3.2 lin
 Сначала доступны полная проверка входных файлов и preflight. `--development` явно выбирает текущий канал разработки. Этот флаг не открывает mutating adapters и не заменяет приёмку MVP.
 
 ```bash
-sudo /trusted/python3.13 deploy/installer.py install \
+sudo /trusted/python3.15 deploy/installer.py install \
   --bundle /path/hostorbit-bundle --trust-key /etc/hostorbit-release.pub \
   --development --origin https://hostorbit.example --port 18080 --check
 ```

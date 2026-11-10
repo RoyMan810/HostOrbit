@@ -15,12 +15,12 @@ concurrency:
 
 env:
   HOSTORBIT_LAB_DOCKER_VERSION: "29.9.3"
-  HOSTORBIT_LAB_PYTHON_IMAGE: docker.io/library/python@sha256:f3dac913ab53b78c64f26d5518fcd7043d5a1a46522d6a493b598c3ed12f62a6
-  HOSTORBIT_INSTALL_PYTHON_IMAGE: docker.io/library/python@sha256:09a17cad02668ae61ece136b4fd36ac3849e14f670ebedb637ea3e15580525bc
+  HOSTORBIT_LAB_PYTHON_IMAGE: docker.io/library/python@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928
+  HOSTORBIT_INSTALL_PYTHON_IMAGE: docker.io/library/python@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928
 
 jobs:
   quality:
-    name: Repository quality / Python 3.13
+    name: Repository quality / Python 3.15
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -29,7 +29,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.13"
+          python-version: "3.15"
       - run: python -m pip install -r requirements-quality.txt
       - run: ruff check .
       - run: python tools/check_repository.py
@@ -49,7 +49,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.13"
+          python-version: "3.15"
       - name: Install fixed application dependencies and the selected host time daemon
         env:
           TIME_SOURCE: ${{ matrix.source }}
@@ -79,7 +79,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.13"
+          python-version: "3.15"
       - uses: docker/setup-docker-action@3f1ab1ab0e29231562e4db4ca600c1a49653bac6 # v5.7.0
         with:
           version: v${{ env.HOSTORBIT_LAB_DOCKER_VERSION }}
@@ -107,7 +107,7 @@ jobs:
           tar --no-same-owner -xzf "$age_dir/age.tar.gz" -C "$age_dir" -- age/age age/age-keygen
           python_image="$HOSTORBIT_INSTALL_PYTHON_IMAGE"
           docker pull "$python_image"
-          docker run --rm --network none "$python_image" python -c 'import sys,sqlite3; print(sys.version); print(sqlite3.sqlite_version); assert sys.version_info[:2]==(3,13) and sqlite3.sqlite_version_info>=(3,45)'
+          docker run --rm --network none "$python_image" python -c 'import sys,sqlite3; print(sys.version); print(sqlite3.sqlite_version); assert sys.version_info[:2]==(3,15) and sqlite3.sqlite_version_info>=(3,45)'
           python deploy/build_bundle.py --output "$RUNNER_TEMP/hostorbit-install-bundle" \
             --signing-key "$RUNNER_TEMP/hostorbit-lab-signer.seed" \
             --python-image "$python_image" --age-tool "$age_dir/age/age"
@@ -119,7 +119,7 @@ jobs:
             --docker-host "$DOCKER_HOST"
 
   foundation:
-    name: Stage 1 Auth, RBAC and Audit / Python 3.13
+    name: Stage 1 Auth, RBAC and Audit / Python 3.15
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     steps:
@@ -128,7 +128,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.13"
+          python-version: "3.15"
       - name: Install pinned application and test dependencies
         run: python -m pip install -r requirements-dev.txt
       - name: Verify authentication boundaries and atomic audit delivery
@@ -172,7 +172,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.13"
+          python-version: "3.15"
       - name: Install fixed application dependencies and SSH tools
         run: |
           python -m pip install -r requirements-dev.txt
@@ -185,7 +185,7 @@ jobs:
             "$(command -v python)" tests_runtime/lab/runtime_boundary.py --isolated-vm
 
   prototypes:
-    name: Stage 0 prototypes / Python 3.13
+    name: Stage 0 prototypes / Python 3.15
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     steps:
@@ -194,7 +194,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.13"
+          python-version: "3.15"
       - name: Install Python dependencies
         run: python -m pip install -r requirements-lab.txt
       - name: Install verified age release

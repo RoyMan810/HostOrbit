@@ -117,6 +117,15 @@ def docker(host, *args, timeout=60):
     return command(DOCKER, "--host", host, *args, timeout=timeout)
 
 
+def supported_ubuntu(release):
+    version = re.fullmatch(r"([0-9]{2,})\.(04|10)", release.get("VERSION_ID", ""))
+    return release.get("ID") == "ubuntu" and version is not None and tuple(map(int, version.groups())) >= (24, 4)
+
+
+def supported_compose(version):
+    return re.fullmatch(r"v?(?:2|5)\.[0-9]+\.[0-9]+", version) is not None
+
+
 def check_capacity(cpus, memory, disk):
     # A 2 GiB VPS exposes less MemTotal after kernel and hardware reservations.
     if (cpus or 0) < 1 or memory < 1792 * 1024**2 or disk.total < 40 * 1024**3 or disk.free < 2 * 1024**3:
@@ -127,9 +136,9 @@ def preflight(args):
     if os.geteuid() != 0:
         raise ArtifactError("LOCAL_ROOT_REQUIRED")
     release = platform.freedesktop_os_release()
-    if release.get("ID") != "ubuntu" or release.get("VERSION_ID") != "24.04" or platform.machine() != "x86_64":
+    if not supported_ubuntu(release) or platform.machine() != "x86_64":
         raise ArtifactError("PLATFORM_UNSUPPORTED")
-    if sys.version_info[:2] != (3, 13) or sqlite3.sqlite_version_info < (3, 45):
+    if sys.version_info[:2] not in ((3, 13), (3, 15)) or sqlite3.sqlite_version_info < (3, 45):
         raise ArtifactError("HOST_PYTHON_SQLITE_UNSUPPORTED")
     # A root-owned child can still be replaced when its permanent parent is
     # writable by another account. Refuse; never chmod/chown foreign host dirs.
@@ -172,8 +181,8 @@ def preflight(args):
     if not docker(args.docker_host, "version", "--format", "{{.Server.Version}}").startswith("29."):
         raise ArtifactError("DOCKER_VERSION_UNSUPPORTED")
     compose = docker(args.docker_host, "compose", "version", "--short")
-    if re.fullmatch(r"v?2\.[0-9]+\.[0-9]+", compose) is None:
-        raise ArtifactError("COMPOSE_V2_REQUIRED")
+    if not supported_compose(compose):
+        raise ArtifactError("COMPOSE_VERSION_UNSUPPORTED")
     info = json.loads(docker(args.docker_host, "info", "--format", "{{json .SecurityOptions}}"))
     if any("rootless" in option or "userns" in option for option in info):
         # Numeric host/container identities must be the ones authenticated by SO_PEERCRED.
@@ -275,6 +284,8 @@ def install(args):
     with tempfile.TemporaryDirectory(prefix="hostorbit-install-", dir="/var/tmp") as temporary:
         stage = Path(temporary) / "bundle"
         manifest, digest = snapshot(args.bundle, stage, key, allow_development=args.development)
+        if manifest["python"] != f"{sys.version_info.major}.{sys.version_info.minor}":
+            raise ArtifactError("HOST_BUNDLE_PYTHON_MISMATCH")
         if not (stage / AGE_FILE).is_file():
             raise ArtifactError("PINNED_AGE_TOOL_REQUIRED")
         recovery = None

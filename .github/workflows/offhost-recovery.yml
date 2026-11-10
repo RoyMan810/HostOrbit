@@ -37,7 +37,7 @@ permissions:
 
 env:
   HOSTORBIT_LAB_DOCKER_VERSION: "29.9.3"
-  HOSTORBIT_LAB_PYTHON_IMAGE: docker.io/library/python@sha256:f3dac913ab53b78c64f26d5518fcd7043d5a1a46522d6a493b598c3ed12f62a6
+  HOSTORBIT_LAB_PYTHON_IMAGE: docker.io/library/python@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928
 
 jobs:
   restore:
@@ -50,7 +50,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: "3.12"
+          python-version: "3.15"
       - uses: docker/setup-docker-action@3f1ab1ab0e29231562e4db4ca600c1a49653bac6 # v5.7.0
         with:
           version: v${{ env.HOSTORBIT_LAB_DOCKER_VERSION }}
@@ -71,12 +71,14 @@ jobs:
           python "$GITHUB_WORKSPACE/tools/fetch_age.py" --output age.tar.gz
           echo 'cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10  age.tar.gz' | sha256sum -c -
           tar --no-same-owner -xzf age.tar.gz -- age/age age/age-keygen
-          python -m pip install --only-binary=:all: --target "$lab/deps" -r "$GITHUB_WORKSPACE/requirements-lab.txt"
+          python -m pip install --only-binary=:all: -r "$GITHUB_WORKSPACE/requirements-lab.txt"
+          # Ubuntu 24.04 guests run Python 3.12, so their wheelhouse must match that interpreter.
+          python -m pip install --only-binary=:all: --python-version 3.12 --target "$lab/deps" -r "$GITHUB_WORKSPACE/requirements-lab.txt"
       - name: Fence the source guest while the Docker effect is pending
         run: |
           lab="$RUNNER_TEMP/hostorbit-offhost"
           test "$(docker version --format '{{.Server.Version}}')" = "$HOSTORBIT_LAB_DOCKER_VERSION"
-          sudo -n /usr/bin/env "PATH=$lab/age:$PATH" "PYTHONPATH=$PWD:$lab/deps" PYTHONDONTWRITEBYTECODE=1 \
+          sudo -n /usr/bin/env "PATH=$lab/age:$PATH" "PYTHONPATH=$PWD" PYTHONDONTWRITEBYTECODE=1 \
             "HOSTORBIT_LAB_PYTHON=$(command -v python)" \
             "HOSTORBIT_LAB_DOCKER_HOST=$DOCKER_HOST" "HOSTORBIT_LAB_PYTHON_IMAGE=$HOSTORBIT_LAB_PYTHON_IMAGE" \
             /usr/bin/bash tests/lab/ssh-profile.sh --isolated-vm --controller-loss "$lab"

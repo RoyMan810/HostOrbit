@@ -19,7 +19,7 @@ App/Vault DB переносятся SQLite Online Backup API с проверко
 Пример после завершённого [Rescue import](stage1-rescue.md), с independently delivered release trust anchor:
 
 ```sh
-sudo python3.13 deploy/installer.py install \
+sudo python3.15 deploy/installer.py install \
   --bundle /trusted/hostorbit-bundle \
   --trust-key /trusted/release.pub \
   --development --origin https://hostorbit.example \

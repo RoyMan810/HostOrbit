@@ -10,6 +10,7 @@ import hashlib
 import os
 from pathlib import Path
 import platform
+import re
 import resource
 import selectors
 import stat
@@ -45,7 +46,9 @@ def offline_profile():
     if os.geteuid() != 0 or platform.system() != "Linux" or platform.machine() != "x86_64":
         raise Denied("RESCUE_PLATFORM_UNSUPPORTED")
     release = dict(line.split("=", 1) for line in Path("/etc/os-release").read_text().splitlines() if "=" in line)
-    if release.get("ID", "").strip('"') != "ubuntu" or release.get("VERSION_ID", "").strip('"') != "24.04":
+    version = release.get("VERSION_ID", "").strip('"')
+    match = re.fullmatch(r"([0-9]{2,})\.(04|10)", version)
+    if release.get("ID", "").strip('"') != "ubuntu" or match is None or tuple(map(int, match.groups())) < (24, 4):
         raise Denied("RESCUE_PLATFORM_UNSUPPORTED")
     if Path("/etc/hostorbit/runtime.json").exists():
         raise Denied("RESCUE_MUST_BE_OFFLINE_WORKSTATION")
@@ -59,7 +62,7 @@ def offline_profile():
     available = dict(line.split(":", 1) for line in Path("/proc/meminfo").read_text().splitlines())
     if int(available["MemAvailable"].split()[0]) * 1024 < 6 * MAX_PAYLOAD:
         raise Denied("RESCUE_MEMORY_INSUFFICIENT")
-    return {"profile": "ubuntu-24.04-amd64-offline-v1", "swap": "OFF", "hibernation": "UNAVAILABLE", "ip_network": "ISOLATED"}
+    return {"profile": f"ubuntu-{version}-amd64-offline-v1", "swap": "OFF", "hibernation": "UNAVAILABLE", "ip_network": "ISOLATED"}
 
 
 def validate_request(value, *, now=None):

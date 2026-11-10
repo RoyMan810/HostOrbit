@@ -54,8 +54,8 @@ def main(argv=None):
     parser.add_argument("--age-tool", type=Path, required=True, help="Official checksum-pinned age v1.3.2 linux/amd64 executable")
     args = parser.parse_args(argv)
     root = Path(__file__).resolve().parents[1]
-    if sys.version_info[:2] != (3, 13) or re.fullmatch(IMAGE, args.python_image) is None:
-        parser.error("Python 3.13 and an official digest-pinned Python image are required")
+    if sys.version_info[:2] != (3, 15) or re.fullmatch(IMAGE, args.python_image) is None:
+        parser.error("Python 3.15 and an official digest-pinned Python image are required")
     output = args.output.absolute()
     if output.exists() or args.signing_key.resolve().is_relative_to(output):
         parser.error("Output must be new and the signing key must be independent")
@@ -78,13 +78,13 @@ def main(argv=None):
         output.mkdir(mode=0o700, parents=True)
         wheels = output / "wheelhouse"
         wheels.mkdir()
-        subprocess.run([sys.executable, "-m", "pip", "download", "--only-binary=:all:", "--require-hashes", "--dest", str(wheels),
-                        "-r", str(requirements)], check=True)
         build_env = tree.parent / "build-env"
         subprocess.run([sys.executable, "-m", "venv", str(build_env)], check=True)
         build_python = build_env / "bin/python"
         subprocess.run([str(build_python), "-m", "pip", "install", "--only-binary=:all:", "--require-hashes",
                         "-r", str(tree / "deploy/requirements-build.lock")], check=True)
+        subprocess.run([str(build_python), "-m", "pip", "download", "--only-binary=:all:", "--require-hashes", "--dest", str(wheels),
+                        "-r", str(requirements)], check=True)
         subprocess.run([str(build_python), "-m", "pip", "wheel", "--no-deps", "--no-build-isolation",
                         "--wheel-dir", str(wheels), str(tree)], check=True)
         for relative in FIXED_FILES - {"requirements-install.txt", "sbom.cdx.json"}:
@@ -116,7 +116,7 @@ def main(argv=None):
              for path in sorted(output.rglob("*")) if path.is_file()]
     value = {"v": 1, "application": "HostOrbit", "version": version, "channel": "development",
              "source_commit": source, "python_image": args.python_image, "platform": "ubuntu-24.04-amd64",
-             "python": "3.13", "sqlite_schema": 2, "remote_mutation_enabled": False, "files": files,
+             "python": "3.15", "sqlite_schema": 2, "remote_mutation_enabled": False, "files": files,
              "signing_key_sha256": hashlib.sha256(bytes(signer.verify_key)).hexdigest()}
     data = canonical(value)
     (output / "manifest.json").write_bytes(data)

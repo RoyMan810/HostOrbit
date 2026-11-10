@@ -10,6 +10,7 @@ import struct
 import tempfile
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 from nacl.signing import SigningKey
 
@@ -20,10 +21,23 @@ from hostorbit.runtime.storage import _credential_permissions
 DEPLOY = Path(__file__).resolve().parents[1] / "deploy"
 sys.path.insert(0, str(DEPLOY))
 from artifact import AGE_SHA256, ArtifactError, FIXED_FILES, canonical, manifest, snapshot, trusted_key
-from installer import check_capacity, compose_document, origin
+from installer import check_capacity, compose_document, install, origin, supported_compose, supported_ubuntu
 
 
 class InstallationTests(unittest.TestCase):
+    def test_ubuntu_release_boundary(self):
+        for version in ("24.04", "24.10", "26.04", "26.10", "30.04"):
+            self.assertTrue(supported_ubuntu({"ID": "ubuntu", "VERSION_ID": version}))
+        for release in ({"ID": "ubuntu", "VERSION_ID": "22.04"}, {"ID": "ubuntu", "VERSION_ID": "24.03"},
+                        {"ID": "ubuntu", "VERSION_ID": "24.04-extra"}, {"ID": "debian", "VERSION_ID": "26.04"}, {}):
+            self.assertFalse(supported_ubuntu(release))
+
+    def test_compose_version_is_bounded(self):
+        for version in ("2.39.4", "v2.39.4", "5.7.0", "v5.7.0"):
+            self.assertTrue(supported_compose(version))
+        for version in ("1.29.0", "3.0.0", "6.0.0", "5.7.0-custom", "latest"):
+            self.assertFalse(supported_compose(version))
+
     def test_controller_capacity_bounds_include_two_gib_vps_kernel_reservation(self):
         memory = 1792 * 1024**2
         disk = SimpleNamespace(total=40 * 1024**3, free=2 * 1024**3)
@@ -97,6 +111,24 @@ class InstallationTests(unittest.TestCase):
             self.assertEqual((dest / name).read_bytes(), content)
         self.assertFalse((dest / "unexpected.py").exists())
         self.assertFalse(any(p.read_bytes() == bytes(self.signer) for p in dest.rglob("*") if p.is_file()))
+
+    def test_bundle_accepts_supported_python_versions_only(self):
+        for version in ("3.13", "3.15"):
+            self.value["python"] = version
+            self.sign()
+            self.assertEqual(manifest(self.bundle, self.key, allow_development=True)[0]["python"], version)
+        for version in ("3.12", "3.14", "3.16"):
+            self.value["python"] = version
+            self.sign()
+            with self.assertRaisesRegex(ArtifactError, "BUNDLE_CONTRACT_UNSUPPORTED"):
+                manifest(self.bundle, self.key, allow_development=True)
+
+    def test_installer_refuses_bundle_with_different_host_python(self):
+        args = SimpleNamespace(bundle=self.bundle, trust_key=self.directory / "external.pub", development=True)
+        with (patch("installer.preflight"), patch("installer.trusted_key"),
+              patch("installer.snapshot", return_value=({"python": "0.0"}, "digest")),
+              self.assertRaisesRegex(ArtifactError, "HOST_BUNDLE_PYTHON_MISMATCH")):
+            install(args)
 
     def test_signature_other_key_modified_manifest_and_wheel_fail_before_execution(self):
         with self.assertRaisesRegex(ArtifactError, "SIGNATURE_INVALID"):
