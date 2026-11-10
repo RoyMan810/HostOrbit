@@ -118,6 +118,17 @@ jobs:
             --bundle "$RUNNER_TEMP/hostorbit-install-bundle" --trust-key "$RUNNER_TEMP/hostorbit-lab-signer.pub" \
             --docker-host "$DOCKER_HOST"
 
+      - name: Preserve public metadata for Stage1 revalidation
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: stage1-bundle-evidence
+          if-no-files-found: error
+          path: |
+            ${{ runner.temp }}/hostorbit-install-bundle/manifest.json
+            ${{ runner.temp }}/hostorbit-install-bundle/manifest.sig
+            ${{ runner.temp }}/hostorbit-install-bundle/sbom.cdx.json
+            ${{ runner.temp }}/hostorbit-lab-signer.pub
+
   foundation:
     name: Stage 1 Auth, RBAC and Audit / Python 3.15
     runs-on: ubuntu-24.04

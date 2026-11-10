@@ -13,6 +13,7 @@ from .storage import new_private_file, protected_bytes
 
 
 PROBES = (
+    (4, "hostorbit.v4.probe", b'{"operation":"probe","version":4}\n'),
     (3, "hostorbit.v3.probe", b'{"operation":"probe","version":3}\n'),
     (2, "hostorbit.v2.probe", b'{"operation":"probe","version":2}\n'),
     (1, "hostorbit.v1.probe", b'{"operation":"probe","version":1}\n'),
@@ -54,7 +55,7 @@ async def exchange(target, key, known_hosts):
         for version, command, request in PROBES:
             process = await connection.create_process(command, input=request, encoding=None, request_pty=False)
             output, error, _ = await asyncio.gather(
-                bounded_read(process.stdout, 4096 if version == 3 else 2048),
+                bounded_read(process.stdout, {3: 4096, 4: 12288}.get(version, 2048)),
                 bounded_read(process.stderr), process.wait_closed())
             if process.exit_status == 0:
                 return version, output
@@ -104,7 +105,7 @@ def parse_probe(output, version, *, now):
     except Denied:
         raise Denied("SSH_UNSUPPORTED_OUTPUT") from None
     names = ("v", "uid", "boot_id", "observed_at")
-    extra = {1: (), 2: ("software",), 3: ("software", "docker")}.get(version)
+    extra = {1: (), 2: ("software",), 3: ("software", "docker"), 4: ("software", "docker")}.get(version)
     if extra is None:
         raise Denied("SSH_PROBE_INVALID")
     fields(value, names + extra)
@@ -115,8 +116,8 @@ def parse_probe(output, version, *, now):
     result = {"status": "REACHABLE", "source": "restricted_helper", "observed_at": value["observed_at"], "boot_id": value["boot_id"]}
     if version >= 2:
         result["software"] = software_summary(value["software"])
-    if version == 3:
-        result["docker"] = docker_summary(value["docker"])
+    if version >= 3:
+        result["docker"] = docker_summary(value["docker"], include_ports=version == 4)
     return result
 
 

@@ -354,7 +354,7 @@ Match User {account}
             assert inventory.json()["observation"]["last_success"]["software"] == software
             assert inventory.json()["observation"]["last_success"]["docker"] == docker_summary
             print("Distinct API and Worker UIDs committed one verified SSH observation through Broker and host authority.", flush=True)
-            print("The restricted v3 helper returned software metadata and a fail-closed Docker scope through the inventory API.", flush=True)
+            print("The restricted v4 helper returned software metadata and a fail-closed Docker scope through the inventory API.", flush=True)
             for role in ("api", "worker"):
                 blocked = json.loads(invoke("access", role).stdout)
                 for name in ("vault", "gate_journal", "credential"):

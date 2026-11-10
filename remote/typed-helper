@@ -1,6 +1,7 @@
 #!/usr/bin/python3 -I
 """Read-only root observation. No command, path or target arguments are accepted."""
 import http.client
+from ipaddress import ip_address
 import json
 import os
 from pathlib import Path
@@ -16,6 +17,7 @@ from urllib.parse import urlencode
 DOCKER_SCOPE = Path("/etc/hostorbit/docker-discovery.json")
 DOCKER_SOCKET = Path("/run/docker.sock")
 MAX_CONTAINERS = 8
+MAX_PUBLISHED_PORTS = 8
 MAX_DOCKER_REPLY = 256 * 1024
 DOCKER_STATES = {"created", "restarting", "running", "removing", "paused", "exited", "dead"}
 
@@ -81,7 +83,37 @@ class DockerConnection(http.client.HTTPConnection):
         self.sock.connect(str(self.path))
 
 
-def list_docker(path, imported):
+def published_ports(value):
+    if not isinstance(value, list):
+        return None
+    bindings = set()
+    for row in value:
+        if not isinstance(row, dict):
+            return None
+        host, private, protocol = row.get("PublicPort"), row.get("PrivatePort"), row.get("Type")
+        address = row.get("IP", "")
+        if type(private) is not int or not 1 <= private <= 65535 or protocol not in ("tcp", "udp", "sctp"):
+            return None
+        if not isinstance(address, str) or "%" in address:
+            return None
+        if address:
+            try:
+                address = str(ip_address(address))
+            except ValueError:
+                return None
+        if "PublicPort" not in row:
+            # EXPOSE and routed entries do not allocate a port on the host.
+            continue
+        if not address or type(host) is not int or not 1 <= host <= 65535:
+            return None
+        bindings.add((address, host, private, protocol))
+        if len(bindings) > MAX_PUBLISHED_PORTS:
+            return None
+    return [{"address": address, "host_port": host, "container_port": private, "protocol": protocol}
+            for address, host, private, protocol in sorted(bindings)]
+
+
+def list_docker(path, imported, *, include_ports=False):
     if not imported:
         raise ValueError("empty Docker scope")
     approved = {item["id"]: item for item in imported}
@@ -101,24 +133,28 @@ def list_docker(path, imported):
     values = json.loads(data, object_pairs_hook=unique_object)
     if not isinstance(values, list) or len(values) > len(approved):
         raise ValueError("invalid Docker list")
-    states = {}
+    observed = {}
     for value in values:
         identity = value.get("Id") if isinstance(value, dict) else None
-        if not isinstance(identity, str) or identity not in approved or identity in states:
+        if not isinstance(identity, str) or identity not in approved or identity in observed:
             raise ValueError("Docker returned an unapproved or duplicate ID")
         item = approved[identity]
         labels = value.get("Labels")
         state = value.get("State")
-        if (isinstance(labels, dict) and labels.get("com.docker.compose.project") == item["project"]
-                and labels.get("com.docker.compose.service") == item["service"]
-                and isinstance(state, str) and state in DOCKER_STATES):
-            states[identity] = state.upper()
-        else:
-            states[identity] = "UNKNOWN"
-    return [{**item, "state": states.get(item["id"], "NOT_FOUND")} for item in imported]
+        matched = (isinstance(labels, dict) and labels.get("com.docker.compose.project") == item["project"]
+                   and labels.get("com.docker.compose.service") == item["service"]
+                   and isinstance(state, str) and state in DOCKER_STATES)
+        row = {"state": state.upper() if matched else "UNKNOWN"}
+        if include_ports:
+            row["published_ports"] = published_ports(value.get("Ports")) if matched else None
+        observed[identity] = row
+    missing = {"state": "NOT_FOUND"}
+    if include_ports:
+        missing["published_ports"] = None
+    return [{**item, **observed.get(item["id"], missing)} for item in imported]
 
 
-def observe_docker(scope_path=DOCKER_SCOPE, socket_path=DOCKER_SOCKET):
+def observe_docker(scope_path=DOCKER_SCOPE, socket_path=DOCKER_SOCKET, *, include_ports=False):
     try:
         imported = read_docker_scope(scope_path)
     except FileNotFoundError:
@@ -134,7 +170,7 @@ def observe_docker(scope_path=DOCKER_SCOPE, socket_path=DOCKER_SOCKET):
         if (not protected_directory(socket_path.parent.lstat()) or not stat.S_ISSOCK(entry.st_mode)
                 or entry.st_uid != 0 or entry.st_mode & 0o002):
             raise ValueError("unprotected Docker socket")
-        return {"status": "OBSERVED", "containers": list_docker(socket_path, imported)}
+        return {"status": "OBSERVED", "containers": list_docker(socket_path, imported, include_ports=include_ports)}
     except (OSError, ValueError, RecursionError, http.client.HTTPException):
         return {"status": "UNAVAILABLE", "containers": []}
 
@@ -159,7 +195,8 @@ def main():
     signal.alarm(5)
     payload = sys.stdin.buffer.read(len(request) + 1)
     signal.alarm(0)
-    versions = {request: 1, b'{"operation":"probe","version":2}\n': 2, b'{"operation":"probe","version":3}\n': 3}
+    versions = {request: 1, b'{"operation":"probe","version":2}\n': 2,
+                b'{"operation":"probe","version":3}\n': 3, b'{"operation":"probe","version":4}\n': 4}
     version = versions.get(payload)
     if version is None:
         return 65
@@ -167,7 +204,7 @@ def main():
              "observed_at": int(time.time())}
     if version >= 2:
         value["software"] = {"docker": tool_status("/usr/bin/docker"), "nginx": tool_status("/usr/sbin/nginx")}
-    if version == 3:
+    if version >= 3:
         # A total deadline also bounds responses which deliver bytes slowly.
         def timed_out(_signum, _frame):
             raise TimeoutError("Docker observation timed out")
@@ -175,7 +212,7 @@ def main():
         previous = signal.signal(signal.SIGALRM, timed_out)
         signal.alarm(4)
         try:
-            value["docker"] = observe_docker()
+            value["docker"] = observe_docker(include_ports=version == 4)
         finally:
             signal.alarm(0)
             signal.signal(signal.SIGALRM, previous)

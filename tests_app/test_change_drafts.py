@@ -31,7 +31,7 @@ class ChangeDraftTests(Fixture):
         self.complete_probe(job["id"], outcome=outcome, boot_id=boot_id)
         return job["id"]
 
-    def complete_probe(self, job_id, *, outcome="SUCCEEDED", boot_id="11111111-1111-1111-1111-111111111111"):
+    def complete_probe(self, job_id, *, outcome="SUCCEEDED", boot_id="11111111-1111-1111-1111-111111111111", ports=None):
         claim, row = self.queue.claim(identifier())
         self.assertEqual(row["id"], job_id)
         self.queue.advance(claim, "INTENT_PREPARED", permit={"claims": self.queue.binding(row)})
@@ -43,6 +43,8 @@ class ChangeDraftTests(Fixture):
                   "docker": {"status": "OBSERVED", "containers": [
                       {"id": CONTAINER, "project": "fixture", "service": "web", "state": "RUNNING"},
                   ]}}
+        if ports is not None:
+            result["docker"]["containers"][0]["published_ports"] = ports
         self.queue.finish(claim, outcome, "PROBE_COMPLETE" if outcome == "SUCCEEDED" else "SSH_TIMEOUT",
                           result=result if outcome == "SUCCEEDED" else None)
 
@@ -233,7 +235,8 @@ class ChangeDraftTests(Fixture):
             self.check_probe(draft, tag, self.probe_id)
         self.now += 1
         fresh = self.request_probe(draft, tag)["id"]
-        self.complete_probe(fresh)
+        port = {"address": "0.0.0.0", "host_port": 8080, "container_port": 80, "protocol": "tcp"}
+        self.complete_probe(fresh, ports=[port])
         result = self.check_probe(draft, tag, fresh)
         self.assertEqual(result["observation_id"], fresh)
         self.assertEqual(result["plan_hash"], draft["plan_hash"])

@@ -1,6 +1,7 @@
 """Canonical bounded frames shared by local IPC and signed capabilities."""
 
 import hashlib
+from ipaddress import ip_address
 import json
 import re
 
@@ -77,15 +78,43 @@ def software_summary(value):
     return value
 
 
-def docker_summary(value):
+def _validate_published_ports(ports, state):
+    if ports is None:
+        return
+    if state in ("UNKNOWN", "NOT_FOUND") or not isinstance(ports, list) or len(ports) > 8:
+        raise Denied("PROBE_DOCKER_INVALID")
+    seen = set()
+    for port in ports:
+        fields(port, ("address", "host_port", "container_port", "protocol"))
+        address = text(port["address"], r"[0-9a-f:.]{2,45}")
+        try:
+            if str(ip_address(address)) != address:
+                raise ValueError("noncanonical address")
+        except ValueError:
+            raise Denied("PROBE_DOCKER_INVALID") from None
+        host = integer(port["host_port"], 1, 65535)
+        private = integer(port["container_port"], 1, 65535)
+        protocol = port["protocol"]
+        if protocol not in ("tcp", "udp", "sctp") or (address, host, private, protocol) in seen:
+            raise Denied("PROBE_DOCKER_INVALID")
+        seen.add((address, host, private, protocol))
+
+
+def docker_summary(value, *, include_ports=None):
     fields(value, ("status", "containers"))
     status, rows = value["status"], value["containers"]
     if (status not in ("OBSERVED", "NOT_CONFIGURED", "POLICY_INVALID", "UNAVAILABLE")
             or not isinstance(rows, list) or len(rows) > 8 or bool(rows) != (status == "OBSERVED")):
         raise Denied("PROBE_DOCKER_INVALID")
+    names = ("id", "project", "service", "state")
+    if include_ports is None:
+        # Stored observations and Worker receipts support both wire generations.
+        include_ports = bool(rows and isinstance(rows[0], dict) and "published_ports" in rows[0])
+    if include_ports:
+        names += ("published_ports",)
     seen = set()
     for item in rows:
-        fields(item, ("id", "project", "service", "state"))
+        fields(item, names)
         identity = text(item["id"], r"[0-9a-f]{64}")
         text(item["project"], r"[a-z0-9][a-z0-9_-]{0,62}")
         text(item["service"], r"[A-Za-z0-9][A-Za-z0-9_.-]{0,62}")
@@ -94,4 +123,6 @@ def docker_summary(value):
         ):
             raise Denied("PROBE_DOCKER_INVALID")
         seen.add(identity)
+        if include_ports:
+            _validate_published_ports(item["published_ports"], item["state"])
     return value

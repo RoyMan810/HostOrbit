@@ -18,15 +18,23 @@ FOREIGN = "b" * 64
 SCOPE = [{"id": TARGET, "project": "fixture", "service": "web"}]
 ROW = {**SCOPE[0], "state": "RUNNING"}
 SUMMARY = {"status": "OBSERVED", "containers": [ROW]}
+BINDING = {"address": "127.0.0.1", "host_port": 49152, "container_port": 8080, "protocol": "tcp"}
+IPV6_BINDING = {"address": "::", "host_port": 49152, "container_port": 8080, "protocol": "udp"}
+DAEMON_PORTS = [
+    {"IP": "127.0.0.1", "PublicPort": 49152, "PrivatePort": 8080, "Type": "tcp"},
+    {"IP": "0:0:0:0:0:0:0:0", "PublicPort": 49152, "PrivatePort": 8080, "Type": "udp"},
+    {"PrivatePort": 8443, "Type": "tcp"},
+    {"IP": "::", "PrivatePort": 8080, "Type": "tcp"},
+]
 HELPER = runpy.run_path(str(Path(__file__).resolve().parents[1] / "remote/typed-helper"))
 
 
 class DockerPayloadTests(unittest.TestCase):
-    def parse(self, docker):
-        value = {"v": 3, "uid": 0, "boot_id": "12345678-1234-1234-1234-123456789abc",
+    def parse(self, docker, version=3):
+        value = {"v": version, "uid": 0, "boot_id": "12345678-1234-1234-1234-123456789abc",
                  "observed_at": 1000, "software": {"docker": "PRESENT", "nginx": "NOT_DETECTED"},
                  "docker": docker}
-        return parse_probe(canonical(value), 3, now=1000)
+        return parse_probe(canonical(value), version, now=1000)
 
     def test_v3_accepts_only_the_bounded_typed_summary(self):
         self.assertEqual(self.parse(SUMMARY)["docker"], SUMMARY)
@@ -38,6 +46,32 @@ class DockerPayloadTests(unittest.TestCase):
                         {"status": "OBSERVED", "containers": [{**ROW, "project": "../private"}]}):
             with self.subTest(payload=payload), self.assertRaises(Denied):
                 self.parse(payload)
+
+    def test_v4_requires_typed_and_bounded_bindings(self):
+        def summary(ports, *, state="RUNNING"):
+            return {"status": "OBSERVED", "containers": [{**ROW, "state": state, "published_ports": ports}]}
+
+        for ports in (None, [], [BINDING, IPV6_BINDING]):
+            with self.subTest(ports=ports):
+                payload = summary(ports)
+                self.assertEqual(self.parse(payload, version=4)["docker"], payload)
+                with self.assertRaises(Denied):
+                    self.parse(payload, version=3)
+        for payload in (
+            SUMMARY,
+            summary([BINDING], state="NOT_FOUND"),
+            summary([], state="UNKNOWN"),
+            summary([BINDING, BINDING]),
+            summary([{**BINDING, "host_port": port} for port in range(1, 10)]),
+            summary([{**BINDING, "address": "fe80::1%eth0"}]),
+            summary([{**BINDING, "address": "0:0:0:0:0:0:0:0"}]),
+            summary([{**BINDING, "host_port": True}]),
+            summary([{**BINDING, "container_port": 65536}]),
+            summary([{**BINDING, "protocol": "icmp"}]),
+            summary([{**BINDING, "label": "secret"}]),
+        ):
+            with self.subTest(payload=payload), self.assertRaises(Denied):
+                self.parse(payload, version=4)
 
     def test_protected_registry_requires_full_unique_ids_and_exact_fields(self):
         parse = HELPER["parse_docker_scope"]
@@ -84,8 +118,8 @@ class DockerTransportTests(unittest.TestCase):
             "DockerConnection": lambda _: HTTPConnection("127.0.0.1", server.server_port, timeout=2),
         }))
 
-    def observe(self):
-        return HELPER["list_docker"](Path("/unused.sock"), SCOPE)
+    def observe(self, **options):
+        return HELPER["list_docker"](Path("/unused.sock"), SCOPE, **options)
 
     def test_reads_only_approved_ids_and_projects_fixed_fields(self):
         self.assertEqual(self.observe(), [ROW])
@@ -108,3 +142,35 @@ class DockerTransportTests(unittest.TestCase):
         self.assertEqual(self.observe(), [{**SCOPE[0], "state": "UNKNOWN"}])
         self.response = []
         self.assertEqual(self.observe(), [{**SCOPE[0], "state": "NOT_FOUND"}])
+
+    def test_published_ports_are_filtered_and_normalized_in_one_scoped_request(self):
+        self.response[0]["Ports"] = [*DAEMON_PORTS, DAEMON_PORTS[0]]
+        self.assertEqual(self.observe(include_ports=True), [
+            {**ROW, "published_ports": [BINDING, IPV6_BINDING]},
+        ])
+        self.assertEqual(len(self.requests), 1)
+        self.assertEqual(self.observe(), [ROW])
+
+    def test_unpublished_ports_and_incomplete_ports_are_distinct(self):
+        for ports, expected in (
+            (DAEMON_PORTS[2:], []),
+            (None, None),
+            ([{"PrivatePort": True, "Type": "tcp"}], None),
+            ([{**DAEMON_PORTS[3], "IP": "invalid"}], None),
+            ([DAEMON_PORTS[0], {**DAEMON_PORTS[1], "IP": "invalid"}], None),
+            ([{**DAEMON_PORTS[0], "PublicPort": port} for port in range(1, 10)], None),
+        ):
+            with self.subTest(ports=ports):
+                self.response[0]["Ports"] = ports
+                self.assertEqual(self.observe(include_ports=True), [{**ROW, "published_ports": expected}])
+
+    def test_ports_are_hidden_when_compose_identity_is_unverified(self):
+        self.response[0]["Ports"] = DAEMON_PORTS
+        self.response[0]["Labels"]["com.docker.compose.project"] = "wrong-project"
+        self.assertEqual(self.observe(include_ports=True), [
+            {**ROW, "state": "UNKNOWN", "published_ports": None},
+        ])
+        self.response = []
+        self.assertEqual(self.observe(include_ports=True), [
+            {**ROW, "state": "NOT_FOUND", "published_ports": None},
+        ])
