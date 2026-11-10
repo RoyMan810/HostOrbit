@@ -147,7 +147,7 @@ class Inventory:
             'version': 1,
             'action': 'docker.restart',
             'status': 'PREVIEW_ONLY',
-            'target': {'resource_id': identity, **container},
+            'target': {'resource_id': identity, **{key: container[key] for key in ("id", "project", "service", "state")}},
             'resource_revision': resource['revision'],
             'policy_revision': resource['policy_revision'],
             'observed_at': sample['observed_at'],

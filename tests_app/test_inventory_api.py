@@ -67,6 +67,15 @@ class InventoryTests(Fixture):
         self.complete(docker=RUNNING_DOCKER)
         self.assertNotEqual(self.restart_preview().json()["preview_digest"], digest)
 
+    def test_inventory_returns_published_ports_without_changing_restart_target(self):
+        port = {"address": "::", "host_port": 8443, "container_port": 443, "protocol": "tcp"}
+        container = RUNNING_DOCKER["containers"][0]
+        docker = {"status": "OBSERVED", "containers": [{**container, "published_ports": [port]}]}
+        self.complete(docker=docker)
+        value = self.detail().json()["observation"]
+        self.assertEqual(value["last_success"]["docker"], docker)
+        self.assertEqual(self.restart_preview().json()["target"], {"resource_id": SCOPE, **container})
+
     def test_restart_preview_requires_read_and_restart_in_the_same_scope(self):
         self.complete(docker=RUNNING_DOCKER)
         read = {"permission": "vps:read", "resource_id": SCOPE}

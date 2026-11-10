@@ -90,7 +90,7 @@ def _baseline(db, resource_id, container_id, now):
         raise Denied("CONTAINER_NOT_FOUND", 404)
     if container["state"] != "RUNNING":
         raise Denied("CONTAINER_NOT_RUNNING", 409)
-    return {"target": {"resource_id": resource_id, **container}, "observation_id": job["id"],
+    return {"target": {"resource_id": resource_id, **{key: container[key] for key in ("id", "project", "service", "state")}}, "observation_id": job["id"],
             "observed_at": sample["observed_at"], "boot_id": sample["boot_id"],
             "scope_digest": resource["scope_digest"], "resource_revision": resource["revision"],
             "policy_revision": resource["policy_revision"]}
