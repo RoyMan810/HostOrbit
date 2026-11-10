@@ -138,9 +138,11 @@ dd { margin: 5px 0 0; font-size: 14px; font-weight: 650; }
 .probe-id span { color: var(--muted); }
 .probe-state p + p, .probe-state button { margin-top: 8px; }
 .docker-list { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
-.docker-list li { min-width: 0; padding: 10px; background: var(--soft); border-radius: 8px; }
+.docker-list > li { min-width: 0; padding: 10px; background: var(--soft); border-radius: 8px; }
 .docker-row { display: flex; align-items: start; justify-content: space-between; gap: 10px; }
 .docker-label { min-width: 0; display: grid; gap: 4px; overflow-wrap: anywhere; font-size: 13px; }
 .docker-list code { color: var(--muted); }
+.docker-ports { margin-top: 8px; font-size: 13px; overflow-wrap: anywhere; }
+.docker-ports ul { margin: 4px 0 0; padding-inline-start: 18px; }
 .docker-preview { display: grid; justify-items: start; gap: 8px; margin-top: 8px; }
 .docker-preview-result { display: grid; gap: 4px; min-width: 0; overflow-wrap: anywhere; }

@@ -12,9 +12,15 @@ export interface DockerContainer {
   service: string
   state: ContainerState
 }
+interface DockerPortBinding {
+  address: string
+  host_port: number
+  container_port: number
+  protocol: 'tcp' | 'udp' | 'sctp'
+}
 export interface DockerObservation {
   status: 'OBSERVED' | 'NOT_CONFIGURED' | 'POLICY_INVALID' | 'UNAVAILABLE'
-  containers: DockerContainer[]
+  containers: (DockerContainer & { published_ports?: DockerPortBinding[] | null })[]
 }
 export interface DockerRestartPreview {
   version: 1
