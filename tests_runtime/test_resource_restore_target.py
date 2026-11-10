@@ -1,0 +1,115 @@
+import errno
+from http.server import BaseHTTPRequestHandler
+import json
+import os
+from pathlib import Path
+from socketserver import UnixStreamServer
+import tempfile
+from threading import Thread
+import unittest
+from unittest.mock import patch
+from urllib.parse import parse_qs, urlsplit
+
+from hostorbit.errors import Denied
+from hostorbit.runtime.resource_restore_target import check_restore_target
+
+
+class RestoreTargetTests(unittest.TestCase):
+    def setUp(self):
+        root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.docker_root = root / "docker"
+        self.socket = root / "docker.sock"
+        self.name = "orbit-restore-fixture"
+        self.data = self.docker_root / "volumes" / self.name / "_data"
+        self.data.mkdir(parents=True)
+        self.created = "2026-11-10T09:30:00Z"
+        self.volume = {"Name": self.name, "Driver": "local", "Scope": "local", "Options": None,
+                       "Mountpoint": str(self.data), "CreatedAt": self.created}
+        self.attached = False
+        self.requests = []
+
+    def reply(self, socket_path, owner, endpoint):
+        self.assertEqual((socket_path, owner), (self.socket, os.geteuid()))
+        self.requests.append(endpoint)
+        if endpoint == f"/volumes/{self.name}":
+            return self.volume
+        self.assertEqual(urlsplit(endpoint).path, "/volumes")
+        return {"Volumes": [] if self.attached else [self.volume], "Warnings": None}
+
+    def test_reads_docker_api_over_a_local_unix_socket(self):
+        fixture = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                if not self.path.startswith("/v1.44/"):
+                    self.send_error(404)
+                    return
+                value = fixture.reply(fixture.socket, os.geteuid(), self.path.removeprefix("/v1.44"))
+                body = json.dumps(value).encode()
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *_):
+                pass
+
+        try:
+            server = self.enterContext(UnixStreamServer(str(self.socket), Handler))
+        except PermissionError as error:
+            if error.errno in (errno.EPERM, errno.EACCES) and os.environ.get("GITHUB_ACTIONS") != "true":
+                self.skipTest("Unix socket creation blocked by the local executor")
+            raise
+        worker = Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
+        worker.start()
+        self.addCleanup(worker.join, 2)
+        self.addCleanup(server.shutdown)
+        result = check_restore_target(self.name, expected_created_at=self.created, required_bytes=1,
+                                      required_inodes=1, docker_root=self.docker_root,
+                                      socket_path=self.socket, owner=os.geteuid())
+        self.assertEqual(result["status"], "EMPTY_TARGET_CHECKED")
+        self.assertEqual(len(self.requests), 2)
+
+    def check(self, *, required_bytes=1, required_inodes=1):
+        with patch("hostorbit.runtime.resource_restore_target._get", side_effect=self.reply):
+            return check_restore_target(self.name, expected_created_at=self.created, required_bytes=required_bytes,
+                                        required_inodes=required_inodes, docker_root=self.docker_root,
+                                        socket_path=self.socket, owner=os.geteuid())
+
+    def test_checks_empty_unreferenced_volume_without_writing(self):
+        result = self.check()
+        self.assertEqual(result["status"], "EMPTY_TARGET_CHECKED")
+        self.assertEqual(result["target"], self.name)
+        self.assertEqual(result["restore_eligibility"], "NOT_EVALUATED")
+        self.assertEqual(list(self.data.iterdir()), [])
+        query = parse_qs(urlsplit(self.requests[-1]).query)
+        self.assertEqual(json.loads(query["filters"][0]), {"dangling": ["true"], "name": [self.name]})
+
+    def test_refuses_occupied_and_referenced_targets(self):
+        marker = self.data / ".owner-data"
+        marker.write_text("preserve")
+        with self.assertRaisesRegex(Denied, "RESTORE_TARGET_OCCUPIED"):
+            self.check()
+        self.assertEqual(marker.read_text(), "preserve")
+        marker.unlink()
+        self.attached = True
+        with self.assertRaisesRegex(Denied, "RESTORE_TARGET_REFERENCED"):
+            self.check()
+
+    def test_refuses_wrong_identity_mount_options_and_symlink(self):
+        original = self.volume.copy()
+        for change in ({"CreatedAt": "2026-11-10T09:40:00Z"}, {"Driver": "external"},
+                       {"Options": {"device": "/other"}}, {"Mountpoint": str(self.data.parent)}):
+            self.volume = {**original, **change}
+            with self.subTest(change=change), self.assertRaisesRegex(Denied, "RESTORE_TARGET_UNTRUSTED"):
+                self.check()
+        self.volume = original
+        self.data.rmdir()
+        self.data.symlink_to(self.docker_root, target_is_directory=True)
+        with self.assertRaisesRegex(Denied, "RESTORE_TARGET_UNTRUSTED"):
+            self.check()
+
+    def test_refuses_insufficient_bytes_or_inodes(self):
+        for values in ({"required_bytes": 2**63 - 1}, {"required_inodes": 2**63 - 1}):
+            with self.subTest(values=values), self.assertRaisesRegex(Denied, "RESTORE_TARGET_CAPACITY"):
+                self.check(**values)

@@ -1,0 +1,40 @@
+name: HostOrbit resource restore rehearsal
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/resource-restore.yml
+      - hostorbit/runtime/resource_*.py
+      - tests_runtime/test_resource_restore_attestation.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  docker-volume:
+    name: Restore yesterday's archive to a disposable Docker volume
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      HOSTORBIT_LAB_RESTORE_IMAGE: docker.io/library/python@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.15.2"
+      - name: Install pinned dependencies and verify the age archive
+        run: |
+          python -m pip install -r requirements-dev.txt
+          python tools/fetch_age.py --output "$RUNNER_TEMP/age.tar.gz"
+          echo "cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10  $RUNNER_TEMP/age.tar.gz" | sha256sum -c -
+          tar --no-same-owner -xzf "$RUNNER_TEMP/age.tar.gz" -C "$RUNNER_TEMP" -- age/age age/age-keygen
+          sudo /usr/bin/docker pull "$HOSTORBIT_LAB_RESTORE_IMAGE"
+      - name: Verify real Docker target, application data and occupied-target refusal
+        run: |
+          sudo -n /usr/bin/env "PYTHONPATH=$PWD" PYTHONDONTWRITEBYTECODE=1 \
+            GITHUB_ACTIONS=true "RUNNER_ENVIRONMENT=$RUNNER_ENVIRONMENT" \
+            "HOSTORBIT_TEST_AGE_DIR=$RUNNER_TEMP/age" "HOSTORBIT_LAB_RESTORE_IMAGE=$HOSTORBIT_LAB_RESTORE_IMAGE" \
+            "$(command -v python)" -m unittest discover -s tests_runtime -p test_resource_restore_attestation.py -k new_docker_volume -v
