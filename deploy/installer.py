@@ -117,13 +117,20 @@ def docker(host, *args, timeout=60):
     return command(DOCKER, "--host", host, *args, timeout=timeout)
 
 
+def check_buildx(host):
+    try:
+        docker(host, "buildx", "version")
+    except ArtifactError as error:
+        raise ArtifactError("DOCKER_BUILDX_REQUIRED") from error
+
+
 def supported_ubuntu(release):
     version = re.fullmatch(r"([0-9]{2,})\.(04|10)", release.get("VERSION_ID", ""))
     return release.get("ID") == "ubuntu" and version is not None and tuple(map(int, version.groups())) >= (24, 4)
 
 
 def supported_compose(version):
-    return re.fullmatch(r"v?(?:2|5)\.[0-9]+\.[0-9]+", version) is not None
+    return re.fullmatch(r"v?(?:2|5)\.[0-9]+\.[0-9]+(?:\+ds[0-9]+-[0-9]+ubuntu[0-9]+(?:\.[0-9]+)*(?:~[0-9]+(?:\.[0-9]+)*)?)?", version) is not None
 
 
 def check_capacity(cpus, memory, disk):
@@ -183,6 +190,7 @@ def preflight(args):
     compose = docker(args.docker_host, "compose", "version", "--short")
     if not supported_compose(compose):
         raise ArtifactError("COMPOSE_VERSION_UNSUPPORTED")
+    check_buildx(args.docker_host)
     info = json.loads(docker(args.docker_host, "info", "--format", "{{json .SecurityOptions}}"))
     if any("rootless" in option or "userns" in option for option in info):
         # Numeric host/container identities must be the ones authenticated by SO_PEERCRED.

@@ -21,7 +21,7 @@ from hostorbit.runtime.storage import _credential_permissions
 DEPLOY = Path(__file__).resolve().parents[1] / "deploy"
 sys.path.insert(0, str(DEPLOY))
 from artifact import AGE_SHA256, ArtifactError, FIXED_FILES, canonical, manifest, snapshot, trusted_key
-from installer import check_capacity, compose_document, install, origin, supported_compose, supported_ubuntu
+from installer import check_buildx, check_capacity, compose_document, install, origin, supported_compose, supported_ubuntu
 
 
 class InstallationTests(unittest.TestCase):
@@ -33,10 +33,18 @@ class InstallationTests(unittest.TestCase):
             self.assertFalse(supported_ubuntu(release))
 
     def test_compose_version_is_bounded(self):
-        for version in ("2.39.4", "v2.39.4", "5.7.0", "v5.7.0"):
+        for version in ("2.39.4", "v2.39.4", "5.7.0", "v5.7.0", "2.40.3+ds1-0ubuntu1", "2.24.6+ds1-0ubuntu1~24.04.1"):
             self.assertTrue(supported_compose(version))
-        for version in ("1.29.0", "3.0.0", "6.0.0", "5.7.0-custom", "latest"):
+        for version in ("1.29.0", "3.0.0", "6.0.0", "5.7.0-custom", "2.40.3+ds1-0ubuntu1;evil", "2.40.3+ds1-0ubuntu", "latest"):
             self.assertFalse(supported_compose(version))
+
+    def test_buildx_is_required_before_installation(self):
+        with patch("installer.docker", return_value="github.com/docker/buildx v0.30.1") as docker:
+            check_buildx("unix:///var/run/docker.sock")
+            docker.assert_called_once_with("unix:///var/run/docker.sock", "buildx", "version")
+        with patch("installer.docker", side_effect=ArtifactError("INSTALL_COMMAND_FAILED_DOCKER")):
+            with self.assertRaisesRegex(ArtifactError, "DOCKER_BUILDX_REQUIRED"):
+                check_buildx("unix:///var/run/docker.sock")
 
     def test_controller_capacity_bounds_include_two_gib_vps_kernel_reservation(self):
         memory = 1792 * 1024**2
