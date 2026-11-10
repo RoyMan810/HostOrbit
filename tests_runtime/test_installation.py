@@ -20,10 +20,23 @@ from hostorbit.runtime.storage import _credential_permissions
 DEPLOY = Path(__file__).resolve().parents[1] / "deploy"
 sys.path.insert(0, str(DEPLOY))
 from artifact import AGE_SHA256, ArtifactError, FIXED_FILES, canonical, manifest, snapshot, trusted_key
-from installer import compose_document, origin
+from installer import check_capacity, compose_document, origin
 
 
 class InstallationTests(unittest.TestCase):
+    def test_controller_capacity_bounds_include_two_gib_vps_kernel_reservation(self):
+        memory = 1792 * 1024**2
+        disk = SimpleNamespace(total=40 * 1024**3, free=2 * 1024**3)
+        check_capacity(1, memory, disk)
+        for cpus, available, total, free in ((0, memory, disk.total, disk.free),
+                                             (None, memory, disk.total, disk.free),
+                                             (1, memory - 1, disk.total, disk.free),
+                                             (1, memory, disk.total - 1, disk.free),
+                                             (1, memory, disk.total, disk.free - 1)):
+            with self.subTest(cpus=cpus, memory=available, total=total, free=free):
+                with self.assertRaisesRegex(ArtifactError, "CONTROLLER_CAPACITY_UNSUPPORTED"):
+                    check_capacity(cpus, available, SimpleNamespace(total=total, free=free))
+
     def test_systemd_credential_allows_only_readonly_exact_broker_acl_or_owner_fallback(self):
         owner = 23103
         entries = [(1, 4, 0xffffffff), (2, 4, owner), (4, 0, 0xffffffff),

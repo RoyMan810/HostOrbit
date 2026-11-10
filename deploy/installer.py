@@ -117,6 +117,12 @@ def docker(host, *args, timeout=60):
     return command(DOCKER, "--host", host, *args, timeout=timeout)
 
 
+def check_capacity(cpus, memory, disk):
+    # A 2 GiB VPS exposes less MemTotal after kernel and hardware reservations.
+    if (cpus or 0) < 1 or memory < 1792 * 1024**2 or disk.total < 40 * 1024**3 or disk.free < 2 * 1024**3:
+        raise ArtifactError("CONTROLLER_CAPACITY_UNSUPPORTED")
+
+
 def preflight(args):
     if os.geteuid() != 0:
         raise ArtifactError("LOCAL_ROOT_REQUIRED")
@@ -134,8 +140,7 @@ def preflight(args):
                 raise ArtifactError("INSTALLATION_PARENT_UNTRUSTED")
     memory = next(int(line.split()[1]) * 1024 for line in Path("/proc/meminfo").read_text().splitlines() if line.startswith("MemTotal:"))
     disk = shutil.disk_usage("/var/lib")
-    if (os.cpu_count() or 0) < 2 or memory < 4 * 1024**3 or disk.total < 40 * 1024**3 or disk.free < 2 * 1024**3:
-        raise ArtifactError("CONTROLLER_CAPACITY_UNSUPPORTED")
+    check_capacity(os.cpu_count(), memory, disk)
     origin(args.origin)
     daemon(args.docker_host)
     if not 1024 <= args.port <= 65535:
