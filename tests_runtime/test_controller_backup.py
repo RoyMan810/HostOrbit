@@ -10,6 +10,7 @@ import subprocess
 import tarfile
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from nacl.secret import Aead
 from nacl.signing import SigningKey
@@ -168,6 +169,25 @@ class ControllerBackupTests(unittest.TestCase):
                 self.assertNotIn(b"AGE-SECRET-KEY-", path.read_bytes())
         with self.coordinator.journal.connect() as db:
             self.assertEqual([r["phase"] for r in db.execute("SELECT phase FROM transitions")][-3:], ["BARRIER_RELEASED", "SEALED", "SIGNED"])
+
+    def test_archive_member_count_leaves_room_for_recovery_header(self):
+        with patch("hostorbit.runtime.archive_stream.MAX_RECOVERY_MEMBERS", 1):
+            with self.assertRaisesRegex(Denied, "ARCHIVE_SIZE_UNSUPPORTED"):
+                self.backup.create(self.recipient)
+        self.assertFalse(list(self.coordinator.directory.glob("captures/*/provenance.json")))
+        self.assertEqual(self.admission.state()["phase"], "OPEN")
+
+    def test_unrecoverable_archive_is_rejected_before_signing(self):
+        with patch("hostorbit.runtime.controller_backup.MAX_CONTROLLER_CIPHERTEXT", 1):
+            with self.assertRaisesRegex(Denied, "ARCHIVE_SIZE_UNSUPPORTED"):
+                self.backup.create(self.recipient)
+        with patch("hostorbit.runtime.controller_backup.digest_file", return_value=("a" * 64, 600 * 1024 * 1024)):
+            with self.assertRaisesRegex(Denied, "ARCHIVE_SIZE_UNSUPPORTED"):
+                self.backup.create(self.recipient)
+        with self.coordinator.journal.connect() as db:
+            self.assertEqual(db.execute("SELECT phase FROM transitions ORDER BY seq DESC LIMIT 1").fetchone()[0], "FAILED")
+        self.assertFalse(list(self.coordinator.directory.glob("captures/*/provenance.json")))
+        self.assertEqual(self.admission.state()["phase"], "OPEN")
 
     def test_wrong_anchor_ciphertext_or_recipient_cannot_verify_or_decrypt(self):
         result = self.backup.create(self.recipient)

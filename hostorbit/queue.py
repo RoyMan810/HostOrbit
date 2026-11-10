@@ -145,6 +145,18 @@ class JobQueue:
                     raise Denied("JOB_TIMELINE_INVALID", 503) from None
                 items.append({"seq": row["seq"], "at": row["at"], "status": status, "reason": reason})
                 previous = status
+            # Old recovery imports changed the Job atomically with this global event,
+            # but did not append a per-Job finish event or increment its revision.
+            if (items and len(items) == job["revision"] and previous not in _TERMINAL
+                    and job["reason"] == "RESTORE_QUARANTINE"
+                    and job["status"] == ("CANCELLED_SAFE" if previous == "QUEUED" else "UNKNOWN_OUTCOME")):
+                imported = db.execute("SELECT seq,at FROM audit WHERE event='recovery.imported' AND outcome='READ_ONLY_RECOVERY' AND seq>? ORDER BY seq LIMIT 1",
+                                      (items[-1]["seq"],)).fetchone()
+                if imported is None or type(imported["at"]) is not int or not 0 <= imported["at"] <= 253402300799:
+                    raise Denied("JOB_TIMELINE_INVALID", 503)
+                items.append({"seq": imported["seq"], "at": imported["at"], "status": job["status"],
+                              "reason": job["reason"], "source": "recovery.imported"})
+                return {"items": items}
             if not items or len(items) != job["revision"] or previous != job["status"] or items[-1]["reason"] != job["reason"]:
                 raise Denied("JOB_TIMELINE_INVALID", 503)
             return {"items": items}

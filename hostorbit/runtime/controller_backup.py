@@ -25,7 +25,7 @@ from nacl.signing import SigningKey, VerifyKey
 from ..admission import Admission
 from ..database import DataAccess, Store
 from ..errors import Denied
-from .archive_stream import AGE_SHA256, CONTROLLER_FILES, feed, file_record, parse_manifest, recipient, validate_source
+from .archive_stream import AGE_SHA256, CONTROLLER_FILES, MAX_CONTROLLER_CIPHERTEXT, feed, file_record, parse_manifest, recipient, validate_source
 from .coordinator import Coordinator
 from .pins import _copy_database, _private_directory, capture_with_systemd
 from .policy import Policy
@@ -53,6 +53,8 @@ def sign_provenance(manifest, public_recipient, ciphertext, key):
     digest, size = digest_file(ciphertext)
     if size < 200:
         raise Denied("ARCHIVE_ENCRYPTION_INCOMPLETE")
+    if size > MAX_CONTROLLER_CIPHERTEXT:
+        raise Denied("ARCHIVE_SIZE_UNSUPPORTED")
     claims = {"v": 1, "type": "hostorbit.controller-backup", "manifest": manifest,
               "recipient": recipient(public_recipient), "ciphertext_sha256": digest, "ciphertext_size": size,
               "age_sha256": AGE_SHA256, "signing_key_sha256": hashlib.sha256(bytes(key.verify_key)).hexdigest()}
@@ -217,7 +219,7 @@ class ControllerBackup:
                     logical.append(db.execute("PRAGMA page_count").fetchone()[0] * db.execute("PRAGMA page_size").fetchone()[0])
                     if path.name == "vault.sqlite3":
                         versions = db.execute("SELECT count(*) FROM secrets").fetchone()[0]
-            if any(size > 512 * 1024 * 1024 for size in logical) or versions > 65536:
+            if sum(logical) >= MAX_CONTROLLER_CIPHERTEXT or versions > 65536:
                 raise Denied("ARCHIVE_SIZE_UNSUPPORTED")
             reserve = 2 * (sum(logical) + versions * 9000 + 64 * 1024 * 1024)
             if shutil.disk_usage(self.coordinator.directory).free < reserve:

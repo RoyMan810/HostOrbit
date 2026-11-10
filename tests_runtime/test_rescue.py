@@ -14,7 +14,7 @@ from nacl.secret import SecretBox
 
 from hostorbit.admission import Admission
 from hostorbit.auth import AuthService
-from hostorbit.database import Store
+from hostorbit.database import Store, identifier
 from hostorbit.errors import Denied
 from hostorbit.runtime.archive_stream import parse_manifest
 from hostorbit.runtime.authority import Authority
@@ -113,6 +113,13 @@ class RescueTests(unittest.TestCase):
         with self.assertRaisesRegex(Denied, "RECOVERY_REQUEST_CONSUMED"):
             self.accept(review["bundle_sha256"])
 
+    def test_repackaged_bundle_cannot_exceed_target_limit(self):
+        with patch("hostorbit.runtime.rescue.MAX_PAYLOAD", 200):
+            with self.assertRaisesRegex(Denied, "RESCUE_CIPHERTEXT_SIZE_UNSUPPORTED"):
+                _encrypted_output(self.bundle, self.request["recipient"], {"recovery.json": memoryview(b"fixture")},
+                                  age_path=self.age, tool_owner=os.geteuid())
+        self.assertFalse(self.bundle.exists())
+
     def test_exact_independent_digest_rejects_reencrypted_database_and_key_substitution(self):
         review = self.pack()
         target_identity = self.wrap(ciphertext=(self.root / "target-state/identity.cred").read_bytes())
@@ -176,7 +183,16 @@ class RescueTests(unittest.TestCase):
         tokens, _ = auth.login("roman", PASSWORD, ip="127.0.0.1", correlation="source-login")
         queue = JobQueue(self.fixture.store)
         queue.register_resource(TARGET, "a" * 64, 1)
+        dispatched = queue.enqueue_probe(auth, tokens.session, tokens.csrf, TARGET, "fixture-dispatched-key-123")
+        claim, row = queue.claim(identifier())
+        queue.advance(claim, "INTENT_PREPARED", permit={"claims": queue.binding(row)})
+        queue.advance(claim, "DISPATCHING")
+        # A historical imported snapshot may contain an unfinished unclaimed Job.
+        with self.fixture.store.write() as db:
+            db.execute("UPDATE jobs SET claimed_by=NULL,claim_nonce=NULL WHERE id=?", (dispatched["id"],))
         job = queue.enqueue_probe(auth, tokens.session, tokens.csrf, TARGET, "fixture-request-key-123")
+        for number in range(128):
+            queue.enqueue_probe(auth, tokens.session, tokens.csrf, TARGET, f"fixture-batch-key-{number:04d}")
         self.source = self.fixture.backup.create(self.fixture.recipient)
         self.envelope = json.loads(Path(self.source["provenance"]).read_bytes())
         # Refresh only the unit target; no public production request renewal.
@@ -188,7 +204,19 @@ class RescueTests(unittest.TestCase):
         with store.read() as db:
             self.assertEqual(db.execute("SELECT count(*) FROM sessions").fetchone()[0], 0)
             self.assertEqual(db.execute("SELECT status,permit FROM jobs WHERE id=?", (job["id"],)).fetchone()[:], ("CANCELLED_SAFE", None))
+            self.assertEqual(db.execute("SELECT count(*) FROM jobs WHERE status='CANCELLED_SAFE' AND permit IS NULL").fetchone()[0], 129)
             self.assertEqual(db.execute("SELECT enabled FROM resources WHERE id=?", (TARGET,)).fetchone()[0], 0)
+        restored_auth = AuthService(store)
+        restored_tokens, _ = restored_auth.login("roman", PASSWORD, ip="127.0.0.1", correlation="restored-login")
+        timeline = JobQueue(store).timeline(restored_auth, restored_tokens.session, job["id"])
+        self.assertEqual([item["status"] for item in timeline["items"]], ["QUEUED", "CANCELLED_SAFE"])
+        self.assertEqual(timeline["items"][-1]["reason"], "RESTORE_QUARANTINE")
+        uncertain = JobQueue(store).timeline(restored_auth, restored_tokens.session, dispatched["id"])
+        self.assertEqual([item["status"] for item in uncertain["items"]],
+                         ["QUEUED", "INTENT_PREPARED", "DISPATCHING", "UNKNOWN_OUTCOME"])
+        with store.read() as db:
+            self.assertEqual(db.execute("SELECT state FROM job_incidents WHERE job_id=?", (dispatched["id"],)).fetchone()[0], "OPEN")
+        store.verify_audit()
 
     def test_failed_or_interrupted_import_is_consumed_fail_closed(self):
         review = self.pack()

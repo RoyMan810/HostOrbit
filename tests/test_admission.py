@@ -1,4 +1,4 @@
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from dataclasses import replace
 import hashlib
 import multiprocessing
@@ -86,7 +86,7 @@ def crash_migration(path, application, kind, committed):
     gate.enter_maintenance(ticket)
     # This database belongs to the application, not to the host authority.
     # Kill both inside an uncommitted migration and after its commit.
-    with sqlite3.connect(application) as db:
+    with closing(sqlite3.connect(application)) as db, db:
         db.execute("BEGIN IMMEDIATE")
         db.execute("ALTER TABLE jobs ADD COLUMN result TEXT")
         db.execute("PRAGMA user_version = 2")
@@ -298,14 +298,14 @@ class AdmissionTests(unittest.TestCase):
 
     def test_application_schema_replacement_cannot_clear_the_supervisor_journal(self):
         application = self.path.with_name("application.sqlite3")
-        with sqlite3.connect(application) as db:
+        with closing(sqlite3.connect(application)) as db, db:
             db.execute("CREATE TABLE jobs(id TEXT PRIMARY KEY, outcome TEXT)")
             db.execute("PRAGMA user_version = 1")
         process = self.start_process(crash_at, self.path, "remote")
         process.join(WAIT)
         self.assertEqual(process.exitcode, -signal.SIGKILL)
         application.unlink()
-        with sqlite3.connect(application) as db:
+        with closing(sqlite3.connect(application)) as db, db:
             db.execute("CREATE TABLE jobs(id TEXT PRIMARY KEY, outcome TEXT)")
             db.execute("PRAGMA user_version = 2")
             db.execute("INSERT INTO jobs VALUES('interrupted', 'SUCCEEDED')")
@@ -325,13 +325,13 @@ class AdmissionTests(unittest.TestCase):
                     path = self.path.with_name(f"gate-{kind}-{committed}.sqlite3")
                     application = path.with_suffix(".application.sqlite3")
                     HostGate.create(path, TOPOLOGY)
-                    with sqlite3.connect(application) as db:
+                    with closing(sqlite3.connect(application)) as db, db:
                         db.execute("CREATE TABLE jobs(id TEXT PRIMARY KEY)")
                         db.execute("PRAGMA user_version = 1")
                     process = self.start_process(crash_migration, path, application, kind, committed)
                     process.join(WAIT)
                     self.assertEqual(process.exitcode, -signal.SIGKILL)
-                    with sqlite3.connect(application) as db:
+                    with closing(sqlite3.connect(application)) as db, db:
                         self.assertEqual(db.execute("PRAGMA integrity_check").fetchall(), [("ok",)])
                         self.assertEqual(db.execute("PRAGMA user_version").fetchone(), (2 if committed else 1,))
                     restarted = HostGate(path)

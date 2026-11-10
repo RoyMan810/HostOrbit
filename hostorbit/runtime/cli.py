@@ -10,7 +10,6 @@ import sqlite3
 import sys
 from threading import Event
 
-from ..auth import AuthService
 from ..admission import Admission
 from ..config import Settings
 from ..database import DataAccess, Store
@@ -18,7 +17,6 @@ from ..errors import Denied
 from ..queue import JobQueue
 from ..worker import Worker
 from .authority import Authority, verify_host_time
-from .broker import Broker
 from .ipc import Client, activated_socket, serve
 from .policy import Policy
 from .protocol import fields, integer, text, decode
@@ -164,6 +162,7 @@ def run(config, command, *, once=False, listener=None, import_args=None):
     managed_credential = "CREDENTIALS_DIRECTORY" in os.environ
     credential = Path(os.environ["CREDENTIALS_DIRECTORY"]) / "broker-dek" if managed_credential else Path(config["vault_credential"])
     if command == "initialize-broker":
+        from .broker import Broker
         Vault.initialize(config["vault_directory"], credential, systemd_credential=managed_credential)
         Broker.initialize(config["broker_directory"], policy)
         return
@@ -207,6 +206,7 @@ def run(config, command, *, once=False, listener=None, import_args=None):
                                                 broker_uid=config["broker_uid"], target=import_args.target, policy_revision=import_args.policy_revision)
         print(reference)
         return
+    from .broker import Broker
     gate = Client(config["gate_socket"], server_uids={0})
     verify_key = protected_bytes(config["public_verify_key"], owner=0, maximum=32)
     broker = Broker(config["broker_directory"], policy, vault, gate, verify_key, worker_uid=config["worker_uid"], writers=writers)

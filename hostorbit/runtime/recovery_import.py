@@ -22,6 +22,7 @@ from argon2.exceptions import InvalidHashError, VerificationError
 from ..admission import Admission
 from ..database import Store, identifier
 from ..errors import Denied
+from ..queue import JobQueue
 from .archive_stream import AGE_KEYGEN_PATH, AGE_PATH, parse_manifest, trusted_keygen
 from .authority import Authority
 from .broker import Broker
@@ -251,6 +252,7 @@ def import_data(destination, members, claims, request, owner_id, bundle_sha256, 
         db.execute("PRAGMA journal_mode=WAL")
     path = destination / "app/controller.sqlite3"
     with closing(sqlite3.connect(path, autocommit=True)) as db:
+        db.row_factory = sqlite3.Row
         db.execute("PRAGMA journal_mode=WAL")
         db.execute("PRAGMA foreign_keys=ON")
         db.execute("PRAGMA synchronous=FULL")
@@ -258,8 +260,17 @@ def import_data(destination, members, claims, request, owner_id, bundle_sha256, 
         for table in ("reauth", "sessions", "bootstrap"):
             db.execute(f"DELETE FROM {table}")
         if claims["manifest"]["schema"] == 2:
-            db.execute("UPDATE jobs SET status=CASE WHEN status='QUEUED' THEN 'CANCELLED_SAFE' ELSE 'UNKNOWN_OUTCOME' END,"
-                       "reason='RESTORE_QUARANTINE',permit=NULL WHERE status NOT IN ('SUCCEEDED','FAILED','UNKNOWN_OUTCOME','CANCELLED_SAFE')")
+            queue = JobQueue(Store(path))
+            last_id = ""
+            while jobs := db.execute(
+                "SELECT * FROM jobs WHERE id>? AND status NOT IN ('SUCCEEDED','FAILED','UNKNOWN_OUTCOME','CANCELLED_SAFE') ORDER BY id LIMIT 128",
+                (last_id,),
+            ).fetchall():
+                for job in jobs:
+                    outcome = "CANCELLED_SAFE" if job["status"] == "QUEUED" else "UNKNOWN_OUTCOME"
+                    queue._finish(db, job, outcome, "RESTORE_QUARANTINE")
+                    db.execute("UPDATE jobs SET permit=NULL WHERE id=?", (job["id"],))
+                last_id = jobs[-1]["id"]
             db.execute("UPDATE resources SET enabled=0")
         Store.event(db, at=int(time.time()), actor=owner_id, kind="recovery.imported", target=request["target_id"],
                     outcome="READ_ONLY_RECOVERY", correlation=request["target_id"], details={"bundle_sha256": bundle_sha256,

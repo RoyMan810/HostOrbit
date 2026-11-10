@@ -8,13 +8,14 @@ import stat
 import tempfile
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 import asyncssh
 
 from hostorbit.errors import Denied
 from hostorbit.runtime.backup_target import BackupTarget
 from hostorbit.runtime.protocol import canonical
-from hostorbit.runtime.sftp_publication import publish_session
+from hostorbit.runtime.sftp_publication import publication_timeout, publish_session
 from hostorbit.runtime.storage import new_private_file
 from hostorbit.runtime.vault import Vault
 from fixtures import ACTOR, OTHER, SECRET, TARGET, BROKER_UID, WORKER_UID, private_key, public_key
@@ -116,6 +117,13 @@ class SftpProtocolTests(unittest.TestCase):
     def publish(self, check=lambda: None):
         return asyncio.run(publish_session(self.remote, self.target, OTHER, self.cipher, self.claims, b"signed-envelope", check))
 
+    def test_deadline_scales_with_size_and_rejects_invalid_sizes(self):
+        self.assertEqual(publication_timeout(300 * 1024**2), 1020)
+        self.assertEqual(publication_timeout(4 * 1024**3), 12408)
+        for size in (True, 0, 4 * 1024**3 + 1):
+            with self.subTest(size=size), self.assertRaises(Denied):
+                publication_timeout(size)
+
     def test_complete_marker_is_exposed_only_after_fsync_and_all_readbacks(self):
         receipt = self.publish()
         final = "/store/" + OTHER
@@ -124,6 +132,17 @@ class SftpProtocolTests(unittest.TestCase):
         self.assertEqual(len([op for op in self.remote.ops if op[0] == "fsync"]), 3)
         self.assertEqual(self.remote.ops[-1][0], "rename")
         self.assertEqual(self.remote.ops[-1][-1], final)
+
+    def test_stalled_readback_never_promotes_final(self):
+        async def stalled(*_):
+            await asyncio.sleep(1)
+        real_wait = asyncio.wait_for
+        def short_wait(awaitable, _timeout):
+            return real_wait(awaitable, 0.01)
+        with patch.object(RemoteFile, "read", stalled), patch("hostorbit.runtime.sftp_publication.asyncio.wait_for", short_wait):
+            with self.assertRaises(TimeoutError):
+                self.publish()
+        self.assertNotIn("/store/" + OTHER, self.remote.dirs)
 
     def test_corruption_enospc_or_unsupported_fsync_cannot_publish(self):
         for fault, expected in (("corrupt", Denied), ("full", asyncssh.SFTPError), ("supports_fsync", asyncssh.SFTPError)):

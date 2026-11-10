@@ -14,8 +14,14 @@ import stat
 import asyncssh
 
 from ..errors import Denied
-from .protocol import ULID, canonical, checksum, text
+from .protocol import ULID, canonical, checksum, integer, text
 from .ssh import validate_private_key
+
+
+def publication_timeout(size):
+    integer(size, 200, 4 * 1024**3)
+    # Upload plus two readbacks at a minimum of 1 MiB/s, with setup allowance.
+    return 120 + (3 * size + 1024**2 - 1) // 1024**2
 
 
 def completion(target, snapshot_id, claims, provenance):
@@ -36,13 +42,14 @@ async def _directory(client, path):
             raise Denied("SFTP_DIRECTORY_UNTRUSTED")
 
 
-async def _readback(client, remote, expected_size, expected_digest):
+async def _readback(client, remote, expected_size, expected_digest, check):
     attrs = await client.lstat(remote)
     if (attrs.permissions is None or not stat.S_ISREG(attrs.permissions) or attrs.size != expected_size):
         raise Denied("SFTP_READBACK_MISMATCH")
     digest, size = hashlib.sha256(), 0
     async with client.open(remote, "rb", encoding=None) as stream:
-        while data := await stream.read(min(65536, expected_size + 1 - size)):
+        while data := await asyncio.wait_for(stream.read(min(65536, expected_size + 1 - size)), 30):
+            check()
             digest.update(data)
             size += len(data)
             if size > expected_size:
@@ -60,12 +67,12 @@ async def _put(client, remote, source, size, expected_digest, check):
             if written > size:
                 raise Denied("SFTP_LOCAL_SOURCE_CHANGED")
             digest.update(data)
-            await stream.write(data)
+            await asyncio.wait_for(stream.write(data), 30)
         if written != size or digest.hexdigest() != expected_digest:
             raise Denied("SFTP_LOCAL_SOURCE_CHANGED")
         # Unsupported persistence is an error, never a silent fallback.
-        await stream.fsync()
-    await _readback(client, remote, size, expected_digest)
+        await asyncio.wait_for(stream.fsync(), 30)
+    await _readback(client, remote, size, expected_digest, check)
 
 
 async def publish_session(client, target, snapshot_id, ciphertext, claims, provenance, check):
@@ -85,7 +92,7 @@ async def publish_session(client, target, snapshot_id, ciphertext, claims, prove
             raise Denied("SFTP_FINAL_INCOMPLETE")
         for name, size, digest in files:
             check()
-            await _readback(client, final + "/" + name, size, digest)
+            await _readback(client, final + "/" + name, size, digest, check)
 
     try:
         await client.lstat(final)
@@ -145,7 +152,8 @@ async def _connect_and_publish(target, snapshot_id, ciphertext, claims, provenan
 
 def publish(target, snapshot_id, ciphertext, claims, provenance, credential):
     async def bounded():
-        return await asyncio.wait_for(_connect_and_publish(target, snapshot_id, ciphertext, claims, provenance, credential), 120)
+        return await asyncio.wait_for(_connect_and_publish(target, snapshot_id, ciphertext, claims, provenance, credential),
+                                      publication_timeout(claims["ciphertext_size"]))
     try:
         return asyncio.run(bounded())
     except Denied:

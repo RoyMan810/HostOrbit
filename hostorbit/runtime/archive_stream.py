@@ -34,6 +34,12 @@ CONTROLLER_FILES = frozenset({"app.sqlite3", "gate.sqlite3", "runtime.json", "ta
                               "requirements-install.txt", "sbom.cdx.json", "compose.json"})
 OPTIONAL_CONTROLLER_FILES = frozenset({"backup-target.json"})
 MAX_FILE = 512 * 1024 * 1024
+MAX_PAYLOAD = 512 * 1024 * 1024
+# Bound the largest request/envelope and recovery summary added to the tar.
+MAX_RECOVERY_HEADER = 64 * 1024
+MAX_RECOVERY_MEMBERS = 65560
+# Leave room for the recovery header, tar framing and age re-encryption.
+MAX_CONTROLLER_CIPHERTEXT = MAX_PAYLOAD - 1024 * 1024
 
 
 def recipient(value):
@@ -127,6 +133,9 @@ def validated_pin(vault, broker_directory, snapshot_id, expected_digest):
         expected.add("objects/" + reference["object_digest"])
     if len(pin["files"]) != len(expected):
         raise Denied("ARCHIVE_PIN_INCOMPLETE")
+    # The recovery bundle adds one member to the Controller archive.
+    if len(CONTROLLER_FILES | OPTIONAL_CONTROLLER_FILES) + len(pin["files"]) + 4 > MAX_RECOVERY_MEMBERS:
+        raise Denied("ARCHIVE_SIZE_UNSUPPORTED")
     seen = set()
     for item in pin["files"]:
         fields(item, ("path", "size", "sha256"))

@@ -125,6 +125,21 @@ class QueueApiTests(Fixture):
             db.execute("UPDATE jobs SET revision=revision+1,status='DISPATCHING' WHERE id=?", (other,))
         self.assertEqual(self.client.get(f"/api/v1/jobs/{other}/timeline").json()["code"], "JOB_TIMELINE_INVALID")
 
+    def test_legacy_quarantine_timeline_uses_the_recorded_import_event(self):
+        job_id = self.client.post(f"/api/v1/resources/{SCOPE}/observations", json={},
+                                  headers=self.headers(**{"Idempotency-Key": "legacy-timeline-0001"})).json()["id"]
+        path = f"/api/v1/jobs/{job_id}/timeline"
+        with self.store.write() as db:
+            db.execute("UPDATE jobs SET status='CANCELLED_SAFE',reason='RESTORE_QUARANTINE' WHERE id=?", (job_id,))
+        self.assertEqual(self.client.get(path).status_code, 503)
+        with self.store.write() as db:
+            seq = self.store.event(db, at=self.now, actor=self.owner, kind="recovery.imported", target=OTHER,
+                                   outcome="READ_ONLY_RECOVERY", correlation=OTHER)
+        result = self.client.get(path)
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json()["items"][-1], {"seq": seq, "at": self.now, "status": "CANCELLED_SAFE",
+                                                       "reason": "RESTORE_QUARANTINE", "source": "recovery.imported"})
+
     def test_timeline_rejects_truncated_history(self):
         response = self.client.post(f"/api/v1/resources/{SCOPE}/observations", json={},
                                     headers=self.headers(**{"Idempotency-Key": "timeline-limit-0001"}))

@@ -17,7 +17,7 @@ import subprocess
 import time
 
 from ..errors import Denied
-from .archive_stream import AGE_PATH, parse_manifest, recipient, trusted_age
+from .archive_stream import AGE_PATH, MAX_RECOVERY_HEADER, parse_manifest, recipient, trusted_age
 from .controller_backup import verify_provenance
 from .protocol import SHA256, ULID, canonical, checksum, fields, integer, text
 from .rescue_payload import MAX_PAYLOAD, unpack, verify, write_tar
@@ -161,6 +161,8 @@ def _encrypted_output(path, public, members, *, age_path, tool_owner):
             process.stdin.close()
             if process.wait(timeout=120):
                 raise Denied("RESCUE_ENCRYPT_FAILED")
+            if os.fstat(fd).st_size > MAX_PAYLOAD:
+                raise Denied("RESCUE_CIPHERTEXT_SIZE_UNSUPPORTED")
             output.flush()
             os.fsync(fd)
         directory_sync(path.parent)
@@ -196,6 +198,8 @@ def prepare_bundle(ciphertext, envelope, trusted_key, identity, request, output,
         summary = verify(members, claims, trusted_key)
         header = canonical({"v": 1, "type": "hostorbit.recovery-bundle", "request": request,
                             "source_envelope": envelope, "trusted_source_key": trusted_key.hex(), "summary": summary})
+        if len(header) > MAX_RECOVERY_HEADER:
+            raise Denied("RESCUE_HEADER_SIZE_UNSUPPORTED")
         members = {"recovery.json": memoryview(header), **members}
         validate_request(request)  # Expiry is about transport, never source age.
         _encrypted_output(output, request["recipient"], members, age_path=age_path, tool_owner=tool_owner)

@@ -214,6 +214,14 @@ class InventoryTests(Fixture):
         self.assertFalse(disabled["enabled"])
         self.assertEqual(disabled["observation"]["reason"], "RESOURCE_DISABLED")
 
+    def test_query_limits_resources_before_reading_audit_history(self):
+        from hostorbit.inventory import _SELECT
+        with self.store.read() as db:
+            plan = ' '.join(str(row[3]) for row in db.execute('EXPLAIN QUERY PLAN ' + _SELECT,
+                                                              ('', None, None, 1, self.owner, 26)))
+        self.assertIn('MATERIALIZE page', plan)
+        self.assertEqual(plan.count('SEARCH a USING INDEX audit_target_time'), 1)
+
     def test_schema_one_is_not_silently_migrated(self):
         with self.store.write() as db:
             db.execute("PRAGMA user_version=1")

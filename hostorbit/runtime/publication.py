@@ -17,7 +17,7 @@ from .backup_target import BackupTarget
 from .controller_backup import verify_provenance
 from .coordinator import Coordinator
 from .protocol import SHA256, ULID, canonical, checksum, decode, fields, integer, text
-from .sftp_publication import completion, publish
+from .sftp_publication import completion, publication_timeout, publish
 from .storage import directory_sync, new_private_file, process_lock, protected_bytes
 
 
@@ -109,10 +109,11 @@ def run_with_systemd(config, directory, snapshot_id, target, envelope):
     if os.geteuid() != 0:
         raise Denied("LOCAL_ROOT_REQUIRED")
     unit = "hostorbit-publish-" + snapshot_id.lower()
+    timeout = publication_timeout(envelope["claims"]["ciphertext_size"]) + 30
     args = ["/usr/bin/systemd-run", "--quiet", "--wait", "--pipe", "--collect", "--unit=" + unit,
             "--property=User=" + str(config["broker_uid"]), "--property=Group=" + str(config["broker_gid"]),
             "--property=LoadCredentialEncrypted=broker-dek:" + config["vault_credential"],
-            "--property=RuntimeMaxSec=150s", "--property=TimeoutStopSec=1s", "--property=KillMode=control-group",
+            "--property=RuntimeMaxSec=" + str(timeout) + "s", "--property=TimeoutStopSec=1s", "--property=KillMode=control-group",
             "--property=UMask=0077", "--property=LimitCORE=0", "--property=MemoryMax=512M",
             "--property=NoNewPrivileges=yes", "--property=CapabilityBoundingSet=", "--property=RestrictSUIDSGID=yes",
             "--property=ProtectSystem=strict", "--property=ProtectHome=yes", "--property=PrivateTmp=yes",
@@ -146,7 +147,7 @@ def run_with_systemd(config, directory, snapshot_id, target, envelope):
     try:
         for thread in threads:
             thread.start()
-        code = process.wait(timeout=155)
+        code = process.wait(timeout=timeout + 5)
         for thread in threads:
             thread.join(2)
         if code or errors or any(thread.is_alive() for thread in threads):

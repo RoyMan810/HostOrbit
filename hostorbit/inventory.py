@@ -11,26 +11,35 @@ from .runtime.protocol import SHA256, ULID, checksum, docker_summary, software_s
 
 
 _SELECT = """
+WITH page AS MATERIALIZED (
+    SELECT r.* FROM resources r
+    WHERE r.id>? AND (? IS NULL OR r.id=?)
+    AND (? OR EXISTS (SELECT 1 FROM grants g WHERE g.user_id=?
+                     AND g.permission='vps:read' AND g.resource_id IN (r.id,'*')))
+    ORDER BY r.id LIMIT ?
+), latest AS (
+    SELECT r.id,
+        max(CASE WHEN candidate.status IN ('SUCCEEDED','FAILED','UNKNOWN_OUTCOME','CANCELLED_SAFE')
+                 AND (a.event='job.finished' OR (a.event='job.accepted' AND candidate.reason='RESTORE_QUARANTINE'))
+                 THEN a.seq END) AS latest_seq,
+        max(CASE WHEN a.event='job.finished' AND candidate.status='SUCCEEDED'
+                 AND candidate.scope_digest=r.scope_digest AND candidate.policy_revision=r.policy_revision
+                 THEN a.seq END) AS success_seq
+    FROM page r
+    LEFT JOIN audit a ON a.target_id=r.id AND a.event IN ('job.finished','job.accepted')
+    LEFT JOIN jobs candidate ON candidate.id=a.correlation_id AND candidate.resource_id=r.id
+    GROUP BY r.id
+)
 SELECT r.*, j.status AS job_status, j.reason AS job_reason, j.updated_at AS checked_at,
        j.scope_digest AS job_scope, j.policy_revision AS job_policy, j.result AS job_result,
        s.result AS success_result
-FROM resources r
-LEFT JOIN jobs j ON j.id=(
-    SELECT candidate.id FROM audit a JOIN jobs candidate ON candidate.id=a.correlation_id
-    WHERE a.target_id=r.id AND candidate.resource_id=r.id
-    AND candidate.status IN ('SUCCEEDED','FAILED','UNKNOWN_OUTCOME','CANCELLED_SAFE')
-    AND (a.event='job.finished' OR (a.event='job.accepted' AND candidate.reason='RESTORE_QUARANTINE'))
-    ORDER BY a.seq DESC LIMIT 1)
-LEFT JOIN jobs s ON s.id=(
-    SELECT candidate.id FROM audit a JOIN jobs candidate ON candidate.id=a.correlation_id
-    WHERE a.target_id=r.id AND a.event='job.finished' AND candidate.resource_id=r.id
-    AND candidate.status='SUCCEEDED' AND candidate.scope_digest=r.scope_digest
-    AND candidate.policy_revision=r.policy_revision
-    ORDER BY a.seq DESC LIMIT 1)
-WHERE r.id>? AND (? IS NULL OR r.id=?)
-AND (? OR EXISTS (SELECT 1 FROM grants g WHERE g.user_id=?
-                 AND g.permission='vps:read' AND g.resource_id IN (r.id,'*')))
-ORDER BY r.id LIMIT ?
+FROM page r
+JOIN latest l ON l.id=r.id
+LEFT JOIN audit ja ON ja.seq=l.latest_seq
+LEFT JOIN jobs j ON j.id=ja.correlation_id
+LEFT JOIN audit sa ON sa.seq=l.success_seq
+LEFT JOIN jobs s ON s.id=sa.correlation_id
+ORDER BY r.id
 """
 
 

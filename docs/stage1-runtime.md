@@ -26,6 +26,8 @@ Worker держит kernel flock на весь срок жизни процес�
 
 Runtime Worker явно обрабатывает SIGTERM/SIGINT, в том числе как PID 1 контейнера. Он завершает текущую итерацию с принятым заданием, затем выходит с освобождением lifetime lock; idle ожидание прерывается сразу. Compose даёт до 60 секунд на штатную остановку. Это не доказательство завершения remote effect: если процесс всё же убит или reply потерян, действует прежнее восстановление с `UNKNOWN_OUTCOME`, без автоматического повтора.
 
+Общий runtime entry point загружает Broker и AsyncSSH только при запуске или инициализации Broker; API, Worker и Supervisor не держат SSH-стек без необходимости. Это не меняет ограничения UID или границу Vault.
+
 ## UID и SQLite
 
 API и Worker имеют разные UID и общую отдельную группу `ho-app-db`. Shared Store требует точного владельца API, GID этой группы, directory mode 2770 и database mode 0660. Setgid сохраняет группу WAL/SHM и Worker lock. Runtime configuration задаёт эти значения явно. Приватный режим разработки с mode 0700/0600 остаётся доступен.

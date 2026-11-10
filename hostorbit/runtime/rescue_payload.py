@@ -18,13 +18,9 @@ from nacl.secret import Aead
 from ..database import Store
 from ..errors import Denied
 from ..migrations import expected_schema, schema_rows
-from .archive_stream import parse_manifest, validate_source
+from .archive_stream import MAX_PAYLOAD, MAX_RECOVERY_MEMBERS, parse_manifest, validate_source
 from .pins import _metadata
 from .protocol import SHA256, canonical, checksum, fields, integer, text
-
-
-MAX_PAYLOAD = 512 * 1024 * 1024
-MAX_MEMBERS = 65560
 
 
 def unpack(raw):
@@ -51,7 +47,7 @@ def unpack(raw):
             if (header != expected.tobuf(tarfile.USTAR_FORMAT, "ascii", "strict")
                     or info.type != tarfile.REGTYPE or info.name in members
                     or info.name.startswith("/") or any(p in {"", ".", ".."} for p in info.name.split("/"))
-                    or not 0 < info.size <= MAX_PAYLOAD or len(members) >= MAX_MEMBERS):
+                    or not 0 < info.size <= MAX_PAYLOAD or len(members) >= MAX_RECOVERY_MEMBERS):
                 raise ValueError()
         except (ValueError, UnicodeError, tarfile.HeaderError):
             raise Denied("RESCUE_TAR_INVALID") from None
