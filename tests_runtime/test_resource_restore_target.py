@@ -110,6 +110,31 @@ class RestoreTargetTests(unittest.TestCase):
         with self.assertRaisesRegex(Denied, "RESTORE_TARGET_CHANGED"):
             self.check(reply=replace_after_first_check)
 
+    def test_reserved_volume_requires_only_its_created_helper(self):
+        reservation, container = "a" * 32, "b" * 64
+        self.volume["Labels"] = {"org.hostorbit.resource-restore": reservation}
+        references = [{"Id": container, "State": "created"}]
+
+        def reply(socket_path, owner, endpoint, reply_type=dict):
+            if urlsplit(endpoint).path == "/containers/json":
+                self.assertIs(reply_type, list)
+                query = parse_qs(urlsplit(endpoint).query)
+                self.assertEqual(query["all"], ["1"])
+                self.assertEqual(json.loads(query["filters"][0]), {"volume": [self.name]})
+                return references
+            return self.reply(socket_path, owner, endpoint)
+
+        kwargs = {"expected_created_at": self.created, "required_bytes": 1, "required_inodes": 1,
+                  "docker_root": self.docker_root, "socket_path": self.socket, "owner": os.geteuid(),
+                  "reservation": reservation}
+        with patch("hostorbit.runtime.resource_restore_target._get", side_effect=reply):
+            baseline = check_restore_target(self.name, **kwargs)
+            kwargs.update(expected_container=container, expected_fingerprint=baseline["target_fingerprint"])
+            self.assertEqual(check_restore_target(self.name, **kwargs), baseline)
+            references.append({"Id": "c" * 64, "State": "exited"})
+            with self.assertRaisesRegex(Denied, "RESTORE_TARGET_REFERENCED"):
+                check_restore_target(self.name, **kwargs)
+
     def test_refuses_occupied_and_referenced_targets(self):
         marker = self.data / ".owner-data"
         marker.write_text("preserve")
