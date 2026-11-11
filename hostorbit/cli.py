@@ -2,7 +2,9 @@
 
 import argparse
 import getpass
+import json
 from pathlib import Path
+import sqlite3
 import sys
 
 from .auth import AuthService
@@ -19,6 +21,7 @@ def main(argv=None):
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("init", help="Create a new private application database")
     commands.add_parser("bootstrap-token", help="Issue or rotate the local one-time 10-minute Owner token")
+    commands.add_parser("audit-verify", help="Verify the local Audit chain and Outbox")
     owner = commands.add_parser("create-owner", help="Consume the bootstrap token locally")
     owner.add_argument("--username", required=True)
     rehearsal = commands.add_parser("migration-rehearsal", help="Verify adjacent schema changes on private copies")
@@ -40,10 +43,19 @@ def main(argv=None):
             print("Database initialized")
             return 0
         store = Store(args.database, access=access)
+        if args.command == "audit-verify":
+            try:
+                with store.connect(readonly=True) as db:
+                    db.execute("BEGIN")
+                    head = store.verify_audit_connection(db)
+                    events = db.execute("SELECT count(*) FROM audit").fetchone()[0]
+            except (OSError, RuntimeError, ValueError, sqlite3.Error) as error:
+                raise Denied("AUDIT_VERIFICATION_FAILED") from error
+            print(json.dumps({"status": "verified", "events": events, "head": head}))
+            return 0
         if args.command == "migration-rehearsal":
             if os.geteuid() != 0:
                 raise Denied("LOCAL_ROOT_REQUIRED")
-            import json
             from .migrations import rehearse
             print(json.dumps(rehearse(store, args.output, to_schema=args.to_schema)))
             return 0

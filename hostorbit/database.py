@@ -234,8 +234,11 @@ class Store:
             value["details"] = json.loads(row["details"])
             if value["previous_hash"] != previous or hashlib.sha256(canonical(value).encode()).hexdigest() != row["digest"]:
                 raise RuntimeError("AUDIT_INTEGRITY")
-            outbox = db.execute("SELECT payload FROM outbox WHERE seq=?", (row["seq"],)).fetchone()
-            if outbox is None or outbox[0] != canonical({**value, "digest": row["digest"]}):
+            outbox = db.execute("SELECT event_id, payload, created_at FROM outbox WHERE seq=?", (row["seq"],)).fetchone()
+            expected = (value["id"], canonical({**value, "digest": row["digest"]}), value["at"])
+            if outbox is None or tuple(outbox) != expected:
                 raise RuntimeError("OUTBOX_INTEGRITY")
             previous = row["digest"]
+        if db.execute("SELECT 1 FROM outbox LEFT JOIN audit USING (seq) WHERE audit.seq IS NULL LIMIT 1").fetchone():
+            raise RuntimeError("OUTBOX_INTEGRITY")
         return previous

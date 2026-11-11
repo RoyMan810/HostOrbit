@@ -1,3 +1,6 @@
+from contextlib import closing, redirect_stderr, redirect_stdout
+from io import StringIO
+import json
 import multiprocessing
 import os
 from pathlib import Path
@@ -6,6 +9,7 @@ import sqlite3
 import tempfile
 import unittest
 
+from hostorbit.cli import main
 from hostorbit.database import Store
 
 
@@ -96,3 +100,41 @@ class DatabaseTests(unittest.TestCase):
             db.execute("UPDATE audit SET outcome='FORGED' WHERE seq=1")
         with self.assertRaisesRegex(RuntimeError, "AUDIT_INTEGRITY"):
             self.store.verify_audit()
+
+    def test_audit_verification_detects_outbox_metadata_and_orphan_rows(self):
+        with self.store.write() as db:
+            self.record(db)
+        with closing(sqlite3.connect(self.store.path, autocommit=True)) as db:
+            db.execute("PRAGMA foreign_keys=OFF")
+            db.execute("DROP TRIGGER outbox_no_update")
+            for column, forged in (("event_id", "forged"), ("created_at", 2)):
+                with self.subTest(column=column):
+                    original = db.execute(f"SELECT {column} FROM outbox").fetchone()[0]
+                    db.execute(f"UPDATE outbox SET {column}=?", (forged,))
+                    with self.assertRaisesRegex(RuntimeError, "OUTBOX_INTEGRITY"):
+                        self.store.verify_audit()
+                    db.execute(f"UPDATE outbox SET {column}=?", (original,))
+            db.execute("INSERT INTO outbox VALUES(2, 'orphan', '{}', 1)")
+        with self.assertRaisesRegex(RuntimeError, "OUTBOX_INTEGRITY"):
+            self.store.verify_audit()
+
+    def test_audit_verify_command_reports_head_and_fails_on_tampering(self):
+        def run():
+            stdout, stderr = StringIO(), StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                status = main(["--database", str(self.store.path), "audit-verify"])
+            return status, stdout.getvalue(), stderr.getvalue()
+
+        for count in (0, 1):
+            with self.subTest(count=count):
+                if count:
+                    with self.store.write() as db:
+                        self.record(db)
+                status, stdout, stderr = run()
+                self.assertEqual((status, stderr), (0, ""))
+                self.assertEqual(json.loads(stdout), {"status": "verified", "events": count,
+                                                      "head": self.store.verify_audit()})
+        with self.store.connect() as db:
+            db.execute("DROP TRIGGER audit_no_update")
+            db.execute("UPDATE audit SET outcome='FORGED'")
+        self.assertEqual(run(), (1, "", "HostOrbit command failed AUDIT_VERIFICATION_FAILED\n"))
