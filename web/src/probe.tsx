@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ApiError, request } from './api'
 import type { Resource, Session } from './api'
 import type { Copy, Language } from './copy'
+import { isJobId, JobTimeline } from './job-timeline'
 
 type JobStatus = keyof Copy['probeStatus']
 const terminal = new Set<JobStatus>(['SUCCEEDED', 'FAILED', 'UNKNOWN_OUTCOME', 'CANCELLED_SAFE'])
@@ -32,7 +33,7 @@ type Run =
 function checkedJob(value: unknown, target: string, expectedId?: string): Job {
   if (!value || typeof value !== 'object') throw new Error('Invalid observation response')
   const job = value as Job
-  if (typeof job.id !== 'string' || !/^[0-7][0-9A-HJKMNP-TV-Z]{25}$/.test(job.id)
+  if (!isJobId(job.id)
       || (expectedId && job.id !== expectedId) || job.resource_id !== target || job.action !== 'host.probe'
       || (!active.has(job.status) && !terminal.has(job.status))
       || !Number.isSafeInteger(job.revision) || job.revision < 1
@@ -40,47 +41,6 @@ function checkedJob(value: unknown, target: string, expectedId?: string): Job {
     throw new Error('Invalid observation response')
   }
   return job
-}
-
-interface TimelineItem { seq: number; at: number; status: JobStatus; reason: string | null }
-
-function JobTimeline({ job, t, lang, expired }: { job: Job; t: Copy; lang: Language; expired: () => void }) {
-  const [items, setItems] = useState<TimelineItem[] | null>(null)
-  const [error, setError] = useState<unknown>(null)
-  const [loading, setLoading] = useState(false)
-  const requestAbort = useRef<AbortController | null>(null)
-  useEffect(() => () => requestAbort.current?.abort(), [])
-
-  async function load() {
-    if (requestAbort.current) return
-    const abort = new AbortController()
-    requestAbort.current = abort
-    setItems(null)
-    setError(null)
-    setLoading(true)
-    try {
-      const result = await request<{ items: TimelineItem[] }>('/jobs/' + encodeURIComponent(job.id) + '/timeline', { signal: abort.signal })
-      if (!abort.signal.aborted) setItems(result.items)
-    } catch (err) {
-      if (abort.signal.aborted) return
-      if (err instanceof ApiError && err.status === 401) expired()
-      else setError(err)
-    } finally {
-      if (!abort.signal.aborted) { requestAbort.current = null; setLoading(false) }
-    }
-  }
-
-  return <div className="probe-timeline">
-    <button onClick={() => void load()} disabled={loading}>{t.timelineLoad}</button>
-    {loading && <p>{t.loading}</p>}
-    {error != null && <p className="error">{error instanceof ApiError && [403, 404].includes(error.status) ? t.probeUnavailable : t.requestError}</p>}
-    {items && (items.length === 0 ? <p>{t.timelineEmpty}</p> : <ol>
-      {items.map(item => <li key={item.seq}>
-        <time dateTime={new Date(item.at * 1000).toISOString()}>{new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(item.at * 1000))}</time>
-        {' — '}<span>{t.probeStatus[item.status]}</span>{item.reason && <> <code>{item.reason}</code></>}
-      </li>)}
-    </ol>)}
-  </div>
 }
 
 export function ProbeControl({ resource, session, t, lang, expired, reload }: {
@@ -181,7 +141,7 @@ export function ProbeControl({ resource, session, t, lang, expired, reload }: {
         <p><strong>{t.probeStatus[run.job.status]}</strong></p>
         {run.job.status === 'UNKNOWN_OUTCOME' && <p>{t.probeUnknown}</p>}
         {run.job.reason === 'SSH_HOST_KEY_MISMATCH' && <p>{t.probeHostKey}</p>}
-        {!('readDenied' in run && run.readDenied) && <JobTimeline key={run.job.id} job={run.job} t={t} lang={lang} expired={expired}/>}
+        {!('readDenied' in run && run.readDenied) && <JobTimeline key={run.job.id} jobId={run.job.id} t={t} lang={lang} expired={expired}/>}
       </>}
       {run.phase === 'sending' && <p>{t.probeSending}</p>}
       {run.phase === 'rejected' && <p className="error">{t.probeDenied}</p>}

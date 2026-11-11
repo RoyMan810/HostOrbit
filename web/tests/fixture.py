@@ -33,6 +33,10 @@ def fixture(directory):
     auth.create_user(tokens.session, tokens.csrf, "fixture-operator", PASSWORD, "Operator",
                      [{"permission": "vps:read", "resource_id": TARGETS[0]}],
                      if_match=version, correlation=identifier())
+    _, version = auth.list_users(tokens.session)
+    auth.create_user(tokens.session, tokens.csrf, "fixture-auditor", PASSWORD, "Auditor",
+                     [{"permission": "audit:read", "resource_id": "*"}],
+                     if_match=version, correlation=identifier())
     queue = JobQueue(store)
     for target in TARGETS:
         queue.register_resource(target, "a" * 64, 1)
@@ -60,7 +64,7 @@ def fixture(directory):
             ]}
         queue.finish(claim, "SUCCEEDED", "PROBE_VERIFIED", result=result)
 
-    app = create_app(Settings(store.path, ORIGIN), auth=auth)
+    app = create_app(Settings(store.path, ORIGIN, trusted_proxies=("127.0.0.1/32",)), auth=auth)
 
     @app.post("/__fixture__/resources/{resource_id}/disable", status_code=204)
     def disable_resource(resource_id: str):
