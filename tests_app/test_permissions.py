@@ -1,4 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
+from unittest.mock import patch
 
 from hostorbit.auth import COOKIE
 from hostorbit.errors import Denied
@@ -6,6 +7,34 @@ from test_auth_api import Fixture, OTHER, PASSWORD, SCOPE
 
 
 class PermissionTests(Fixture):
+    def test_audit_integrity_is_restricted_to_global_audit_read(self):
+        endpoint = "/api/v1/audit/integrity"
+        self.create_user()
+        operator = self.other_client("operator")
+        with patch.object(self.store, "verify_audit", wraps=self.store.verify_audit) as verify:
+            self.assertEqual(operator.get(endpoint).status_code, 403)
+            verify.assert_not_called()
+        self.create_user(name="auditor", role="Auditor", grants=[{"permission": "audit:read", "resource_id": "*"}])
+        auditor = self.other_client("auditor")
+        result = auditor.get(endpoint)
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.json(), {"status": "verified"})
+        self.assertEqual(result.headers["Cache-Control"], "no-store")
+
+    def test_audit_integrity_distinguishes_corruption_from_unavailable_storage(self):
+        endpoint = "/api/v1/audit/integrity"
+        with patch.object(self.store, "verify_audit", side_effect=OSError("private-canary")):
+            unavailable = self.client.get(endpoint)
+        self.assertEqual(unavailable.status_code, 503)
+        self.assertEqual(unavailable.json()["code"], "STORAGE_UNAVAILABLE")
+        self.assertNotIn("private-canary", unavailable.text)
+        with self.store.write() as db:
+            db.execute("DROP TRIGGER audit_no_update")
+            db.execute("UPDATE audit SET details='private-canary' WHERE seq=1")
+        corrupt = self.client.get(endpoint)
+        self.assertEqual(corrupt.status_code, 200)
+        self.assertEqual(corrupt.json(), {"status": "invalid"})
+
     def test_operator_scope_and_auditor_read_only_permissions_are_checked_in_manager(self):
         self.create_user(grants=[{"permission": "vps:restart", "resource_id": SCOPE}])
         operator = self.other_client("operator")

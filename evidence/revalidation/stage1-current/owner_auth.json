@@ -2,37 +2,37 @@
   "artifacts": [
     {
       "path": "evidence/revalidation/stage1-current/source-manifest.json",
-      "sha256": "d526afdc5ba4ca757f20c7e1dab7174476e1cfd8c125c410ef9d5644963db61e"
+      "sha256": "ba9c55240e40219a55a53a6114d3cfbe89f2982ca03d0699f53415bccad8bb49"
     },
     {
       "path": "evidence/revalidation/stage1-current/bundle-manifest.json",
-      "sha256": "700dac89c6dd593ed81b9007e8c3971010b632d180437c49d1a9613306345efd"
+      "sha256": "9297fcd5c0340113f40f1d63402f62c0aee3a8c952cfefa2981e1a58210e01e9"
     },
     {
       "path": "evidence/revalidation/stage1-current/bundle-manifest.sig",
-      "sha256": "440e728739b4f02bfe13e543b0aad3c51b9d5ddb829e2048339f8a1d4aad89b1"
+      "sha256": "6a404fe975599f249707b9d31308f79e0638f73c1607e3f918ec7b0222d32736"
     },
     {
       "path": "evidence/revalidation/stage1-current/test-signer.pub",
-      "sha256": "cf26088d448522b260eb6209030ba202bd09272934ab2ea83258b41f092ff22d"
+      "sha256": "a1b649d9ef3e93867ec427d5244ac2c9a126b3f21c3c6365486b2cabaf839fef"
     },
     {
       "path": "evidence/revalidation/stage1-current/sbom.cdx.json",
-      "sha256": "6b557f6f3999907b87e4c42609cab0cdd854aa413d4a09f92f1bbe479f90d677"
+      "sha256": "c4bbe32e2160e57dbcf47637989113e07cfbcc53de09418b25b8b79c0b7dfeea"
     },
     {
       "path": "evidence/revalidation/stage1-current/ci-observations.json",
-      "sha256": "64eeb1cf0b3527c71e8bed99c50097de0a9868f1752612eb1944e911e804ef5d"
+      "sha256": "d6086f243265c26577db693ec63cde881296e0f1ecb30bd2b7b7aa069fe909f3"
     }
   ],
-  "build_digest": "700dac89c6dd593ed81b9007e8c3971010b632d180437c49d1a9613306345efd",
+  "build_digest": "9297fcd5c0340113f40f1d63402f62c0aee3a8c952cfefa2981e1a58210e01e9",
   "capability": "owner_auth",
   "ci_job_ids": [
-    130390763952,
-    130390764075
+    130396373892,
+    130396374045
   ],
   "environment": "GitHub-hosted Ubuntu 24.04 runners. The signed development bundle uses Python 3.15.2.",
-  "evidence_digest": "b300da9a952929714f9c13382d362be60773fa39d3c6fa03afaf650c6eaba0a8",
+  "evidence_digest": "c2b77388747fa36d0a77417d1a38e026f9b8b6c34e9e8757278fda68fbfc2162",
   "fault_injection": "test_first_web_visitor_cannot_bootstrap_owner_and_token_is_local_single_use",
   "initial_state": "Clean committed source and disposable GitHub-hosted Ubuntu 24.04 CI runners; development install and ephemeral test signer.",
   "limitations": [
@@ -40,7 +40,7 @@
     "The signed development bundle uses an ephemeral test signer. SBOM scope excludes the complete OS and OCI base image.",
     "Independent disaster recovery, Owner restore attestation and capacity soak require separate validation."
   ],
-  "manifest_digest": "d526afdc5ba4ca757f20c7e1dab7174476e1cfd8c125c410ef9d5644963db61e",
+  "manifest_digest": "ba9c55240e40219a55a53a6114d3cfbe89f2982ca03d0699f53415bccad8bb49",
   "negative_checks": [
     "test_first_web_visitor_cannot_bootstrap_owner_and_token_is_local_single_use"
   ],
@@ -49,17 +49,17 @@
   "positive_checks": [
     "test_local_cli_creates_owner_without_password_or_token_in_arguments"
   ],
-  "recorded_at_utc": "2026-11-11T07:40:40.353848+00:00",
+  "recorded_at_utc": "2026-11-11T07:54:47.721115+00:00",
   "revalidation_of": {
     "evidence_digest": "5985960a9e4c823822999dce34cd3008770d25b607a0a7b9193afc8d78a3605b",
     "path": "evidence/capabilities/stage1/owner_auth.json",
     "source_commit": "7af105f680228d75dbe1f8136e390aff3bef0d4d"
   },
   "reviewer": "Automated revalidation against GitHub CI and the source-bound signed development bundle metadata.",
-  "sbom_digest": "6b557f6f3999907b87e4c42609cab0cdd854aa413d4a09f92f1bbe479f90d677",
+  "sbom_digest": "c4bbe32e2160e57dbcf47637989113e07cfbcc53de09418b25b8b79c0b7dfeea",
   "scenario": "Foundation: local-only one-time Owner bootstrap, Argon2id authentication, HTTPS session/cookie/CSRF/rate-limit and re-auth primitives with durable negative tests.",
   "scope": "FOUNDATION_ONLY",
-  "source_commit": "cc6b8271076ae9669b563b492a65f36dcd28d476",
+  "source_commit": "665485dfa91014b20e7c490461379e92e25ae7f6",
   "source_files": [
     {
       "path": ".github/workflows/checks.yml",
@@ -139,7 +139,7 @@
     },
     {
       "path": "hostorbit/api.py",
-      "sha256": "48b11cb6e3737236a85f62da9743b7a9bc4eb738924cdf4d077a59c2aad5ce97"
+      "sha256": "bbcb44f796525778101613a6c49bdd200e60078c53db8e6ad6f0a31d3f6035e8"
     },
     {
       "path": "hostorbit/auth.py",
@@ -155,7 +155,7 @@
     },
     {
       "path": "hostorbit/database.py",
-      "sha256": "bb610b24c0a5a1f2dd4560cf1367dc9e062801c39e95997ca8c2b7aa44750586"
+      "sha256": "d2638a84327f1d33e67044e3aa49bee256921f53b0345a52b9717e97f9fe6572"
     },
     {
       "path": "hostorbit/errors.py",
@@ -355,7 +355,7 @@
     },
     {
       "path": "tests_app/test_permissions.py",
-      "sha256": "14b34a51ba7b087f17f9b35b71d4e0fba9273c90e756438df75e281cd3a5c167"
+      "sha256": "37c8321372b96cfcbc4ab4b441958530dea819fa14bc8b66934a624fd8c39c8c"
     },
     {
       "path": "tests_app/test_queue_api.py",

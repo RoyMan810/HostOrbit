@@ -23,6 +23,28 @@ async function signIn(page: Page, username = 'fixture-owner') {
   await expect(page.getByRole('heading', { name: 'VPS inventory' })).toBeVisible()
 }
 
+test('checks audit integrity on demand and displays the latest result', async ({ page }) => {
+  let checks = 0
+  page.on('request', req => {
+    if (new URL(req.url()).pathname === '/api/v1/audit/integrity') checks++
+  })
+  await signIn(page)
+  await page.getByRole('button', { name: 'Audit log', exact: true }).click()
+  await expect(page.getByText('auth.login', { exact: true }).first()).toBeVisible()
+  expect(checks).toBe(0)
+  await page.getByRole('button', { name: 'Check audit integrity' }).click()
+  await expect(page.getByRole('status')).toHaveText('Audit and Outbox passed the integrity check.')
+  await page.getByLabel('Language').selectOption('ru')
+  await page.route('**/api/v1/audit/integrity', route => route.fulfill({ json: { status: 'invalid' } }), { times: 1 })
+  const check = page.getByRole('button', { name: 'Проверить целостность журнала' })
+  await check.click()
+  await expect(page.getByRole('alert')).toHaveText('Обнаружено нарушение целостности журнала или Outbox.')
+  await page.route('**/api/v1/audit/integrity', route => route.fulfill({ status: 503, json: {} }), { times: 1 })
+  await check.click()
+  await expect(page.getByRole('alert')).toHaveText('Не удалось выполнить проверку целостности.')
+  expect(checks).toBe(3)
+})
+
 test('shows audit events only to authorised users and clears them on session loss', async ({ page, context }) => {
   await signIn(page)
   await page.getByRole('button', { name: 'Audit log', exact: true }).click()
@@ -122,7 +144,9 @@ test('downloads only the reviewed SSH audit export for the current page', async 
   const download = await ready
   expect(download.suggestedFilename()).toBe('hostorbit-ssh-audit.json')
   expect(await readFile(await download.path(), 'utf8')).toBe(reviewed)
+  const refreshed = page.waitForResponse(response => new URL(response.url()).pathname === '/api/v1/audit')
   await page.getByRole('button', { name: 'Обновить журнал аудита' }).click()
+  expect((await refreshed).status()).toBe(200)
   await expect(page.getByText('Проверить экспорт SSH-аудита', { exact: true })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Скачать JSON' })).toHaveCount(0)
 })

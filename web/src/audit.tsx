@@ -24,6 +24,33 @@ function sshAuditExport(items: AuditEvent[], statuses: Copy['probeStatus']) {
   return events.length ? JSON.stringify({ version: 1, events }, null, 2) : null
 }
 
+function IntegrityCheck({ t, expired }: { t: Copy; expired: () => void }) {
+  const [status, setStatus] = useState<'idle' | 'checking' | 'verified' | 'invalid' | 'denied' | 'unavailable'>('idle')
+  useEffect(() => {
+    if (status !== 'checking') return
+    const abort = new AbortController()
+    request<{ status: 'verified' | 'invalid' }>('/audit/integrity', { signal: abort.signal })
+      .then(result => {
+        if (!abort.signal.aborted) setStatus(result.status === 'verified' || result.status === 'invalid'
+          ? result.status : 'unavailable')
+      })
+      .catch(err => {
+        if (abort.signal.aborted) return
+        if (err instanceof ApiError && err.status === 401) expired()
+        else setStatus(err instanceof ApiError && err.status === 403 ? 'denied' : 'unavailable')
+      })
+    return () => abort.abort()
+  }, [status, expired])
+
+  return <div className="panel-heading">
+    <button onClick={() => setStatus('checking')} disabled={status === 'checking'}>{t.auditVerify}</button>
+    {status === 'checking' && <p role="status">{t.auditChecking}</p>}
+    {status === 'verified' && <p role="status">{t.auditVerified}</p>}
+    {status === 'invalid' && <p className="error" role="alert">{t.auditInvalid}</p>}
+    {status === 'denied' && <p className="error" role="alert">{t.auditDenied}</p>}
+    {status === 'unavailable' && <p className="error" role="alert">{t.auditVerifyUnavailable}</p>}
+  </div>
+}
 
 export function Audit({ t, lang, expired }: { t: Copy; lang: Language; expired: () => void }) {
   const [cursors, setCursors] = useState([0])
@@ -53,6 +80,7 @@ export function Audit({ t, lang, expired }: { t: Copy; lang: Language; expired: 
       <button onClick={() => refresh(value => value + 1)} disabled={items == null && error == null}>{t.auditRefresh}</button>
     </div>
     <section className="panel" aria-label={t.audit}>
+      {items != null && <IntegrityCheck t={t} expired={expired}/>}
       {exportJson && <details className="audit-export" key={`${after}:${revision}`}>
         <summary>{t.auditExportReview}</summary>
         <p>{t.auditExportScope}</p>
