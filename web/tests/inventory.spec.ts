@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises'
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
 
@@ -78,6 +79,52 @@ test('audit permission alone does not grant access to a linked SSH job timeline'
   expect((await response).status()).toBe(404)
   await expect(entry.getByText('The job status is unavailable with your current access.')).toBeVisible()
   await expect(entry.getByRole('list')).toHaveCount(0)
+})
+
+test('downloads only the reviewed SSH audit export for the current page', async ({ page }) => {
+  const canary = 'private-fixture-canary'
+  await page.route('**/api/v1/audit?*', async route => {
+    const response = await route.fetch()
+    const result = await response.json()
+    const accepted = result.items.find(item => item.event.event === 'job.accepted')
+    accepted.event.details = { private: canary }
+    result.items.push({
+      seq: result.items.at(-1).seq + 1,
+      event: { ...accepted.event, outcome: canary },
+    })
+    await route.fulfill({ response, json: result })
+  })
+  await signIn(page)
+  await page.getByRole('button', { name: 'Audit log', exact: true }).click()
+  const accepted = page.locator('.audit-list > li').filter({ has: page.getByText('job.accepted', { exact: true }) }).first()
+  await expect(accepted).toBeVisible()
+  const identifiers = await accepted.locator('dd code').allTextContents()
+
+  const downloadLink = page.getByRole('link', { name: 'Download JSON' })
+  await expect(downloadLink).toHaveCount(0)
+  const review = page.getByText('Review SSH audit export', { exact: true })
+  await expect(review).toBeVisible()
+  await review.press('Enter')
+  await expect(downloadLink).toBeVisible()
+  const preview = page.locator('.audit-export pre')
+  const reviewed = await preview.innerText()
+  const { version, events } = JSON.parse(reviewed)
+  expect(version).toBe(1)
+  expect(events).toHaveLength(12)
+  expect(events[0]).toEqual({ job: 1, event: 'job.accepted', outcome: 'QUEUED', at: expect.stringMatching(/Z$/) })
+  expect(events[5]).toMatchObject({ job: 1, event: 'job.finished', outcome: 'SUCCEEDED' })
+  expect(events[6]).toMatchObject({ job: 2, event: 'job.accepted' })
+  for (const value of [...identifiers, canary, 'auth.login', 'details']) expect(reviewed).not.toContain(value)
+
+  await page.getByLabel('Language').selectOption('ru')
+  const ready = page.waitForEvent('download')
+  await page.getByRole('link', { name: 'Скачать JSON' }).click()
+  const download = await ready
+  expect(download.suggestedFilename()).toBe('hostorbit-ssh-audit.json')
+  expect(await readFile(await download.path(), 'utf8')).toBe(reviewed)
+  await page.getByRole('button', { name: 'Обновить журнал аудита' }).click()
+  await expect(page.getByText('Проверить экспорт SSH-аудита', { exact: true })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Скачать JSON' })).toHaveCount(0)
 })
 
 test('pages through the bounded audit API without retaining the previous page', async ({ page }) => {

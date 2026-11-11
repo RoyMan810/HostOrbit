@@ -10,12 +10,28 @@ type AuditEvent = {
 
 const jobEvents = new Set(['job.accepted', 'job.transition', 'job.finished'])
 
+function sshAuditExport(items: AuditEvent[], statuses: Copy['probeStatus']) {
+  const jobs = new Map<string, number>()
+  const events = []
+  for (const { event } of items) {
+    const { at, event: kind, outcome, correlation_id: jobId } = event
+    if (!jobEvents.has(kind) || !isJobId(jobId) || !Object.hasOwn(statuses, outcome)
+        || !Number.isSafeInteger(at) || at < 0 || at > 253402300799) continue
+    const job = jobs.get(jobId) ?? jobs.size + 1
+    jobs.set(jobId, job)
+    events.push({ job, event: kind, outcome, at: new Date(at * 1000).toISOString() })
+  }
+  return events.length ? JSON.stringify({ version: 1, events }, null, 2) : null
+}
+
+
 export function Audit({ t, lang, expired }: { t: Copy; lang: Language; expired: () => void }) {
   const [cursors, setCursors] = useState([0])
   const [revision, refresh] = useState(0)
   const [items, setItems] = useState<AuditEvent[] | null>(null)
   const [error, setError] = useState<unknown>(null)
   const after = cursors[cursors.length - 1]
+  const exportJson = items && sshAuditExport(items, t.probeStatus)
 
   useEffect(() => {
     const abort = new AbortController()
@@ -37,6 +53,14 @@ export function Audit({ t, lang, expired }: { t: Copy; lang: Language; expired: 
       <button onClick={() => refresh(value => value + 1)} disabled={items == null && error == null}>{t.auditRefresh}</button>
     </div>
     <section className="panel" aria-label={t.audit}>
+      {exportJson && <details className="audit-export" key={`${after}:${revision}`}>
+        <summary>{t.auditExportReview}</summary>
+        <p>{t.auditExportScope}</p>
+        <pre tabIndex={0}>{exportJson}</pre>
+        <a download="hostorbit-ssh-audit.json" href={`data:application/json;charset=utf-8,${encodeURIComponent(exportJson)}`}>
+          {t.auditExportDownload}
+        </a>
+      </details>}
       {error != null ? <p className="notice error" role="alert">
         {error instanceof ApiError && error.status === 403 ? t.auditDenied : t.requestError}
       </p> : items == null ? <p className="notice" role="status">{t.loading}</p> : items.length === 0 ?

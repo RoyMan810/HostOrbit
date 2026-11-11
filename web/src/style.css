@@ -79,6 +79,11 @@ code { font-family: ui-monospace, "Cascadia Code", monospace; overflow-wrap: any
 .workspace { max-width: 1320px; margin: 0 auto; padding: clamp(24px, 5vw, 64px) clamp(16px, 5vw, 64px); }
 .workspace-nav { max-width: 1320px; margin: 16px auto 0; padding: 0 clamp(16px, 5vw, 64px); display: flex; flex-wrap: wrap; gap: 8px; }
 .workspace-nav [aria-current="page"] { background: var(--soft); border-color: var(--accent); }
+.audit-export { padding: 14px 20px; border-bottom: 1px solid var(--line); }
+.audit-export summary { cursor: pointer; font-weight: 650; }
+.audit-export p { margin-top: 8px; font-size: 13px; }
+.audit-export pre { max-height: 18rem; overflow: auto; padding: 12px; background: var(--soft); border-radius: 8px; }
+.audit-export a { color: var(--accent); }
 .audit-list { list-style: none; margin: 0; padding: 0; }
 .audit-list > li { padding: 18px 20px; overflow-wrap: anywhere; }
 .audit-list > li + li { border-top: 1px solid var(--line); }
