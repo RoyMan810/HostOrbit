@@ -128,7 +128,7 @@ test('downloads only the reviewed SSH audit export for the current page', async 
   await expect(review).toBeVisible()
   await review.press('Enter')
   await expect(downloadLink).toBeVisible()
-  const preview = page.locator('.audit-export pre')
+  const preview = page.locator('.audit-export[open] pre')
   const reviewed = await preview.innerText()
   const { version, events } = JSON.parse(reviewed)
   expect(version).toBe(1)
@@ -149,6 +149,48 @@ test('downloads only the reviewed SSH audit export for the current page', async 
   expect((await refreshed).status()).toBe(200)
   await expect(page.getByText('Проверить экспорт SSH-аудита', { exact: true })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Скачать JSON' })).toHaveCount(0)
+})
+
+test('exports only reviewed authentication events from the current audit page', async ({ page }) => {
+  const canary = 'private-auth-fixture'
+  const at = 1700000000
+  const allowed = [
+    ['auth.login', 'SUCCEEDED'], ['auth.login_failed', 'DENIED'], ['auth.login_limited', 'DENIED'],
+    ['auth.logout', 'SUCCEEDED'], ['auth.reauthenticated', 'SUCCEEDED'],
+    ['auth.reauth_failed', 'DENIED'], ['auth.reauth_limited', 'DENIED'],
+  ]
+  const items = [...allowed, ['auth.unknown', 'SUCCEEDED'], ['auth.login', canary],
+    ['auth.login_failed', 'SUCCEEDED'], ['auth.logout', 'SUCCEEDED', -1]]
+  await signIn(page)
+  await page.route('**/api/v1/audit?*', route => {
+    const after = Number(new URL(route.request().url()).searchParams.get('after'))
+    const rows = after === 0 ? Array.from({ length: 100 }, (_, i) => items[i] ?? ['job.finished', 'SUCCEEDED'])
+      : [['auth.unknown', 'SUCCEEDED']]
+    return route.fulfill({ json: { items: rows.map(([event, outcome, time], i) => ({
+      seq: after + i + 1,
+      event: { event, outcome, at: time ?? at, actor_id: canary, target_id: canary, correlation_id: canary,
+        details: { username: canary, ip: '203.0.113.5' } },
+    })) } })
+  })
+  await page.getByRole('button', { name: 'Audit log', exact: true }).click()
+  const review = page.getByText('Review authentication audit export', { exact: true })
+  await expect(review).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Download JSON' })).toHaveCount(0)
+  await review.press('Enter')
+  const reviewed = await page.locator('.audit-export[open] pre').innerText()
+  expect(JSON.parse(reviewed)).toEqual({ version: 1, events: allowed.map(([event, outcome]) => ({
+    event, outcome, at: new Date(at * 1000).toISOString(),
+  })) })
+  await page.getByLabel('Language').selectOption('ru')
+  await expect(page.getByText('Проверить экспорт аудита аутентификации', { exact: true })).toBeVisible()
+  const ready = page.waitForEvent('download')
+  await page.getByRole('link', { name: 'Скачать JSON' }).click()
+  const download = await ready
+  expect(download.suggestedFilename()).toBe('hostorbit-auth-audit.json')
+  expect(await readFile(await download.path(), 'utf8')).toBe(reviewed)
+  await page.getByRole('button', { name: 'Следующая страница', exact: true }).click()
+  await expect(page.getByText('auth.unknown', { exact: true })).toBeVisible()
+  await expect(page.locator('.audit-export')).toHaveCount(0)
 })
 
 test('pages through the bounded audit API without retaining the previous page', async ({ page }) => {
