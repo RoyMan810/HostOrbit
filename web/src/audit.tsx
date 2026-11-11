@@ -9,19 +9,55 @@ type AuditEvent = {
 }
 
 const jobEvents = new Set(['job.accepted', 'job.transition', 'job.finished'])
+const authOutcomes = new Map([
+  ['auth.login', 'SUCCEEDED'],
+  ['auth.login_failed', 'DENIED'],
+  ['auth.login_limited', 'DENIED'],
+  ['auth.logout', 'SUCCEEDED'],
+  ['auth.reauthenticated', 'SUCCEEDED'],
+  ['auth.reauth_failed', 'DENIED'],
+  ['auth.reauth_limited', 'DENIED'],
+])
+
+function auditExportTime(at: number) {
+  return Number.isSafeInteger(at) && at >= 0 && at <= 253402300799 ? new Date(at * 1000).toISOString() : null
+}
 
 function sshAuditExport(items: AuditEvent[], statuses: Copy['probeStatus']) {
   const jobs = new Map<string, number>()
   const events = []
   for (const { event } of items) {
     const { at, event: kind, outcome, correlation_id: jobId } = event
-    if (!jobEvents.has(kind) || !isJobId(jobId) || !Object.hasOwn(statuses, outcome)
-        || !Number.isSafeInteger(at) || at < 0 || at > 253402300799) continue
+    if (!jobEvents.has(kind) || !isJobId(jobId) || !Object.hasOwn(statuses, outcome)) continue
+    const timestamp = auditExportTime(at)
+    if (timestamp === null) continue
     const job = jobs.get(jobId) ?? jobs.size + 1
     jobs.set(jobId, job)
-    events.push({ job, event: kind, outcome, at: new Date(at * 1000).toISOString() })
+    events.push({ job, event: kind, outcome, at: timestamp })
   }
   return events.length ? JSON.stringify({ version: 1, events }, null, 2) : null
+}
+
+function authAuditExport(items: AuditEvent[]) {
+  const events = []
+  for (const { event: { at, event, outcome } } of items) {
+    const expected = authOutcomes.get(event)
+    if (expected === undefined || outcome !== expected) continue
+    const timestamp = auditExportTime(at)
+    if (timestamp !== null) events.push({ event, outcome, at: timestamp })
+  }
+  return events.length ? JSON.stringify({ version: 1, events }, null, 2) : null
+}
+
+function AuditExport({ json, summary, scope, filename, download }: {
+  json: string; summary: string; scope: string; filename: string; download: string
+}) {
+  return <details className="audit-export" name="audit-export">
+    <summary>{summary}</summary>
+    <p>{scope}</p>
+    <pre tabIndex={0}>{json}</pre>
+    <a download={filename} href={`data:application/json;charset=utf-8,${encodeURIComponent(json)}`}>{download}</a>
+  </details>
 }
 
 function IntegrityCheck({ t, expired }: { t: Copy; expired: () => void }) {
@@ -58,7 +94,8 @@ export function Audit({ t, lang, expired }: { t: Copy; lang: Language; expired: 
   const [items, setItems] = useState<AuditEvent[] | null>(null)
   const [error, setError] = useState<unknown>(null)
   const after = cursors[cursors.length - 1]
-  const exportJson = items && sshAuditExport(items, t.probeStatus)
+  const sshExport = items && sshAuditExport(items, t.probeStatus)
+  const authExport = items && authAuditExport(items)
 
   useEffect(() => {
     const abort = new AbortController()
@@ -81,14 +118,10 @@ export function Audit({ t, lang, expired }: { t: Copy; lang: Language; expired: 
     </div>
     <section className="panel" aria-label={t.audit}>
       {items != null && <IntegrityCheck t={t} expired={expired}/>}
-      {exportJson && <details className="audit-export" key={`${after}:${revision}`}>
-        <summary>{t.auditExportReview}</summary>
-        <p>{t.auditExportScope}</p>
-        <pre tabIndex={0}>{exportJson}</pre>
-        <a download="hostorbit-ssh-audit.json" href={`data:application/json;charset=utf-8,${encodeURIComponent(exportJson)}`}>
-          {t.auditExportDownload}
-        </a>
-      </details>}
+      {sshExport && <AuditExport key={`ssh:${after}:${revision}`} json={sshExport}
+        summary={t.auditExportReview} scope={t.auditExportScope} filename="hostorbit-ssh-audit.json" download={t.auditExportDownload}/>}
+      {authExport && <AuditExport key={`auth:${after}:${revision}`} json={authExport}
+        summary={t.auditAuthExportReview} scope={t.auditAuthExportScope} filename="hostorbit-auth-audit.json" download={t.auditExportDownload}/>}
       {error != null ? <p className="notice error" role="alert">
         {error instanceof ApiError && error.status === 403 ? t.auditDenied : t.requestError}
       </p> : items == null ? <p className="notice" role="status">{t.loading}</p> : items.length === 0 ?

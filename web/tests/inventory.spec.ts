@@ -159,7 +159,7 @@ test('exports only reviewed authentication events from the current audit page', 
     ['auth.logout', 'SUCCEEDED'], ['auth.reauthenticated', 'SUCCEEDED'],
     ['auth.reauth_failed', 'DENIED'], ['auth.reauth_limited', 'DENIED'],
   ]
-  const items = [...allowed, ['auth.unknown', 'SUCCEEDED'], ['auth.login', canary],
+  const items = [...allowed, ['auth.unknown', 'SUCCEEDED'], ['auth.unrecognized', undefined], ['auth.login', canary],
     ['auth.login_failed', 'SUCCEEDED'], ['auth.logout', 'SUCCEEDED', -1]]
   await signIn(page)
   await page.route('**/api/v1/audit?*', route => {
