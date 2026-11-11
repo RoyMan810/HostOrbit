@@ -2,37 +2,37 @@
   "artifacts": [
     {
       "path": "evidence/revalidation/stage1-current/source-manifest.json",
-      "sha256": "361eae33e30f533b3c6da81e83b98781dda164a813d887a478ba1db8888ecc3c"
+      "sha256": "d526afdc5ba4ca757f20c7e1dab7174476e1cfd8c125c410ef9d5644963db61e"
     },
     {
       "path": "evidence/revalidation/stage1-current/bundle-manifest.json",
-      "sha256": "96f6ddc0d01b4fd78e7aca5980abd2315f5b5e45e48eda8f0f6f955835a65905"
+      "sha256": "700dac89c6dd593ed81b9007e8c3971010b632d180437c49d1a9613306345efd"
     },
     {
       "path": "evidence/revalidation/stage1-current/bundle-manifest.sig",
-      "sha256": "e16ff097c98962fdad881d6de01235b7e14066db6875c5a355cf55aea1e51efe"
+      "sha256": "440e728739b4f02bfe13e543b0aad3c51b9d5ddb829e2048339f8a1d4aad89b1"
     },
     {
       "path": "evidence/revalidation/stage1-current/test-signer.pub",
-      "sha256": "da855de9181f8a32d61a6acb439d176a96f62e9804f23edd6f73517f4ad7a346"
+      "sha256": "cf26088d448522b260eb6209030ba202bd09272934ab2ea83258b41f092ff22d"
     },
     {
       "path": "evidence/revalidation/stage1-current/sbom.cdx.json",
-      "sha256": "97fdb5984f14f106849e4f79a0f7826dac3fb6da4a5a40f66da81f59816f1cbf"
+      "sha256": "6b557f6f3999907b87e4c42609cab0cdd854aa413d4a09f92f1bbe479f90d677"
     },
     {
       "path": "evidence/revalidation/stage1-current/ci-observations.json",
-      "sha256": "34f2bc9b8ff4e2d640f9b44a6969b4149a8d6118853fa05d650d46a45bb5be9c"
+      "sha256": "64eeb1cf0b3527c71e8bed99c50097de0a9868f1752612eb1944e911e804ef5d"
     }
   ],
-  "build_digest": "96f6ddc0d01b4fd78e7aca5980abd2315f5b5e45e48eda8f0f6f955835a65905",
+  "build_digest": "700dac89c6dd593ed81b9007e8c3971010b632d180437c49d1a9613306345efd",
   "capability": "sqlite_audit_outbox",
   "ci_job_ids": [
-    129971639034,
-    129971638857
+    130390763952,
+    130390764133
   ],
   "environment": "GitHub-hosted Ubuntu 24.04 runners. The signed development bundle uses Python 3.15.2.",
-  "evidence_digest": "37a056a1b903e9f454cb2a474f369f68e9d4e6f169d68fa0ff49a975e6cb22d4",
+  "evidence_digest": "2fe8f73ef320a86b1fb3c40a5a566ecf88ad9b10fc9e6197c0a9691c39023fee",
   "fault_injection": "test_outbox_failure_rolls_back_state_and_audit_together; test_audit_and_outbox_are_append_only_and_tampering_is_detected",
   "initial_state": "Clean committed source and disposable GitHub-hosted Ubuntu 24.04 CI runners; development install and ephemeral test signer.",
   "limitations": [
@@ -40,7 +40,7 @@
     "The signed development bundle uses an ephemeral test signer. SBOM scope excludes the complete OS and OCI base image.",
     "Independent disaster recovery, Owner restore attestation and capacity soak require separate validation."
   ],
-  "manifest_digest": "361eae33e30f533b3c6da81e83b98781dda164a813d887a478ba1db8888ecc3c",
+  "manifest_digest": "d526afdc5ba4ca757f20c7e1dab7174476e1cfd8c125c410ef9d5644963db61e",
   "negative_checks": [
     "test_outbox_failure_rolls_back_state_and_audit_together",
     "test_audit_and_outbox_are_append_only_and_tampering_is_detected"
@@ -50,17 +50,17 @@
   "positive_checks": [
     "Stage 1 Auth, RBAC and Audit application/runtime test suites"
   ],
-  "recorded_at_utc": "2026-11-10T16:44:58.165976+00:00",
+  "recorded_at_utc": "2026-11-11T07:40:40.355392+00:00",
   "revalidation_of": {
     "evidence_digest": "36c0079361fd9f73c5c5441cb3aa04a045ab407cc682abeccf2295a1c9335856",
     "path": "evidence/capabilities/stage1/sqlite_audit_outbox.json",
     "source_commit": "7af105f680228d75dbe1f8136e390aff3bef0d4d"
   },
   "reviewer": "Automated revalidation against GitHub CI and the source-bound signed development bundle metadata.",
-  "sbom_digest": "97fdb5984f14f106849e4f79a0f7826dac3fb6da4a5a40f66da81f59816f1cbf",
+  "sbom_digest": "6b557f6f3999907b87e4c42609cab0cdd854aa413d4a09f92f1bbe479f90d677",
   "scenario": "Foundation: explicit private/shared-group SQLite WAL initialization, synchronous/FK contracts, append-only hash-linked Audit and same-transaction Outbox; no uncommitted success after rollback/crash.",
   "scope": "FOUNDATION_ONLY",
-  "source_commit": "4459cb2285ff6274f338b44d8d4694cd126864f4",
+  "source_commit": "cc6b8271076ae9669b563b492a65f36dcd28d476",
   "source_files": [
     {
       "path": ".github/workflows/checks.yml",
@@ -148,7 +148,7 @@
     },
     {
       "path": "hostorbit/cli.py",
-      "sha256": "91da9c6a51519f9d7b221cd3f6fce35e2d7940c34115b6a8cb33213d8f8dc38c"
+      "sha256": "0f62d113fd65fb721936ffc752d465cf15a8d87a5db9e3b4f27e08ab2a8177d5"
     },
     {
       "path": "hostorbit/config.py",
@@ -156,7 +156,7 @@
     },
     {
       "path": "hostorbit/database.py",
-      "sha256": "2cb5c43e31dcabde08f2fad2815df382a6a5377d6d5743bec0ad6093fbb6b44b"
+      "sha256": "bb610b24c0a5a1f2dd4560cf1367dc9e062801c39e95997ca8c2b7aa44750586"
     },
     {
       "path": "hostorbit/errors.py",
@@ -340,7 +340,7 @@
     },
     {
       "path": "tests_app/test_database.py",
-      "sha256": "3e9aba859e87b65435f94a200f3353ac25d12f9e5953418ee13a145786177aa7"
+      "sha256": "98a6e945a88acf48f59a8b3cdc1e9672e8264b5a570dd9785745a281cbce6f71"
     },
     {
       "path": "tests_app/test_http_boundary.py",
