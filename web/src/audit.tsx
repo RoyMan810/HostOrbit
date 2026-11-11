@@ -23,6 +23,12 @@ const authOutcomes = new Map([
   ['auth.reauth_failed', 'DENIED'],
   ['auth.reauth_limited', 'DENIED'],
 ])
+const accessOutcomes = new Map([
+  ['owner.bootstrap_issued', 'SUCCEEDED'],
+  ['owner.created', 'SUCCEEDED'],
+  ['user.created', 'SUCCEEDED'],
+  ['user.permissions_changed', 'SUCCEEDED'],
+])
 
 function auditExportTime(at: number) {
   return Number.isSafeInteger(at) && at >= 0 && at <= 253402300799 ? new Date(at * 1000).toISOString() : null
@@ -43,10 +49,10 @@ function sshAuditExport(items: AuditEvent[], statuses: Copy['probeStatus']) {
   return events.length ? JSON.stringify({ version: 1, events }, null, 2) : null
 }
 
-function authAuditExport(items: AuditEvent[]) {
+function auditOutcomeExport(items: AuditEvent[], outcomes: ReadonlyMap<string, string>) {
   const events = []
   for (const { event: { at, event, outcome } } of items) {
-    const expected = authOutcomes.get(event)
+    const expected = outcomes.get(event)
     if (expected === undefined || outcome !== expected) continue
     const timestamp = auditExportTime(at)
     if (timestamp !== null) events.push({ event, outcome, at: timestamp })
@@ -123,7 +129,8 @@ export function Audit({ t, lang, expired }: { t: Copy; lang: Language; expired: 
   const [error, setError] = useState<unknown>(null)
   const after = cursors[cursors.length - 1]
   const sshExport = items && sshAuditExport(items, t.probeStatus)
-  const authExport = items && authAuditExport(items)
+  const authExport = items && auditOutcomeExport(items, authOutcomes)
+  const accessExport = items && auditOutcomeExport(items, accessOutcomes)
   const entries = items?.map(item => ({ ...item, planRevision: savedPlanRevision(item.event) })) ?? []
   const planExport = planAuditExport(entries)
 
@@ -152,6 +159,8 @@ export function Audit({ t, lang, expired }: { t: Copy; lang: Language; expired: 
         summary={t.auditExportReview} scope={t.auditExportScope} filename="hostorbit-ssh-audit.json" download={t.auditExportDownload}/>}
       {authExport && <AuditExport key={`auth:${after}:${revision}`} json={authExport}
         summary={t.auditAuthExportReview} scope={t.auditAuthExportScope} filename="hostorbit-auth-audit.json" download={t.auditExportDownload}/>}
+      {accessExport && <AuditExport key={`access:${after}:${revision}`} json={accessExport}
+        summary={t.auditAccessExportReview} scope={t.auditAccessExportScope} filename="hostorbit-access-audit.json" download={t.auditExportDownload}/>}
       {planExport && <AuditExport key={`plan:${after}:${revision}`} json={planExport}
         summary={t.auditPlanExportReview} scope={t.auditPlanExportScope} filename="hostorbit-change-plan-audit.json" download={t.auditExportDownload}/>}
       {error != null ? <p className="notice error" role="alert">
