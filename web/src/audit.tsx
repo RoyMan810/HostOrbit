@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
 import { ApiError, request } from './api'
 import type { Copy, Language } from './copy'
+import { isJobId, JobTimeline } from './job-timeline'
 
 type AuditEvent = {
   seq: number
   event: { at: number; actor_id: string; event: string; target_id: string; outcome: string; correlation_id: string }
 }
+
+const jobEvents = new Set(['job.accepted', 'job.transition', 'job.finished'])
 
 export function Audit({ t, lang, expired }: { t: Copy; lang: Language; expired: () => void }) {
   const [cursors, setCursors] = useState([0])
@@ -39,13 +42,16 @@ export function Audit({ t, lang, expired }: { t: Copy; lang: Language; expired: 
       </p> : items == null ? <p className="notice" role="status">{t.loading}</p> : items.length === 0 ?
         <p className="notice">{t.auditEmpty}</p> : <ol className="audit-list">
           {items.map(({ seq, event }) => <li key={seq}>
-            <strong>{event.event}</strong> <span>#{seq} · {event.outcome}</span>
+            <strong>{event.event}</strong> <span id={`audit-event-${seq}`}>#{seq} · {event.outcome}</span>
             <dl className="audit-facts">
               <div><dt>{t.auditTime}</dt><dd>{new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(event.at * 1000))}</dd></div>
               <div><dt>{t.auditActor}</dt><dd><code>{event.actor_id}</code></dd></div>
               <div><dt>{t.auditTarget}</dt><dd><code>{event.target_id}</code></dd></div>
               <div><dt>{t.auditCorrelation}</dt><dd><code>{event.correlation_id}</code></dd></div>
             </dl>
+            {jobEvents.has(event.event) && isJobId(event.correlation_id) &&
+              <JobTimeline jobId={event.correlation_id} t={t} lang={lang} expired={expired}
+                describedBy={`audit-event-${seq}`}/>}
           </li>)}
         </ol>}
       {(cursors.length > 1 || (items?.length === 100)) && <div className="pager">

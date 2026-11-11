@@ -6,6 +6,14 @@ const stale = '01JCYQZ4T9V8MNVYEH3D2M7Q1B'
 const never = '01JCYQZ4T9V8MNVYEH3D2M7Q1C'
 const password = 'HostOrbit fixture password!'
 
+let clientNumber = 0
+test.beforeEach(async ({ context }, { workerIndex }) => {
+  // The loopback Controller fixture trusts the forwarded client IP.
+  // Give each browser context its own login-rate bucket.
+  const address = `2001:db8::${workerIndex.toString(16)}:${(++clientNumber).toString(16)}`
+  await context.setExtraHTTPHeaders({ 'X-Forwarded-For': address })
+})
+
 async function signIn(page: Page, username = 'fixture-owner') {
   await page.goto('/')
   await page.getByLabel('Username').fill(username)
@@ -25,6 +33,51 @@ test('shows audit events only to authorised users and clears them on session los
   await page.getByRole('button', { name: 'Обновить журнал аудита' }).click()
   await expect(page.getByRole('button', { name: 'Войти' })).toBeVisible()
   await expect(page.getByText('auth.login', { exact: true })).toHaveCount(0)
+})
+
+test('loads an audit event’s linked SSH job timeline on demand and clears it on refresh', async ({ page }) => {
+  const timelineRequests: string[] = []
+  page.on('request', request => {
+    if (request.url().endsWith('/timeline')) timelineRequests.push(request.url())
+  })
+  await signIn(page)
+  await page.getByRole('button', { name: 'Audit log', exact: true }).click()
+  const entries = page.locator('.audit-list > li')
+  const accepted = entries.filter({ has: page.getByText('job.accepted', { exact: true }) }).first()
+  const authentication = entries.filter({ has: page.getByText('auth.login', { exact: true }) }).first()
+  await expect(accepted).toBeVisible()
+  expect(timelineRequests).toEqual([])
+  await expect(authentication.getByRole('button', { name: 'Show job history' })).toHaveCount(0)
+  const showHistory = accepted.getByRole('button', { name: 'Show job history' })
+  await expect(showHistory).toBeVisible()
+  const job = (await accepted.locator('dd code').last().innerText()).trim()
+  const response = page.waitForResponse(reply => reply.url().endsWith('/jobs/' + job + '/timeline'))
+  await showHistory.press('Enter')
+  const reply = await response
+  expect(reply.request().method()).toBe('GET')
+  expect(reply.status()).toBe(200)
+  const history = accepted.getByRole('list')
+  await expect(history.getByRole('listitem').first()).toContainText('Queued')
+  await expect(history.getByRole('listitem').last()).toContainText('PROBE_VERIFIED')
+  await page.getByLabel('Language').selectOption('ru')
+  await expect(history.getByRole('listitem').first()).toContainText('В очереди')
+  await page.getByRole('button', { name: 'Обновить журнал аудита' }).click()
+  await expect(accepted.getByRole('button', { name: 'Показать историю задания' })).toBeVisible()
+  await expect(history).toHaveCount(0)
+  expect(timelineRequests).toHaveLength(1)
+})
+
+test('audit permission alone does not grant access to a linked SSH job timeline', async ({ page }) => {
+  await signIn(page, 'fixture-auditor')
+  await page.getByRole('button', { name: 'Audit log', exact: true }).click()
+  const entry = page.locator('.audit-list > li').filter({ has: page.getByText('job.finished', { exact: true }) }).first()
+  const showHistory = entry.getByRole('button', { name: 'Show job history' })
+  await expect(showHistory).toBeVisible()
+  const response = page.waitForResponse(reply => reply.url().endsWith('/timeline'))
+  await showHistory.click()
+  expect((await response).status()).toBe(404)
+  await expect(entry.getByText('The job status is unavailable with your current access.')).toBeVisible()
+  await expect(entry.getByRole('list')).toHaveCount(0)
 })
 
 test('pages through the bounded audit API without retaining the previous page', async ({ page }) => {
