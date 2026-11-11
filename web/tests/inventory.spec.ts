@@ -130,6 +130,53 @@ test('links valid saved revisions of the same plan and resource on the audit pag
   await expect(page.locator('#audit-event-2')).toBeFocused()
 })
 
+test('downloads reviewed plan revisions with page-local numbers and no source identifiers', async ({ page }) => {
+  const plan = '01JCYQZ4T9V8MNVYEH3D2M7Q1D'
+  const other = '01JCYQZ4T9V8MNVYEH3D2M7Q1E'
+  const time = 1700000000
+  const drafts = [
+    [plan, fresh, 4, time, 'SUCCEEDED'], [other, fresh, 1, time, 'SUCCEEDED'],
+    [plan, fresh, 5, time, 'SUCCEEDED'], [plan, stale, 1, time, 'SUCCEEDED'],
+    [plan, fresh, '6', time, 'SUCCEEDED'], [plan, fresh, 7, -1, 'SUCCEEDED'],
+    [plan, fresh, 8, time, 'DENIED'], ['malformed', fresh, 9, time, 'SUCCEEDED'],
+  ]
+  await signIn(page)
+  await page.route('**/api/v1/audit?*', route => {
+    const after = Number(new URL(route.request().url()).searchParams.get('after'))
+    const rows = after === 0 ? Array.from({ length: 100 }, (_, i) => drafts[i] ?? [plan, fresh, 0, time, 'SUCCEEDED'])
+      : [[other, fresh, 2, time, 'SUCCEEDED']]
+    return route.fulfill({ json: { items: rows.map(([correlation_id, target_id, revision, at, outcome], i) => ({
+      seq: after + i + 1,
+      event: { at, actor_id: 'private-actor', event: 'change_plan.draft_saved', outcome, target_id,
+        correlation_id, details: { revision, plan_hash: 'private-hash', data: 'private-details' } },
+    })) } })
+  })
+  await page.getByRole('button', { name: 'Audit log', exact: true }).click()
+  const review = page.getByText('Review change plan audit export', { exact: true })
+  await expect(review).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Download JSON' })).toHaveCount(0)
+  await review.press('Enter')
+  const preview = page.locator('.audit-export[open] pre')
+  const reviewed = await preview.innerText()
+  const row = (plan: number, revision: number) => ({
+    plan, revision, event: 'change_plan.draft_saved', outcome: 'SUCCEEDED', at: new Date(time * 1000).toISOString(),
+  })
+  expect(JSON.parse(reviewed)).toEqual({ version: 1, events: [row(1, 4), row(2, 1), row(1, 5), row(3, 1)] })
+  await page.getByLabel('Language').selectOption('ru')
+  const localized = page.getByText('Проверить экспорт аудита планов', { exact: true })
+  await expect(localized).toBeVisible()
+  const ready = page.waitForEvent('download')
+  await page.getByRole('link', { name: 'Скачать JSON' }).click()
+  const download = await ready
+  expect(download.suggestedFilename()).toBe('hostorbit-change-plan-audit.json')
+  expect(await readFile(await download.path(), 'utf8')).toBe(reviewed)
+  await page.getByRole('button', { name: 'Следующая страница' }).click()
+  await expect(page.locator('#audit-event-101')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Скачать JSON' })).toHaveCount(0)
+  await localized.press('Enter')
+  expect(JSON.parse(await preview.innerText())).toEqual({ version: 1, events: [row(1, 2)] })
+})
+
 test('downloads only the reviewed SSH audit export for the current page', async ({ page }) => {
   const canary = 'private-fixture-canary'
   await page.route('**/api/v1/audit?*', async route => {
