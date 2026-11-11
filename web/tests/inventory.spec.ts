@@ -103,6 +103,32 @@ test('audit permission alone does not grant access to a linked SSH job timeline'
   await expect(entry.getByRole('list')).toHaveCount(0)
 })
 
+test('links valid saved revisions of the same plan and resource on the audit page', async ({ page }) => {
+  const plan = '01JCYQZ4T9V8MNVYEH3D2M7Q1D'
+  const otherPlan = '01JCYQZ4T9V8MNVYEH3D2M7Q1E'
+  await signIn(page)
+  await page.route('**/api/v1/audit?*', route => route.fulfill({ json: { items: [
+    [plan, fresh, 1], [plan, fresh, 2], [otherPlan, fresh, 9], [plan, stale, 8],
+    [plan, fresh, '7'], [plan, fresh, 0], ['malformed', fresh, 6],
+  ].map(([correlation_id, target_id, revision], i) => ({ seq: i + 1, event: {
+    at: 1700000000, actor_id: 'actor', event: 'change_plan.draft_saved', outcome: 'SUCCEEDED',
+    target_id, correlation_id, details: { revision, plan_hash: 'private-plan-canary' },
+  } })) } }))
+  await page.getByRole('button', { name: 'Audit log', exact: true }).click()
+  const entries = page.locator('.audit-list > li')
+  await expect(entries).toHaveCount(7)
+  await expect(entries.nth(0).locator('dt')).toContainText(['Change plan', 'Revision'])
+  await expect(entries.nth(0).getByRole('link')).toHaveText(['Revision 2 · #2'])
+  await expect(entries.nth(1).getByRole('link')).toHaveText(['Revision 1 · #1'])
+  for (let i = 2; i < 7; i++) await expect(entries.nth(i).getByRole('link')).toHaveCount(0)
+  for (let i = 4; i < 7; i++) await expect(entries.nth(i).getByText('Revision', { exact: true })).toHaveCount(0)
+  await expect(page.getByText('private-plan-canary')).toHaveCount(0)
+  await page.getByLabel('Language').selectOption('ru')
+  await entries.nth(0).getByRole('link', { name: 'Ревизия 2 · #2' }).click()
+  await expect(page).toHaveURL(/#audit-event-2$/)
+  await expect(page.locator('#audit-event-2')).toBeFocused()
+})
+
 test('downloads only the reviewed SSH audit export for the current page', async ({ page }) => {
   const canary = 'private-fixture-canary'
   await page.route('**/api/v1/audit?*', async route => {
