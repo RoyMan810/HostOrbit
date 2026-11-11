@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { ApiError, request } from './api'
+import { ApiError, isUlid, request } from './api'
 import type { Resource, Session } from './api'
 import type { Copy, Language } from './copy'
-import { isJobId, JobTimeline } from './job-timeline'
+import { JobTimeline } from './job-timeline'
 
 type JobStatus = keyof Copy['probeStatus']
 const terminal = new Set<JobStatus>(['SUCCEEDED', 'FAILED', 'UNKNOWN_OUTCOME', 'CANCELLED_SAFE'])
@@ -33,7 +33,7 @@ type Run =
 function checkedJob(value: unknown, target: string, expectedId?: string): Job {
   if (!value || typeof value !== 'object') throw new Error('Invalid observation response')
   const job = value as Job
-  if (!isJobId(job.id)
+  if (!isUlid(job.id)
       || (expectedId && job.id !== expectedId) || job.resource_id !== target || job.action !== 'host.probe'
       || (!active.has(job.status) && !terminal.has(job.status))
       || !Number.isSafeInteger(job.revision) || job.revision < 1

@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
-import { ApiError, request } from './api'
+import { ApiError, isUlid, request } from './api'
 import type { Copy, Language } from './copy'
-import { isJobId, JobTimeline } from './job-timeline'
+import { JobTimeline } from './job-timeline'
 
 type AuditEvent = {
   seq: number
-  event: { at: number; actor_id: string; event: string; target_id: string; outcome: string; correlation_id: string }
+  event: {
+    at: number; actor_id: string; event: string; target_id: string; outcome: string; correlation_id: string
+    details?: { revision?: unknown }
+  }
 }
 
 const jobEvents = new Set(['job.accepted', 'job.transition', 'job.finished'])
@@ -28,7 +31,7 @@ function sshAuditExport(items: AuditEvent[], statuses: Copy['probeStatus']) {
   const events = []
   for (const { event } of items) {
     const { at, event: kind, outcome, correlation_id: jobId } = event
-    if (!jobEvents.has(kind) || !isJobId(jobId) || !Object.hasOwn(statuses, outcome)) continue
+    if (!jobEvents.has(kind) || !isUlid(jobId) || !Object.hasOwn(statuses, outcome)) continue
     const timestamp = auditExportTime(at)
     if (timestamp === null) continue
     const job = jobs.get(jobId) ?? jobs.size + 1
@@ -47,6 +50,14 @@ function authAuditExport(items: AuditEvent[]) {
     if (timestamp !== null) events.push({ event, outcome, at: timestamp })
   }
   return events.length ? JSON.stringify({ version: 1, events }, null, 2) : null
+}
+
+function savedPlanRevision(event: AuditEvent['event']) {
+  const revision = event.details?.revision
+  if (event.event !== 'change_plan.draft_saved' || event.outcome !== 'SUCCEEDED'
+      || !isUlid(event.correlation_id) || !isUlid(event.target_id)
+      || typeof revision !== 'number' || !Number.isSafeInteger(revision) || revision < 1) return null
+  return revision
 }
 
 function AuditExport({ json, summary, scope, filename, download }: {
@@ -96,6 +107,7 @@ export function Audit({ t, lang, expired }: { t: Copy; lang: Language; expired: 
   const after = cursors[cursors.length - 1]
   const sshExport = items && sshAuditExport(items, t.probeStatus)
   const authExport = items && authAuditExport(items)
+  const entries = items?.map(item => ({ ...item, planRevision: savedPlanRevision(item.event) })) ?? []
 
   useEffect(() => {
     const abort = new AbortController()
@@ -126,18 +138,32 @@ export function Audit({ t, lang, expired }: { t: Copy; lang: Language; expired: 
         {error instanceof ApiError && error.status === 403 ? t.auditDenied : t.requestError}
       </p> : items == null ? <p className="notice" role="status">{t.loading}</p> : items.length === 0 ?
         <p className="notice">{t.auditEmpty}</p> : <ol className="audit-list">
-          {items.map(({ seq, event }) => <li key={seq}>
-            <strong>{event.event}</strong> <span id={`audit-event-${seq}`}>#{seq} · {event.outcome}</span>
-            <dl className="audit-facts">
-              <div><dt>{t.auditTime}</dt><dd>{new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(event.at * 1000))}</dd></div>
-              <div><dt>{t.auditActor}</dt><dd><code>{event.actor_id}</code></dd></div>
-              <div><dt>{t.auditTarget}</dt><dd><code>{event.target_id}</code></dd></div>
-              <div><dt>{t.auditCorrelation}</dt><dd><code>{event.correlation_id}</code></dd></div>
-            </dl>
-            {jobEvents.has(event.event) && isJobId(event.correlation_id) &&
-              <JobTimeline jobId={event.correlation_id} t={t} lang={lang} expired={expired}
-                describedBy={`audit-event-${seq}`}/>}
-          </li>)}
+          {entries.map(({ seq, event, planRevision }) => {
+            const related = planRevision === null ? [] : entries.filter(entry =>
+              entry.planRevision !== null && entry.planRevision !== planRevision
+              && entry.event.correlation_id === event.correlation_id && entry.event.target_id === event.target_id)
+            const previous = related.filter(entry => entry.seq < seq).at(-1)
+            const next = related.find(entry => entry.seq > seq)
+            return <li key={seq}>
+              <strong>{event.event}</strong> <span id={`audit-event-${seq}`} tabIndex={planRevision === null ? undefined : -1}>#{seq} · {event.outcome}</span>
+              <dl className="audit-facts">
+                <div><dt>{t.auditTime}</dt><dd>{new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(event.at * 1000))}</dd></div>
+                <div><dt>{t.auditActor}</dt><dd><code>{event.actor_id}</code></dd></div>
+                <div><dt>{t.auditTarget}</dt><dd><code>{event.target_id}</code></dd></div>
+                <div><dt>{planRevision === null ? t.auditCorrelation : t.auditPlan}</dt><dd><code>{event.correlation_id}</code></dd></div>
+                {planRevision !== null && <div><dt>{t.auditPlanRevision}</dt><dd>{planRevision}</dd></div>}
+              </dl>
+              {(previous || next) && <div className="audit-plan-links">
+                <p>{t.auditPlanRelated}</p>
+                <ul>{[previous, next].filter(entry => entry !== undefined).map(entry => <li key={entry.seq}>
+                  <a href={`#audit-event-${entry.seq}`}>{t.auditPlanRevision} {entry.planRevision} · #{entry.seq}</a>
+                </li>)}</ul>
+              </div>}
+              {jobEvents.has(event.event) && isUlid(event.correlation_id) &&
+                <JobTimeline jobId={event.correlation_id} t={t} lang={lang} expired={expired}
+                  describedBy={`audit-event-${seq}`}/>}
+            </li>
+          })}
         </ol>}
       {(cursors.length > 1 || (items?.length === 100)) && <div className="pager">
         <button disabled={cursors.length < 2 || items == null} onClick={() => setCursors(values => values.slice(0, -1))}>{t.previous}</button>

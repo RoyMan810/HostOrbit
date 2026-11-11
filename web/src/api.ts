@@ -1,3 +1,7 @@
+export function isUlid(value: unknown): value is string {
+  return typeof value === 'string' && /^[0-7][0-9A-HJKMNP-TV-Z]{25}$/.test(value)
+}
+
 export interface Session {
   user: { id: string; username: string; role: 'Owner' | 'Admin' | 'Operator' | 'Auditor' }
   csrf_token: string
