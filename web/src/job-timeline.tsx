@@ -2,10 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { ApiError, request } from './api'
 import type { Copy, Language } from './copy'
 
-export function isJobId(value: unknown): value is string {
-  return typeof value === 'string' && /^[0-7][0-9A-HJKMNP-TV-Z]{25}$/.test(value)
-}
-
 interface TimelineItem { seq: number; at: number; status: keyof Copy['probeStatus']; reason: string | null }
 
 export function JobTimeline({ jobId, t, lang, expired, describedBy }: {

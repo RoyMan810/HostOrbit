@@ -109,22 +109,23 @@ test('links valid saved revisions of the same plan and resource on the audit pag
   await signIn(page)
   await page.route('**/api/v1/audit?*', route => route.fulfill({ json: { items: [
     [plan, fresh, 1], [plan, fresh, 2], [otherPlan, fresh, 9], [plan, stale, 8],
-    [plan, fresh, '7'], [plan, fresh, 0], ['malformed', fresh, 6],
+    [plan, fresh, '7'], [plan, fresh, 0], ['malformed', fresh, 6], [plan, fresh, 3],
   ].map(([correlation_id, target_id, revision], i) => ({ seq: i + 1, event: {
     at: 1700000000, actor_id: 'actor', event: 'change_plan.draft_saved', outcome: 'SUCCEEDED',
     target_id, correlation_id, details: { revision, plan_hash: 'private-plan-canary' },
   } })) } }))
   await page.getByRole('button', { name: 'Audit log', exact: true }).click()
   const entries = page.locator('.audit-list > li')
-  await expect(entries).toHaveCount(7)
+  await expect(entries).toHaveCount(8)
   await expect(entries.nth(0).locator('dt')).toContainText(['Change plan', 'Revision'])
   await expect(entries.nth(0).getByRole('link')).toHaveText(['Revision 2 · #2'])
-  await expect(entries.nth(1).getByRole('link')).toHaveText(['Revision 1 · #1'])
+  await expect(entries.nth(1).getByRole('link')).toHaveText(['Revision 1 · #1', 'Revision 3 · #8'])
+  await expect(entries.nth(7).getByRole('link')).toHaveText(['Revision 2 · #2'])
   for (let i = 2; i < 7; i++) await expect(entries.nth(i).getByRole('link')).toHaveCount(0)
   for (let i = 4; i < 7; i++) await expect(entries.nth(i).getByText('Revision', { exact: true })).toHaveCount(0)
   await expect(page.getByText('private-plan-canary')).toHaveCount(0)
   await page.getByLabel('Language').selectOption('ru')
-  await entries.nth(0).getByRole('link', { name: 'Ревизия 2 · #2' }).click()
+  await entries.nth(0).getByRole('link', { name: 'Ревизия 2 · #2' }).press('Enter')
   await expect(page).toHaveURL(/#audit-event-2$/)
   await expect(page.locator('#audit-event-2')).toBeFocused()
 })

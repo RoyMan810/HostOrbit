@@ -89,6 +89,8 @@ code { font-family: ui-monospace, "Cascadia Code", monospace; overflow-wrap: any
 .audit-list > li + li { border-top: 1px solid var(--line); }
 .audit-list span { color: var(--muted); font-size: 13px; }
 .audit-list .probe-timeline { margin-top: 12px; }
+.audit-plan-links { margin-top: 12px; }
+.audit-plan-links ul { margin: 4px 0 0; padding-inline-start: 20px; }
 .audit-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 12px; margin: 12px 0 0; }
 .heading { display: flex; justify-content: space-between; align-items: end; flex-wrap: wrap; gap: 16px; margin-bottom: 26px; }
 .eyebrow { color: var(--accent); text-transform: uppercase; letter-spacing: .12em; font-size: 12px; font-weight: 750; }
