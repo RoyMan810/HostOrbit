@@ -267,6 +267,47 @@ test('exports only reviewed authentication events from the current audit page', 
   await expect(page.locator('.audit-export')).toHaveCount(0)
 })
 
+test('exports only reviewed access administration events from the current audit page', async ({ page }) => {
+  const at = 1700000000
+  const allowed = ['owner.bootstrap_issued', 'owner.created', 'user.created', 'user.permissions_changed']
+  const accessEvents = [
+    ...allowed.map(event => [event, 'SUCCEEDED', at]),
+    ['user.created', 'DENIED', at], ['owner.created', 'SUCCEEDED', -1],
+    ['user.unknown', undefined, at], ['owner.unknown', 'SUCCEEDED', at],
+  ]
+  await signIn(page)
+  await page.route('**/api/v1/audit?*', route => {
+    const after = Number(new URL(route.request().url()).searchParams.get('after'))
+    const login = ['auth.login', 'SUCCEEDED', at]
+    const rows = after === 0 ? Array.from({ length: 100 }, (_, i) => accessEvents[i] ?? login) : [login]
+    return route.fulfill({ json: { items: rows.map(([event, outcome, time], i) => ({
+      seq: after + i + 1,
+      event: { event, outcome, at: time, actor_id: 'private-actor', target_id: 'private-target',
+        correlation_id: 'private-correlation', details: { role: 'Owner', disabled: true, token: 'private-token' } },
+    })) } })
+  })
+  await page.getByRole('button', { name: 'Audit log', exact: true }).click()
+  const review = page.getByText('Review access administration audit export', { exact: true })
+  await expect(review).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Download JSON' })).toHaveCount(0)
+  await review.press('Enter')
+  const reviewed = await page.locator('.audit-export[open] pre').innerText()
+  expect(JSON.parse(reviewed)).toEqual({ version: 1, events: allowed.map(event => ({
+    event, outcome: 'SUCCEEDED', at: new Date(at * 1000).toISOString(),
+  })) })
+  await page.getByLabel('Language').selectOption('ru')
+  const localized = page.getByText('Проверить экспорт аудита управления доступом', { exact: true })
+  await expect(localized).toBeVisible()
+  const ready = page.waitForEvent('download')
+  await page.getByRole('link', { name: 'Скачать JSON' }).click()
+  const download = await ready
+  expect(download.suggestedFilename()).toBe('hostorbit-access-audit.json')
+  expect(await readFile(await download.path(), 'utf8')).toBe(reviewed)
+  await page.getByRole('button', { name: 'Следующая страница' }).click()
+  await expect(page.locator('#audit-event-101')).toBeVisible()
+  await expect(localized).toHaveCount(0)
+})
+
 test('pages through the bounded audit API without retaining the previous page', async ({ page }) => {
   await signIn(page)
   await page.route('**/api/v1/audit?*', async route => {
