@@ -44,6 +44,14 @@ Owner управляет прикладными правами. Admin испол
 
 Изменение состояния, hash chain Audit и Outbox сохраняются одной транзакцией. SQLite triggers отклоняют обычные UPDATE/DELETE Audit/Outbox. Проверка `Store.verify_audit()` сравнивает цепочку и соответствие Outbox. Backend остаётся внутри TCB и имеет доступ к application SQLite; защита от переписывающего всю БД root/Backend RCE этим механизмом не заявлена.
 
+Оператор может проверить локальную БД установленной командой. Укажите путь к БД и UID/GID из конфигурации установки.
+
+```sh
+hostorbit --database "$database_path" --database-owner "$database_uid" --database-group "$database_gid" audit-verify
+```
+
+Команда открывает БД в режиме чтения. В одном снимке она сверяет цепочку хешей Audit и соответствие событий строкам Outbox. При успехе JSON содержит число событий `events` и последний хеш `head`. При ошибке команда возвращает код 1 и пишет `AUDIT_VERIFICATION_FAILED` в stderr.
+
 `GET /api/v1/audit` и `/api/v1/events` требуют `audit:read`. SSE отдаёт ограниченный пакет уже зафиксированных событий, поддерживает Last-Event-ID и переподключение EventSource. Автоматические подключения к `/events` не продлевают сессию по бездействию. Несохранённое состояние не становится событием. Доступ проверяется менеджером в том же read snapshot, из которого берутся события.
 
 ## Проверки и следующие capability
