@@ -144,7 +144,9 @@ test('downloads only the reviewed SSH audit export for the current page', async 
   const download = await ready
   expect(download.suggestedFilename()).toBe('hostorbit-ssh-audit.json')
   expect(await readFile(await download.path(), 'utf8')).toBe(reviewed)
+  const refreshed = page.waitForResponse(response => new URL(response.url()).pathname === '/api/v1/audit')
   await page.getByRole('button', { name: 'Обновить журнал аудита' }).click()
+  expect((await refreshed).status()).toBe(200)
   await expect(page.getByText('Проверить экспорт SSH-аудита', { exact: true })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Скачать JSON' })).toHaveCount(0)
 })
