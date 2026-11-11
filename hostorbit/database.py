@@ -115,6 +115,10 @@ class DataAccess:
             raise ValueError("DATABASE_IDENTITY_INVALID")
 
 
+class AuditIntegrityError(RuntimeError):
+    pass
+
+
 class Store:
     def __init__(self, path: Path, *, access: DataAccess | None = None, writers=None):
         self.path = Path(path).absolute()
@@ -222,7 +226,8 @@ class Store:
             )]
 
     def verify_audit(self):
-        with self.read() as db:
+        with self.connect(readonly=True) as db:
+            db.execute("BEGIN")
             return self.verify_audit_connection(db)
 
     @staticmethod
@@ -233,12 +238,12 @@ class Store:
             value = {key: row[key] for key in ("id", "at", "actor_id", "event", "target_id", "outcome", "correlation_id", "previous_hash")}
             value["details"] = json.loads(row["details"])
             if value["previous_hash"] != previous or hashlib.sha256(canonical(value).encode()).hexdigest() != row["digest"]:
-                raise RuntimeError("AUDIT_INTEGRITY")
+                raise AuditIntegrityError("AUDIT_INTEGRITY")
             outbox = db.execute("SELECT event_id, payload, created_at FROM outbox WHERE seq=?", (row["seq"],)).fetchone()
             expected = (value["id"], canonical({**value, "digest": row["digest"]}), value["at"])
             if outbox is None or tuple(outbox) != expected:
-                raise RuntimeError("OUTBOX_INTEGRITY")
+                raise AuditIntegrityError("OUTBOX_INTEGRITY")
             previous = row["digest"]
         if db.execute("SELECT 1 FROM outbox LEFT JOIN audit USING (seq) WHERE audit.seq IS NULL LIMIT 1").fetchone():
-            raise RuntimeError("OUTBOX_INTEGRITY")
+            raise AuditIntegrityError("OUTBOX_INTEGRITY")
         return previous

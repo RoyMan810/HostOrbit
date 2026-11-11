@@ -2,6 +2,7 @@
 
 import ipaddress
 import sqlite3
+from threading import Lock
 from typing import Annotated, Literal
 
 from fastapi import Depends, FastAPI, Request, Response
@@ -16,7 +17,7 @@ from . import __version__
 from .admission import Admission
 from .auth import ABSOLUTE_SECONDS, COOKIE, AuthService, Role
 from .config import Settings
-from .database import DataAccess, Store, canonical, identifier
+from .database import AuditIntegrityError, DataAccess, Store, canonical, identifier
 from .errors import Denied
 from .inventory import Inventory
 from .queue import JobQueue
@@ -162,6 +163,7 @@ def create_app(settings: Settings, *, auth: AuthService | None = None):
                                        writers=Admission(settings.writer_directory) if settings.writer_directory else None))
     queue = JobQueue(service.store, clock=service.clock)
     inventory = Inventory(service.store, clock=service.clock)
+    audit_scan = Lock()
     app = FastAPI(title="HostOrbit API", version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.auth = service
     app.add_middleware(SecurityBoundary, settings=settings, auth=service)
@@ -269,6 +271,18 @@ def create_app(settings: Settings, *, auth: AuthService | None = None):
     @app.get("/api/v1/audit")
     def audit(request: Request, after: Annotated[int, Field(ge=0, lt=2**63)] = 0, actor=Depends(audit_access)):
         return {"items": service.audit_events(token(request), after)}
+
+    @app.get("/api/v1/audit/integrity")
+    def audit_integrity(actor=Depends(audit_access)):
+        if not audit_scan.acquire(blocking=False):
+            raise Denied("AUDIT_VERIFICATION_BUSY", 503)
+        try:
+            service.store.verify_audit()
+        except (AuditIntegrityError, ValueError):
+            return {"status": "invalid"}
+        finally:
+            audit_scan.release()
+        return {"status": "verified"}
 
     @app.post("/api/v1/resources/{resource_id}/observations", status_code=202)
     def observe_resource(resource_id: str, body: Input, request: Request, response: Response, actor=Depends(principal)):
