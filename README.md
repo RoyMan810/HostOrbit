@@ -48,6 +48,7 @@ Self-hosted система управления Linux-серверами по Т
 - [x] Проверка целостности Audit и Outbox из CLI и Audit Center ([PR #63](https://github.com/RoyMan810/HostOrbit/pull/63), [PR #64](https://github.com/RoyMan810/HostOrbit/pull/64)).
 - [x] Просмотр номеров ревизий и переходы между событиями одного плана и ресурса на текущей странице ([PR #66](https://github.com/RoyMan810/HostOrbit/pull/66)).
 - [x] JSON-экспорт событий текущей страницы с предпросмотром: SSH-задания ([PR #62](https://github.com/RoyMan810/HostOrbit/pull/62)), аутентификация ([PR #65](https://github.com/RoyMan810/HostOrbit/pull/65)), сохранение ревизий планов ([PR #67](https://github.com/RoyMan810/HostOrbit/pull/67)) и управление доступом ([PR #68](https://github.com/RoyMan810/HostOrbit/pull/68)).
+- [x] JSON-экспорт регистрации VPS для наблюдения и отказов при несовпадении ключа SSH-хоста с текущей страницы, с предпросмотром.
 - [ ] Просмотр полного плана и экспорт остальных типов событий.
 - [ ] Полная приёмка FR-016.1 по AC-10, AC-45, AC-A10 и AC-A17.
 
