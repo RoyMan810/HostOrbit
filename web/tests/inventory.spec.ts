@@ -308,6 +308,50 @@ test('exports only reviewed access administration events from the current audit 
   await expect(localized).toHaveCount(0)
 })
 
+test('exports reviewed VPS observation events without exposing resource or SSH identifiers', async ({ page }) => {
+  const at = 1700000000
+  const allowed = [
+    { event: 'resource.observation_registered', outcome: 'SUCCEEDED' },
+    { event: 'security.ssh_host_key_mismatch', outcome: 'DENIED' },
+  ]
+  await signIn(page)
+  await page.route('**/api/v1/audit?*', route => {
+    const after = Number(new URL(route.request().url()).searchParams.get('after'))
+    const unrelated = { event: 'resource.unknown', outcome: 'SUCCEEDED' }
+    const rows = after === 0 ? [
+      ...allowed,
+      { ...allowed[0], at: -1 },
+      { ...allowed[1], outcome: 'SUCCEEDED' },
+      ...Array.from({ length: 96 }, () => unrelated),
+    ] : [unrelated]
+    return route.fulfill({ json: { items: rows.map((row, i) => ({
+      seq: after + i + 1,
+      event: { at, actor_id: 'private-actor', target_id: fresh, correlation_id: stale,
+        details: { scope_digest: 'private-digest', job_id: stale }, ...row },
+    })) } })
+  })
+  await page.getByRole('button', { name: 'Audit log', exact: true }).click()
+  const review = page.getByText('Review VPS observation audit export', { exact: true })
+  await expect(review).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Download JSON' })).toHaveCount(0)
+  await review.press('Enter')
+  const reviewed = await page.locator('.audit-export[open] pre').innerText()
+  expect(JSON.parse(reviewed)).toEqual({ version: 1, events: allowed.map(event => ({
+    ...event, at: new Date(at * 1000).toISOString(),
+  })) })
+  await page.getByLabel('Language').selectOption('ru')
+  const localized = page.getByText('Проверить экспорт аудита наблюдения VPS', { exact: true })
+  await expect(localized).toBeVisible()
+  const ready = page.waitForEvent('download')
+  await page.getByRole('link', { name: 'Скачать JSON' }).click()
+  const download = await ready
+  expect(download.suggestedFilename()).toBe('hostorbit-vps-observation-audit.json')
+  expect(await readFile(await download.path(), 'utf8')).toBe(reviewed)
+  await page.getByRole('button', { name: 'Следующая страница' }).click()
+  await expect(page.locator('#audit-event-101')).toBeVisible()
+  await expect(localized).toHaveCount(0)
+})
+
 test('pages through the bounded audit API without retaining the previous page', async ({ page }) => {
   await signIn(page)
   await page.route('**/api/v1/audit?*', async route => {
