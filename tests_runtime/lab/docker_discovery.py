@@ -80,6 +80,10 @@ def main():
             result = observe(registry, protected_socket, include_ports=True, include_mounts=True)
             assert [row["mount_status"] for row in result["containers"]] == ["NONE", "UNKNOWN", "PRESENT"], result
             assert "/fixture-tmpfs" not in json.dumps(result) and foreign not in json.dumps(result)
+            docker("start", stopped)
+            result = observe(registry, protected_socket, include_ports=True, include_mounts=True, include_network=True)
+            assert [row["network_status"] for row in result["containers"]] == ["OTHER", "ISOLATED", "ISOLATED"], result
+            assert [row["mount_status"] for row in result["containers"]] == ["NONE", "NONE", "PRESENT"], result
             wrong = [{**scope[0], "project": prefix + "-wrong"}]
             registry.write_text(json.dumps({"v": 1, "containers": wrong}))
             assert observe(registry, protected_socket, include_ports=True) == {"status": "OBSERVED", "containers": [

@@ -87,6 +87,18 @@ class DockerPayloadTests(unittest.TestCase):
             with self.subTest(row=row), self.assertRaises(Denied):
                 self.parse({"status": "OBSERVED", "containers": [row]}, version=5)
 
+    def test_v6_requires_typed_network_status_without_changing_v5(self):
+        row = {**ROW, "published_ports": [], "mount_status": "NONE"}
+        for status in ("ISOLATED", "OTHER", "UNKNOWN"):
+            summary = {"status": "OBSERVED", "containers": [{**row, "network_status": status}]}
+            self.assertEqual(self.parse(summary, version=6)["docker"], summary)
+            with self.assertRaises(Denied):
+                self.parse(summary, version=5)
+        for invalid in (row, {**row, "network_status": "bridge"},
+                        {**row, "state": "CREATED", "mount_status": "UNKNOWN", "network_status": "ISOLATED"}):
+            with self.subTest(invalid=invalid), self.assertRaises(Denied):
+                self.parse({"status": "OBSERVED", "containers": [invalid]}, version=6)
+
     def test_protected_registry_requires_full_unique_ids_and_exact_fields(self):
         parse = HELPER["parse_docker_scope"]
         self.assertEqual(parse(canonical({"v": 1, "containers": SCOPE})), SCOPE)
@@ -219,3 +231,25 @@ class DockerTransportTests(unittest.TestCase):
         self.response[0]["Labels"]["com.docker.compose.project"] = "wrong"
         self.assertEqual(self.observe(include_ports=True, include_mounts=True)[0]["mount_status"], "UNKNOWN")
         self.assertEqual(len(self.requests), 1)
+
+    def test_inspects_network_without_publishing_network_details_or_requesting_a_second_inspect(self):
+        for mode, networks, expected in (
+            ("none", {"none": {}}, "ISOLATED"),
+            ("bridge", {"private-network": {"IPAddress": "192.0.2.10"}}, "OTHER"),
+            ("host", {"host": {}}, "OTHER"),
+            ("container:peer", {}, "OTHER"),
+            ("none", {"none": {}, "private-network": {}}, "OTHER"),
+            ("none", {}, "UNKNOWN"),
+            ("none", None, "UNKNOWN"),
+        ):
+            with self.subTest(mode=mode, networks=networks):
+                self.requests.clear()
+                self.inspect["HostConfig"]["NetworkMode"] = mode
+                self.inspect["NetworkSettings"] = {"Networks": networks}
+                self.assertEqual(self.observe(include_ports=True, include_mounts=True, include_network=True), [
+                    {**ROW, "published_ports": None, "mount_status": "NONE", "network_status": expected},
+                ])
+                self.assertEqual(len(self.requests), 2)
+        self.inspect["Id"] = FOREIGN
+        self.assertEqual(self.observe(include_ports=True, include_mounts=True, include_network=True)[0]["network_status"],
+                         "UNKNOWN")

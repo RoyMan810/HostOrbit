@@ -13,6 +13,7 @@ from .storage import new_private_file, protected_bytes
 
 
 PROBES = (
+    (6, "hostorbit.v6.probe", b'{"operation":"probe","version":6}\n'),
     (5, "hostorbit.v5.probe", b'{"operation":"probe","version":5}\n'),
     (4, "hostorbit.v4.probe", b'{"operation":"probe","version":4}\n'),
     (3, "hostorbit.v3.probe", b'{"operation":"probe","version":3}\n'),
@@ -56,7 +57,7 @@ async def exchange(target, key, known_hosts):
         for version, command, request in PROBES:
             process = await connection.create_process(command, input=request, encoding=None, request_pty=False)
             output, error, _ = await asyncio.gather(
-                bounded_read(process.stdout, {3: 4096, 4: 12288, 5: 12288}.get(version, 2048)),
+                bounded_read(process.stdout, 12288 if version >= 4 else (4096 if version == 3 else 2048)),
                 bounded_read(process.stderr), process.wait_closed())
             if process.exit_status == 0:
                 return version, output
@@ -106,10 +107,9 @@ def parse_probe(output, version, *, now):
     except Denied:
         raise Denied("SSH_UNSUPPORTED_OUTPUT") from None
     names = ("v", "uid", "boot_id", "observed_at")
-    extra = {1: (), 2: ("software",), 3: ("software", "docker"), 4: ("software", "docker"), 5: ("software", "docker")}.get(version)
-    if extra is None:
+    if version not in (1, 2, 3, 4, 5, 6):
         raise Denied("SSH_PROBE_INVALID")
-    fields(value, names + extra)
+    fields(value, names + ("software", "docker")[:min(version - 1, 2)])
     if type(value["v"]) is not int or value["v"] != version or type(value["uid"]) is not int or value["uid"] != 0:
         raise Denied("SSH_PROBE_INVALID")
     text(value["boot_id"], r"[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}")
@@ -118,7 +118,8 @@ def parse_probe(output, version, *, now):
     if version >= 2:
         result["software"] = software_summary(value["software"])
     if version >= 3:
-        result["docker"] = docker_summary(value["docker"], include_ports=version >= 4, include_mounts=version == 5)
+        result["docker"] = docker_summary(value["docker"], include_ports=version >= 4, include_mounts=version >= 5,
+                                         include_network=version == 6)
     return result
 
 

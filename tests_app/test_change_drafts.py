@@ -31,7 +31,7 @@ class ChangeDraftTests(Fixture):
         self.complete_probe(job["id"], outcome=outcome, boot_id=boot_id)
         return job["id"]
 
-    def complete_probe(self, job_id, *, outcome="SUCCEEDED", boot_id="11111111-1111-1111-1111-111111111111", ports=None, mounts=None):
+    def complete_probe(self, job_id, *, outcome="SUCCEEDED", boot_id="11111111-1111-1111-1111-111111111111", ports=None, mounts=None, network=None):
         claim, row = self.queue.claim(identifier())
         self.assertEqual(row["id"], job_id)
         self.queue.advance(claim, "INTENT_PREPARED", permit={"claims": self.queue.binding(row)})
@@ -47,6 +47,8 @@ class ChangeDraftTests(Fixture):
             result["docker"]["containers"][0]["published_ports"] = ports
         if mounts is not None:
             result["docker"]["containers"][0].update(mount_status=mounts, published_ports=ports)
+        if network is not None:
+            result["docker"]["containers"][0]["network_status"] = network
         self.queue.finish(claim, outcome, "PROBE_COMPLETE" if outcome == "SUCCEEDED" else "SSH_TIMEOUT",
                           result=result if outcome == "SUCCEEDED" else None)
 
@@ -275,13 +277,28 @@ class ChangeDraftTests(Fixture):
     def test_mount_observation_distinguishes_mounted_and_unmounted_targets(self):
         draft, tag = self.save(confirm_stateless_test=True)
         for mounts, reason in (("PRESENT", "RESTART_MOUNTS_PRESENT"),
-                               ("NONE", "RESTART_DEPENDENCY_SCOPE_REQUIRED"),
+                               ("NONE", "RESTART_NETWORK_OBSERVATION_REQUIRED"),
                                ("UNKNOWN", "RESTART_MOUNT_OBSERVATION_REQUIRED")):
             with self.subTest(mounts=mounts):
                 self.now += 1
                 key = f"preflight-mounts-{mounts}"
                 fresh = self.request_probe(draft, tag, key=key)["id"]
                 self.complete_probe(fresh, mounts=mounts)
+                result = self.check_probe(draft, tag, fresh, key=key)
+                self.assertEqual(result["backup_gate_reason"], reason)
+                self.assertEqual(result["backup_gate"], "BACKUP_GATE_DENIED")
+                self.assertEqual(result["execution"], "BLOCKED")
+
+    def test_restart_preflight_distinguishes_network_isolation_from_dependency_verification(self):
+        draft, tag = self.save(confirm_stateless_test=True)
+        for network, reason in (("OTHER", "RESTART_NETWORK_NOT_ISOLATED"),
+                                ("UNKNOWN", "RESTART_NETWORK_OBSERVATION_REQUIRED"),
+                                ("ISOLATED", "RESTART_DEPENDENCY_SCOPE_REQUIRED")):
+            with self.subTest(network=network):
+                self.now += 1
+                key = f"preflight-network-{network}"
+                fresh = self.request_probe(draft, tag, key=key)["id"]
+                self.complete_probe(fresh, mounts="NONE", network=network)
                 result = self.check_probe(draft, tag, fresh, key=key)
                 self.assertEqual(result["backup_gate_reason"], reason)
                 self.assertEqual(result["backup_gate"], "BACKUP_GATE_DENIED")

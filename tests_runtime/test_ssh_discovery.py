@@ -80,18 +80,18 @@ class ProbeNegotiationTests(unittest.IsolatedAsyncioTestCase):
     async def probe(self):
         return await asyncio.wait_for(exchange(self.target, self.client_key, self.known_hosts), 5)
 
-    async def test_v5_uses_one_fixed_request(self):
-        self.assertEqual(await self.probe(), (5, b'probe'))
-        self.assertEqual(self.requests, [('hostorbit.v5.probe', b'{"operation":"probe","version":5}\n')])
+    async def test_v6_uses_one_fixed_request(self):
+        self.assertEqual(await self.probe(), (6, b'probe'))
+        self.assertEqual(self.requests, [('hostorbit.v6.probe', b'{"operation":"probe","version":6}\n')])
 
     async def test_silent_unsupported_probe_versions_fall_back(self):
-        for version in (4, 3, 2, 1):
+        for version in (5, 4, 3, 2, 1):
             with self.subTest(version=version):
                 self.requests.clear()
                 self.reply = lambda command: (0, b'legacy') if command == f'hostorbit.v{version}.probe' else (65, b'')
                 self.assertEqual(await self.probe(), (version, b'legacy'))
                 self.assertEqual([r[0] for r in self.requests],
-                                 [f'hostorbit.v{step}.probe' for step in range(5, version - 1, -1)])
+                                 [f'hostorbit.v{step}.probe' for step in range(6, version - 1, -1)])
 
     async def test_failed_or_noisy_probe_does_not_fall_back(self):
         for status, data in ((65, b'canary'), (1, b'')):

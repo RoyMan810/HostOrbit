@@ -100,7 +100,7 @@ def _validate_published_ports(ports, state):
         seen.add((address, host, private, protocol))
 
 
-def docker_summary(value, *, include_ports=None, include_mounts=None):
+def docker_summary(value, *, include_ports=None, include_mounts=None, include_network=None):
     fields(value, ("status", "containers"))
     status, rows = value["status"], value["containers"]
     if (status not in ("OBSERVED", "NOT_CONFIGURED", "POLICY_INVALID", "UNAVAILABLE")
@@ -118,6 +118,12 @@ def docker_summary(value, *, include_ports=None, include_mounts=None):
         if not include_ports:
             raise Denied("PROBE_DOCKER_INVALID")
         names += ("mount_status",)
+    if include_network is None:
+        include_network = bool(rows and isinstance(rows[0], dict) and "network_status" in rows[0])
+    if include_network:
+        if not include_mounts:
+            raise Denied("PROBE_DOCKER_INVALID")
+        names += ("network_status",)
     seen = set()
     for item in rows:
         fields(item, names)
@@ -133,5 +139,8 @@ def docker_summary(value, *, include_ports=None, include_mounts=None):
             _validate_published_ports(item["published_ports"], item["state"])
         if include_mounts and (item["mount_status"] not in ("NONE", "PRESENT", "UNKNOWN")
                                or item["state"] != "RUNNING" and item["mount_status"] != "UNKNOWN"):
+            raise Denied("PROBE_DOCKER_INVALID")
+        if include_network and (item["network_status"] not in ("ISOLATED", "OTHER", "UNKNOWN")
+                                or item["state"] != "RUNNING" and item["network_status"] != "UNKNOWN"):
             raise Denied("PROBE_DOCKER_INVALID")
     return value
