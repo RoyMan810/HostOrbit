@@ -242,11 +242,48 @@ class ChangeDraftTests(Fixture):
         self.assertEqual(result["plan_hash"], draft["plan_hash"])
         self.assertEqual(result["execution"], "BLOCKED")
         self.assertEqual(result["backup_gate"], "BACKUP_GATE_DENIED")
-        self.assertEqual(result["backup_gate_reason"], "RESTART_BACKUP_POLICY_UNCLASSIFIED")
+        self.assertEqual(result["backup_gate_reason"], "RESTART_OWNER_CONFIRMATION_REQUIRED")
         self.now += 1
         self.probe("FAILED")
         with self.assertRaisesRegex(Denied, "FRESH_OBSERVATION_REQUIRED"):
             self.check_probe(draft, tag, fresh)
+
+    def test_owner_confirmation_is_bound_to_one_revision_and_does_not_allow_execution(self):
+        draft, tag = self.save(confirm_stateless_test=True)
+        self.assertIs(draft["baseline"]["stateless_test_confirmed"], True)
+        with self.transaction(write=False) as db:
+            self.assertEqual(get_draft(db, self.auth, self.token, draft["id"]), (draft, tag))
+            self.assertEqual(check_draft_baseline(db, self.auth, self.token, draft["id"], if_match=tag)["backup_gate"],
+                             "NOT_EVALUATED")
+            event = json.loads(db.execute("SELECT payload FROM outbox ORDER BY seq DESC LIMIT 1").fetchone()[0])
+            self.assertEqual(event["actor_id"], self.owner)
+            self.assertIs(event["details"]["stateless_test_confirmed"], True)
+            self.assertEqual(event["details"]["plan_hash"], draft["plan_hash"])
+            Store.verify_audit_connection(db)
+        self.now += 1
+        fresh = self.request_probe(draft, tag)["id"]
+        self.complete_probe(fresh)
+        result = self.check_probe(draft, tag, fresh)
+        self.assertEqual(result["backup_gate"], "BACKUP_GATE_DENIED")
+        self.assertEqual(result["backup_gate_reason"], "RESTART_MOUNT_OBSERVATION_REQUIRED")
+        self.assertEqual(result["execution"], "BLOCKED")
+        refreshed, _ = self.save(draft_id=draft["id"], if_match=tag)
+        self.assertNotIn("stateless_test_confirmed", refreshed["baseline"])
+
+    def test_stateless_test_confirmation_requires_owner_and_explicit_boolean(self):
+        self.create_user(grants=[{"permission": permission, "resource_id": SCOPE}
+                                 for permission in ("vps:read", "vps:restart")])
+        client = self.other_client("operator")
+        token = client.cookies[COOKIE]
+        csrf = client.get("/api/v1/auth/session").json()["csrf_token"]
+        self.output = self.directory / "operator-confirmation"
+        rehearse(self.store, self.output, to_schema=3)
+        with self.assertRaisesRegex(Denied, "RESTART_OWNER_CONFIRMATION_REQUIRED"), self.transaction() as db:
+            save_draft(db, self.auth, token, csrf, SCOPE, CONTAINER, confirm_stateless_test=True)
+        with self.assertRaisesRegex(Denied, "RESTART_CONFIRMATION_INVALID"):
+            self.save(confirm_stateless_test=1)
+        with self.transaction(write=False) as db:
+            self.assertEqual(db.execute("SELECT count(*) FROM change_plan_drafts").fetchone()[0], 0)
 
     def test_probe_check_rejects_a_fresh_generic_probe_of_the_same_vps(self):
         draft, tag = self.save()
