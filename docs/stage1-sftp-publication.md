@@ -1,5 +1,7 @@
 # Публикация Controller archive по SFTP
 
+[Документация](README.md) · [Требования v2.4](spec/HostOrbit_Technical_Spec_v2.4.md)
+
 `hostorbit-backup publish --snapshot-id <id>` передаёт существующий [локальный подписанный архив](stage1-controller-archive.md) на отдельно настроенный SFTP target. Команда требует локального Root, проверяет исходную подпись/ciphertext и не принимает произвольные local paths, remote paths, URL или Secret Reference из Web/Worker.
 
 Успех `PUBLISHED` означает подтверждённую публикацию на настроенном SSH receiver: ciphertext/provenance/marker прочитаны обратно и совпадают. `off_host=true` относится к настроенному remote target; IP/SSH verification не доказывает независимое питание/диск/гипервизор. `failure_domain_verified=false`, `restore_verified=false`, `backup_gate=DENIED` остаются явными. Независимость хранилища — отдельное требование развёртывания и приёмки, не автоматический вывод из успешного SSH.

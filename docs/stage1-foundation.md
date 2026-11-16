@@ -1,5 +1,7 @@
 # Foundation Controller
 
+[Документация](README.md) · [Требования v2.4](spec/HostOrbit_Technical_Spec_v2.4.md)
+
 Пакет `hostorbit` реализует прикладной Stage1 Foundation. Его [приёмка по шести capabilities §40](../evidence/acceptance/stage1-2026-11-08/README.md) зафиксирована отдельно от полного MVP. Он предоставляет локальное создание Owner, серверную аутентификацию, scope RBAC, SQLite, Audit/Outbox и версионированный HTTP API. Лабораторный `stage0` остаётся самостоятельным набором доказательных прототипов.
 
 ## Установка для разработки

@@ -1,5 +1,7 @@
 # Время хоста и допуск к изменениям
 
+[Документация](README.md) · [Требования v2.4](spec/HostOrbit_Technical_Spec_v2.4.md)
+
 Host supervisor проверяет время независимо от заменяемых API/Worker. Поддержаны системные chrony 4.5 и timesyncd 255 на Ubuntu 24.04. Данные не принимаются из HTTP, application SQLite, environment Worker или произвольного JSON. Backend не получает privilege socket; Worker получает подписанный ответ через AF_UNIX с проверкой UID сервера и Ed25519 public key.
 
 `hostorbit/runtime/clock.py` использует только фиксированные команды мониторинга. Для chrony выбрана одна локальная Unix socket `/run/chrony/chronyd.sock`, без UDP/DNS fallback. Владелец и защита каталога проверяются supervisor; тип и точный UID socket — фиксированным stdlib-helper уже после смены UID. Для него нужен системный `/usr/bin/python3` Ubuntu. PID 1 запускает короткий sandboxed `chronyc -n -c -h … tracking` от UID владельца закрытого каталога: клиенту chrony нужен собственный reply socket в том же каталоге. Supervisor сохраняет пустой capability set и не получает доступа к приватным данным Broker/Vault. Worker не выбирает executable, UID, unit properties, адрес или команду.

@@ -33,12 +33,17 @@ CI дополнительно запускает настоящие Linux UID, S
 
 ## Приёмка и evidence
 
+Используйте [ТЗ v2.4](docs/spec/HostOrbit_Technical_Spec_v2.4.md) и его [реестр](docs/spec/HostOrbit_Requirements_Registry_v2.4.json). Команды запускайте из корня.
+
 ```sh
-.venv/bin/python -m stage0.requirements evidence/acceptance/stage0-2026-11-07/HostOrbit_Requirements_Registry_v2.3.json --gate Stage0 --evidence-root .
-.venv/bin/python -m stage0.requirements evidence/acceptance/stage0-2026-11-07/HostOrbit_Requirements_Registry_v2.3.json --gate Stage1 --evidence-root .
+registry=docs/spec/HostOrbit_Requirements_Registry_v2.4.json
+.venv/bin/python -m stage0.requirements "$registry" --gate Stage0 --evidence-root .
+.venv/bin/python -m stage0.requirements "$registry" --gate Stage1 --evidence-root .
+.venv/bin/python -m stage0.requirements "$registry" --gate Stage2 --evidence-root .
+.venv/bin/python -m stage0.requirements "$registry" --gate Stage3 --evidence-root .
 ```
 
-Оба gate должны пройти. Полный MVP gate Stage3 сохраняет blockers до подтверждения всех обязательных AC. Snapshot реестра фиксирует принятую версию канонических требований; новые критерии нельзя вводить только изменением теста или CI.
+Stage0 и Stage1 проверяют принятую основу. Для Stage2 и Stage3 код выхода `2` перечисляет открытые критерии. Текущий CI дополнительно воспроизводит принятую базу v2.3 по историческому снимку. Смена ссылки в source-bound workflow потребует повторной валидации Foundation. Обновляйте ТЗ, реестр и связанные критерии вместе, фиксируйте решения в ADR.
 
 Существующие отчёты приёмки описывают историческую ревизию. Изменение исходников, закреплённых в capability report, требует повторной проверки и новых evidence. Не заменяйте digest, assertions, reviewer или статус на PASS ради зелёного CI. Компонентная проверка не подменяет независимый DR или ручное свидетельство Owner.
 
