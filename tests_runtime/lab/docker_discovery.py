@@ -49,7 +49,8 @@ def main():
         running = create(prefix, "web", "--publish", "127.0.0.1::8080/tcp", "--expose", "8081/tcp")
         stopped = create(prefix, "worker", "--network", "none")
         foreign = create(prefix + "-foreign", "private", "--network", "none")
-        docker("start", running)
+        mounted = create(prefix, "mounted", "--network", "none", "--tmpfs", "/fixture-tmpfs")
+        docker("start", running, mounted)
         scope = [{"id": running, "project": prefix, "service": "web"},
                  {"id": stopped, "project": prefix, "service": "worker"}]
         # The action's parent directory belongs to the runner. A hard link on
@@ -74,6 +75,11 @@ def main():
                 {**scope[1], "state": "CREATED", "published_ports": []},
             ]}, result
             assert foreign not in json.dumps(result) and "label-canary" not in json.dumps(result)
+            mounted_scope = {"id": mounted, "project": prefix, "service": "mounted"}
+            registry.write_text(json.dumps({"v": 1, "containers": [*scope, mounted_scope]}))
+            result = observe(registry, protected_socket, include_ports=True, include_mounts=True)
+            assert [row["mount_status"] for row in result["containers"]] == ["NONE", "UNKNOWN", "PRESENT"], result
+            assert "/fixture-tmpfs" not in json.dumps(result) and foreign not in json.dumps(result)
             wrong = [{**scope[0], "project": prefix + "-wrong"}]
             registry.write_text(json.dumps({"v": 1, "containers": wrong}))
             assert observe(registry, protected_socket, include_ports=True) == {"status": "OBSERVED", "containers": [

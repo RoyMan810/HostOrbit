@@ -100,7 +100,7 @@ def _validate_published_ports(ports, state):
         seen.add((address, host, private, protocol))
 
 
-def docker_summary(value, *, include_ports=None):
+def docker_summary(value, *, include_ports=None, include_mounts=None):
     fields(value, ("status", "containers"))
     status, rows = value["status"], value["containers"]
     if (status not in ("OBSERVED", "NOT_CONFIGURED", "POLICY_INVALID", "UNAVAILABLE")
@@ -108,10 +108,16 @@ def docker_summary(value, *, include_ports=None):
         raise Denied("PROBE_DOCKER_INVALID")
     names = ("id", "project", "service", "state")
     if include_ports is None:
-        # Stored observations and Worker receipts support both wire generations.
+        # Stored observations and Worker receipts can contain older wire formats.
         include_ports = bool(rows and isinstance(rows[0], dict) and "published_ports" in rows[0])
     if include_ports:
         names += ("published_ports",)
+    if include_mounts is None:
+        include_mounts = bool(rows and isinstance(rows[0], dict) and "mount_status" in rows[0])
+    if include_mounts:
+        if not include_ports:
+            raise Denied("PROBE_DOCKER_INVALID")
+        names += ("mount_status",)
     seen = set()
     for item in rows:
         fields(item, names)
@@ -125,4 +131,7 @@ def docker_summary(value, *, include_ports=None):
         seen.add(identity)
         if include_ports:
             _validate_published_ports(item["published_ports"], item["state"])
+        if include_mounts and (item["mount_status"] not in ("NONE", "PRESENT", "UNKNOWN")
+                               or item["state"] != "RUNNING" and item["mount_status"] != "UNKNOWN"):
+            raise Denied("PROBE_DOCKER_INVALID")
     return value

@@ -73,6 +73,20 @@ class DockerPayloadTests(unittest.TestCase):
             with self.subTest(payload=payload), self.assertRaises(Denied):
                 self.parse(payload, version=4)
 
+    def test_v5_requires_a_mount_status_and_keeps_older_payloads_strict(self):
+        for status in ("NONE", "PRESENT", "UNKNOWN"):
+            payload = {"status": "OBSERVED", "containers": [
+                {**ROW, "published_ports": [], "mount_status": status},
+            ]}
+            self.assertEqual(self.parse(payload, version=5)["docker"], payload)
+            with self.assertRaises(Denied):
+                self.parse(payload, version=4)
+        for row in ({**ROW, "published_ports": []},
+                    {**ROW, "published_ports": [], "mount_status": []},
+                    {**ROW, "state": "NOT_FOUND", "published_ports": None, "mount_status": "NONE"}):
+            with self.subTest(row=row), self.assertRaises(Denied):
+                self.parse({"status": "OBSERVED", "containers": [row]}, version=5)
+
     def test_protected_registry_requires_full_unique_ids_and_exact_fields(self):
         parse = HELPER["parse_docker_scope"]
         self.assertEqual(parse(canonical({"v": 1, "containers": SCOPE})), SCOPE)
@@ -93,12 +107,18 @@ class DockerTransportTests(unittest.TestCase):
                           "Labels": {"com.docker.compose.project": "fixture",
                                      "com.docker.compose.service": "web", "secret": "label-canary"},
                           "Command": "command-canary", "Mounts": [{"Source": "/private/path"}]}]
+        self.inspect = {"Id": TARGET, "Config": {"Labels": self.response[0]["Labels"], "Env": ["secret-canary"]},
+                        "State": {"Status": "running"}, "HostConfig": {}, "Mounts": []}
         fixture = self
 
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self):
                 fixture.requests.append(self.path)
-                payload = json.dumps(fixture.response).encode()
+                value = fixture.inspect if self.path == f"/v1.44/containers/{TARGET}/json" else fixture.response
+                if value is None:
+                    self.send_error(404)
+                    return
+                payload = json.dumps(value).encode()
                 self.send_response(200)
                 self.send_header("Content-Length", str(len(payload)))
                 self.end_headers()
@@ -174,3 +194,28 @@ class DockerTransportTests(unittest.TestCase):
         self.assertEqual(self.observe(include_ports=True), [
             {**ROW, "state": "NOT_FOUND", "published_ports": None},
         ])
+
+
+    def test_inspects_only_the_matched_running_container_and_projects_mount_status(self):
+        for mounts, config, expected in (
+            ([], {}, "NONE"),
+            ([{"Type": "volume", "Source": "/private/path"}], {}, "PRESENT"),
+            ([], {"Binds": ["/private/path:/data"]}, "PRESENT"),
+            ([], {"Tmpfs": {"/data": "size=1m"}}, "PRESENT"),
+            (None, {}, "UNKNOWN"),
+            ([], {"Binds": ""}, "UNKNOWN"),
+        ):
+            with self.subTest(mounts=mounts, config=config):
+                self.requests.clear()
+                self.inspect.update(Mounts=mounts, HostConfig=config)
+                self.assertEqual(self.observe(include_ports=True, include_mounts=True), [
+                    {**ROW, "published_ports": None, "mount_status": expected},
+                ])
+                self.assertEqual(len(self.requests), 2)
+                self.assertEqual(self.requests[1], f"/v1.44/containers/{TARGET}/json")
+        self.inspect = None
+        self.assertEqual(self.observe(include_ports=True, include_mounts=True)[0]["mount_status"], "UNKNOWN")
+        self.requests.clear()
+        self.response[0]["Labels"]["com.docker.compose.project"] = "wrong"
+        self.assertEqual(self.observe(include_ports=True, include_mounts=True)[0]["mount_status"], "UNKNOWN")
+        self.assertEqual(len(self.requests), 1)
