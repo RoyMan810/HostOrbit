@@ -1,4 +1,4 @@
-annotated-doc==0.0.5
+annotated-doc==0.0.6
 annotated-types==0.8.0
 anyio==4.16.0
 asyncssh==2.24.1
@@ -7,7 +7,7 @@ argon2-cffi-bindings==26.1.0
 cffi==2.1.1
 click==8.5.1
 cryptography==50.0.2
-fastapi==0.162.2
+fastapi==0.162.4
 h11==0.16.0
 idna==3.20
 opentelemetry-api==1.45.2
