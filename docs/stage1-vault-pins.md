@@ -1,5 +1,7 @@
 # Broker-private Vault pin
 
+[Документация](README.md) · [Требования v2.4](spec/HostOrbit_Technical_Spec_v2.4.md)
+
 `hostorbit.runtime.pins` создаёт локальный снимок для согласованного ControllerBackup: Vault metadata, journal квитанций Broker и все referenced ciphertext objects, включая отозванные версии. Это **LOCAL_PIN_ONLY**: portable DEK на этом шаге не экспортируются, Backup Gate остаётся `DENIED`. Age/provenance выполняет [Controller archive](stage1-controller-archive.md), публикацию — [SFTP transport](stage1-sftp-publication.md), восстановление — [Rescue](stage1-rescue.md).
 
 Root Coordinator вызывает `capture_with_systemd(snapshot_id)` только под exclusive [writer barrier](stage1-backup-barrier.md). Фиксированный native helper запускается отдельным процессом с UID/GID Broker, `LoadCredentialEncrypted`, без capabilities и сетевых address families. Он не занимает синхронный SSH Broker. RuntimeMaxSec 20 секунд и KillMode control-group действуют независимо от жизни вызывающего Root процесса; вызов/cleanup имеют отдельные короткие тайм-ауты. Будущий полный capture должен резервировать этот бюджет внутри общего barrier deadline.

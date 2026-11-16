@@ -81,6 +81,8 @@ code { font-family: ui-monospace, "Cascadia Code", monospace; overflow-wrap: any
 .workspace-nav [aria-current="page"] { background: var(--soft); border-color: var(--accent); }
 .audit-export { padding: 14px 20px; border-bottom: 1px solid var(--line); }
 .audit-export summary { cursor: pointer; font-weight: 650; }
+.audit-export label { display: grid; gap: 6px; margin-top: 12px; width: fit-content; max-width: 100%; }
+.audit-export select { max-width: 100%; }
 .audit-export p { margin-top: 8px; font-size: 13px; }
 .audit-export pre { max-height: 18rem; overflow: auto; padding: 12px; background: var(--soft); border-radius: 8px; }
 .audit-export a { color: var(--accent); }

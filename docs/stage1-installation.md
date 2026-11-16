@@ -1,5 +1,7 @@
 # Установка Foundation Stage1
 
+[Документация](README.md) · [Требования v2.4](spec/HostOrbit_Technical_Spec_v2.4.md)
+
 Для завершённого локального Rescue import доступен отдельный [recovery installation](stage1-recovery-installation.md) через `--recovery-state`; он сохраняет READ_ONLY_RECOVERY и не открывает повторный Owner bootstrap.
 
 Постоянные родительские каталоги установки (`/opt`, `/etc`, `/var/lib`, `/run` и их ancestors) должны принадлежать root и не допускать group/other write. Preflight отказывает с `INSTALLATION_PARENT_UNTRUSTED` до создания состояния и не меняет права чужих системных каталогов. Disposable CI fixture отдельно проверяет отказ на `/opt` 0777, затем готовит защищённый профиль 0755 только в своей временной VM.

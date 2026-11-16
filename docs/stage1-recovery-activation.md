@@ -1,5 +1,7 @@
 # Локальная Owner activation после восстановления
 
+[Документация](README.md) · [Требования v2.4](spec/HostOrbit_Technical_Spec_v2.4.md)
+
 `hostorbit-activate` добавляет переход установленного восстановленного Controller из READ_ONLY_RECOVERY в ACTIVE с устойчивым карантином. Это локальная административная процедура: нет Web/Worker endpoint, provider API, автоматического выключения старого хоста, SSH shell из UI или `force-active`.
 
 ## Что подтверждает Owner

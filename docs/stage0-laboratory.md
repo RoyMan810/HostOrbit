@@ -42,17 +42,17 @@
 
 Docker-стенд использует настоящий Compose project: A и B имеют общие named volume и network, проверенные через `docker inspect`. Карантин удерживается при замене БД приложения и повторном открытии host authority; независимый лабораторный scope допускается только после durable quarantine decision. Физически все контейнеры находятся на одном временном runner, независимая VPS представлена отдельной записью inventory.
 
-`stage0.requirements` проверяет структуру реестра ТЗ v2.3, двусторонние ссылки между требованиями и тестами, достижимость зависимостей и gates Stage0, Stage1 Foundation, Stage2 и MVP. Для записи `PASS` нужен отчёт с данными сборки, наблюдением, рецензентом и проверяемым дайджестом. Stage1 также проверяет hashes исходников и артефактов capability reports. Код возврата `1` означает ошибку реестра, `2` означает открытые проверки приёмки.
+`stage0.requirements` проверяет структуру реестра ТЗ, двусторонние ссылки между требованиями и тестами, достижимость зависимостей и gates Stage0, Stage1 Foundation, Stage2 и MVP. Для записи `PASS` нужен отчёт с данными сборки, наблюдением, рецензентом и проверяемым дайджестом. Stage1 также проверяет hashes исходников и артефактов capability reports. Код возврата `1` означает ошибку реестра, `2` означает открытые проверки приёмки.
 
 ```bash
-python3.13 -m stage0.requirements /path/to/HostOrbit_Requirements_Registry_v2.3.json
-python3.13 -m stage0.requirements /path/to/HostOrbit_Requirements_Registry_v2.3.json --gate Stage0
+python3.13 -m stage0.requirements docs/spec/HostOrbit_Requirements_Registry_v2.4.json
+python3.13 -m stage0.requirements docs/spec/HostOrbit_Requirements_Registry_v2.4.json --gate Stage0 --evidence-root .
 ```
 
 Расхождение в карточке AC-28 исправлено в исходном JSON. Привязка к версии и контрольным суммам сохранена в [ADR-0001](adr/0001-registry-ac28-stage.md). Сверка нормативных state machines и списка Stage0 выполняется отдельно.
 
 ```bash
-python3.13 -m stage0.baseline /path/to/HostOrbit_Technical_Spec_v2.3.md /path/to/HostOrbit_Requirements_Registry_v2.3.json
+python3.13 -m stage0.baseline docs/spec/archive/HostOrbit_Technical_Spec_v2.3.md evidence/acceptance/stage0-2026-11-07/HostOrbit_Requirements_Registry_v2.3.json
 ```
 
 ## Сессии и CSRF

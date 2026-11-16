@@ -2,6 +2,13 @@
 
 Текущий статус проекта находится в [README](../README.md), рабочий процесс — в [CONTRIBUTING](../CONTRIBUTING.md).
 
+## Требования
+
+- [Техническое задание v2.4](spec/HostOrbit_Technical_Spec_v2.4.md)
+- [Машиночитаемый реестр v2.4](spec/HostOrbit_Requirements_Registry_v2.4.json)
+- [ADR-0002. Объём MVP](adr/0002-mvp-v24-scope.md)
+- [Архив ТЗ v2.3](spec/archive/HostOrbit_Technical_Spec_v2.3.md) и [снимок реестра v2.3](../evidence/acceptance/stage0-2026-11-07/HostOrbit_Requirements_Registry_v2.3.json)
+
 ## Структура репозитория
 
 ### Приложение и развёртывание
@@ -43,11 +50,11 @@
 - [Установка восстановленного Controller](stage1-recovery-installation.md)
 - [Локальная Owner activation и quarantine](stage1-recovery-activation.md)
 
-## Требования и приёмка
+## Приёмка и история
 
 - [Лаборатория Stage0](stage0-laboratory.md)
 - [ADR-0001: этап AC-28](adr/0001-registry-ac28-stage.md)
 - [Приёмка Stage0](../evidence/acceptance/stage0-2026-11-07/README.md)
 - [Приёмка Stage1 Foundation](../evidence/acceptance/stage1-2026-11-08/README.md)
 
-Датированные evidence описывают конкретную проверенную ревизию; их старые counts, digests и ограничения сохраняют исторический смысл. Они не служат инструкцией по установке текущего кода. Черновые материалы до приёмки доступны в истории Git.
+Датированные evidence описывают конкретную проверенную ревизию; их старые counts, digests и ограничения сохраняют исторический смысл. Они не служат инструкцией по установке текущего кода. [Отчёты аудита](audit/README.md) описывают состояние на дату проверки. Актуальные приоритеты задаёт ТЗ v2.4.
