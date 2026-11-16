@@ -1,5 +1,7 @@
 # Установка восстановленного Controller в READ_ONLY_RECOVERY
 
+[Документация](README.md) · [Требования v2.4](spec/HostOrbit_Technical_Spec_v2.4.md)
+
 Signed development installer принимает `--recovery-state` — путь к завершённому локальному Rescue ledger. Установка использует уже проверенный и отдельно подтверждённый Owner импорт; она не принимает произвольный unpacked archive, старый runtime config или готовую БД без ledger. Требование свежих пустых installation namespaces сохраняется. Переустановка поверх существующего Controller, `--targets` вместе с recovery и автоматическая активация отклоняются.
 
 ## Проверка и перенос
