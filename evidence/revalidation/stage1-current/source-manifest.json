@@ -1,7 +1,7 @@
 {
   "scope": "Tracked Foundation application, deploy, remote and test paths plus historical report paths and CI/build inputs; each file matches the checked commit.",
-  "source_commit": "665485dfa91014b20e7c490461379e92e25ae7f6",
-  "source_tree": "b0d3fc5fbf8e634a0b50cf0748a68da0c5f85497",
+  "source_commit": "155a34ca5d169bf970b2b0ba98124a013b7a06b4",
+  "source_tree": "f4207d463850dce7e2c5dd7a8815f3d9961b3e46",
   "files": [
     {
       "path": ".github/workflows/checks.yml",
@@ -29,7 +29,7 @@
     },
     {
       "path": "deploy/requirements-wheels.lock",
-      "sha256": "d5bf3b5becf96e75c11ea1a4ebd9a8909c0bdd890ae4c0a58685d501c0475ff0"
+      "sha256": "0cabd2114b166b579d3660e94ecf119ed2edbe3d060ec4e120e9b0617b241b14"
     },
     {
       "path": "deploy/runtime.example.json",
@@ -253,7 +253,7 @@
     },
     {
       "path": "pyproject.toml",
-      "sha256": "76131524a21e53e0acca5c29c664eea81a3b324c84100d66763c7cf018915adf"
+      "sha256": "abf4c4993a7a9a3bf6cf5bcdcbb38b9705cb21dbf909bb8603b267475c98e844"
     },
     {
       "path": "remote/ssh-gateway",
@@ -265,7 +265,7 @@
     },
     {
       "path": "requirements-app.txt",
-      "sha256": "48e5bae97704d9255e9a77fd1737de13d903d51533e2767890aa9180d549bda5"
+      "sha256": "88208c9cbc5f524e1bf3aa96e0d167559687ca7f6ce5fb42c181b76d02e8cefb"
     },
     {
       "path": "requirements-dev.txt",
