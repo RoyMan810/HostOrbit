@@ -102,7 +102,7 @@ class RuntimeTests(unittest.TestCase):
     def test_docker_summary_crosses_the_receipt_boundary_with_fixed_fields(self):
         port = {"address": "::1", "host_port": 8080, "container_port": 80, "protocol": "tcp"}
         container = {"id": "a" * 64, "project": "fixture", "service": "web", "state": "RUNNING",
-                     "published_ports": [port], "mount_status": "NONE"}
+                     "published_ports": [port], "mount_status": "NONE", "network_status": "ISOLATED"}
         summary = {"status": "OBSERVED", "containers": [container]}
         software = {"docker": "PRESENT", "nginx": "NOT_DETECTED"}
         self.broker.execute = lambda *_: {**observation(), "software": software, "docker": summary}

@@ -13,6 +13,7 @@ def main():
         "hostorbit.v3.probe": b'{"operation":"probe","version":3}\n',
         "hostorbit.v4.probe": b'{"operation":"probe","version":4}\n',
         "hostorbit.v5.probe": b'{"operation":"probe","version":5}\n',
+        "hostorbit.v6.probe": b'{"operation":"probe","version":6}\n',
     }.get(os.environ.get("SSH_ORIGINAL_COMMAND"))
     if len(sys.argv) != 1 or request is None:
         return 65
