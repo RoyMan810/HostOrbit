@@ -1,7 +1,7 @@
 {
   "scope": "Tracked Foundation application, deploy, remote and test paths plus historical report paths and CI/build inputs; each file matches the checked commit.",
-  "source_commit": "e61792ad5c8e48b72ae23da06085b1a48c3aacd0",
-  "source_tree": "332d15998faaab598bac0dfae312b7fc4385d000",
+  "source_commit": "466c83d29490adec7cc3ac3bdcf918825a07ec6e",
+  "source_tree": "9efd6a7734ce571add81c632714018ed27dbff9c",
   "files": [
     {
       "path": ".github/workflows/checks.yml",
@@ -189,7 +189,7 @@
     },
     {
       "path": "hostorbit/runtime/protocol.py",
-      "sha256": "5cdb6b49b7ee64824db7f5422890a992fb3a1479d9a75671ddd382c52df2b891"
+      "sha256": "9ae3c0eabaae69aa2b4dc1e96125d042125c4b70c5c7b198df0838687fc470d2"
     },
     {
       "path": "hostorbit/runtime/publication.py",
@@ -229,7 +229,7 @@
     },
     {
       "path": "hostorbit/runtime/ssh.py",
-      "sha256": "e31faa6822845727701a945345041681eb0daf35956505ea604ff395b16e14e4"
+      "sha256": "b15aefd2be704ae0b99fcdfbfb6717100bc34a4585ce7ace1b4988d3a1b67e5f"
     },
     {
       "path": "hostorbit/runtime/storage.py",
@@ -257,11 +257,11 @@
     },
     {
       "path": "remote/ssh-gateway",
-      "sha256": "2e22447539c18b1aa66efe9931f5c27a0337211b9faed98cc783fdf88162c28a"
+      "sha256": "6f9f28d43a6b91928c7370debbc7a4a6997068dc2756aa0eccfd3ebaca3f22f0"
     },
     {
       "path": "remote/typed-helper",
-      "sha256": "c4e8b6ad668826a40914efc2eca6d8be2b0d668ee54313430b9c0f308741389d"
+      "sha256": "af50f05556a4bb688925562e1ee644546165874db2ef7369a8bb2267a3647ade"
     },
     {
       "path": "requirements-app.txt",
@@ -309,7 +309,7 @@
     },
     {
       "path": "tests_runtime/lab/docker_discovery.py",
-      "sha256": "2a4af633ce774326a71e4ea3e7db1e6f98472a4ae0a20860b29cf0c37b65ddf8"
+      "sha256": "0c2ce4cb1052cdf7f88cc9f3734ccf9ee5f3f9d6e0fbb92487fde694cccec57e"
     },
     {
       "path": "tests_runtime/lab/installation.py",
@@ -353,7 +353,7 @@
     },
     {
       "path": "tests_runtime/test_docker_discovery.py",
-      "sha256": "d99782079eefc4112f4ffe98f6cb0e553947594110e9753c5ac28fc7f9d8602c"
+      "sha256": "ac5300902690b666bd7350e12fc811fc1306ada98090a60db5b9bcf628dac32d"
     },
     {
       "path": "tests_runtime/test_installation.py",
@@ -393,7 +393,7 @@
     },
     {
       "path": "tests_runtime/test_ssh_discovery.py",
-      "sha256": "84c73fa5ca8283cb24a7c320de4570479b2719d2c07c456133e3a0c6759af46d"
+      "sha256": "4c8a99d009179f2c4a44b18cc4d103be60970a55230d769c0661a4906a75f1f3"
     },
     {
       "path": "tests_runtime/test_timehealth.py",
@@ -405,7 +405,7 @@
     },
     {
       "path": "tests_runtime/test_worker_broker.py",
-      "sha256": "26f5302c17bfccd8a174ca818727ffb1bf0b0fd0dc6bd5794bbfd5dae35d3530"
+      "sha256": "4c4dc3015c97b250ea574e01fe2c2cc1d324e866d066e7220b512529fbfd715c"
     },
     {
       "path": "tests_runtime/test_writer_barrier.py",
