@@ -5,7 +5,7 @@ import json
 import re
 import secrets
 
-from .auth import AuthService, check_etag, etag
+from .auth import AuthService, Role, check_etag, etag
 from .database import Store, identifier
 from .errors import Denied
 from .inventory import _sample
@@ -111,7 +111,7 @@ def check_draft_baseline(db, auth, token, draft_id, *, if_match):
     checked_at = int(auth.clock())
     baseline = draft["baseline"]
     current = _baseline(db, row["resource_id"], baseline["target"]["id"], checked_at)
-    if current != {key: value for key, value in baseline.items() if key != "probe_nonce"}:
+    if current != {key: value for key, value in baseline.items() if key not in ("probe_nonce", "stateless_test_confirmed")}:
         raise Denied("STALE_BASELINE", 409)
     return {"draft_id": row["id"], "revision": row["revision"], "plan_hash": row["plan_hash"],
             "observation_id": baseline["observation_id"], "checked_at": checked_at,
@@ -187,14 +187,17 @@ def check_draft_probe(draft_db, source_db, auth, token, draft_id, *, if_match, p
         raise Denied("NEW_PROBE_REQUIRED", 409)
     if any(current[key] != baseline[key] for key in ("target", "boot_id", "scope_digest", "resource_revision", "policy_revision")):
         raise Denied("STALE_BASELINE", 409)
-    # §33.3 exempts the read-only probe. Docker restart has no assigned gate class.
+    # The deployed probe does not inspect mounts.
+    reason = ("RESTART_MOUNT_OBSERVATION_REQUIRED" if baseline.get("stateless_test_confirmed") is True
+              else "RESTART_OWNER_CONFIRMATION_REQUIRED")
     return {"draft_id": row["id"], "revision": row["revision"], "plan_hash": row["plan_hash"],
             "observation_id": probe_id, "checked_at": checked_at, "baseline_check": "MATCHED",
-            "backup_gate": "BACKUP_GATE_DENIED", "backup_gate_reason": "RESTART_BACKUP_POLICY_UNCLASSIFIED",
+            "backup_gate": "BACKUP_GATE_DENIED", "backup_gate_reason": reason,
             "execution": draft["execution"]}
 
 
-def save_draft(db, auth, token, csrf, resource_id, container_id, *, draft_id=None, if_match=None):
+def save_draft(db, auth, token, csrf, resource_id, container_id, *,
+               draft_id=None, if_match=None, confirm_stateless_test=False):
     """Create or refresh inside BEGIN IMMEDIATE. The caller rolls back on error."""
     actor = _session(db, auth, token, csrf=csrf, mutating=True)
     if re.fullmatch(ULID, resource_id) is None:
@@ -202,6 +205,10 @@ def save_draft(db, auth, token, csrf, resource_id, container_id, *, draft_id=Non
     _require(db, actor, resource_id, restart=True)
     if re.fullmatch(SHA256, container_id) is None:
         raise Denied("CONTAINER_NOT_FOUND", 404)
+    if type(confirm_stateless_test) is not bool:
+        raise Denied("RESTART_CONFIRMATION_INVALID", 400)
+    if confirm_stateless_test and actor["role"] != Role.OWNER:
+        raise Denied("RESTART_OWNER_CONFIRMATION_REQUIRED", 403)
     revision = 1
     if draft_id is not None:
         row = _latest(db, draft_id)
@@ -217,6 +224,8 @@ def save_draft(db, auth, token, csrf, resource_id, container_id, *, draft_id=Non
     now = int(auth.clock())
     baseline = _baseline(db, resource_id, container_id, now)
     baseline["probe_nonce"] = secrets.token_hex(32)
+    if confirm_stateless_test:
+        baseline["stateless_test_confirmed"] = True
     value = _value(draft_id, revision, baseline)
     plan_hash = checksum(value)
     db.execute("""INSERT INTO change_plan_drafts
@@ -224,6 +233,9 @@ def save_draft(db, auth, token, csrf, resource_id, container_id, *, draft_id=Non
                   VALUES(?,?,?,?,?,?,?,?)""",
                (draft_id, revision, actor["id"], resource_id, value["action"], canonical(baseline).decode(),
                 plan_hash, now))
+    details = {"revision": revision, "plan_hash": plan_hash}
+    if confirm_stateless_test:
+        details["stateless_test_confirmed"] = True
     Store.event(db, at=now, actor=actor["id"], kind="change_plan.draft_saved", target=resource_id,
-                outcome="SUCCEEDED", correlation=draft_id, details={"revision": revision, "plan_hash": plan_hash})
+                outcome="SUCCEEDED", correlation=draft_id, details=details)
     return _public(value, plan_hash)
