@@ -90,10 +90,13 @@ def _baseline(db, resource_id, container_id, now):
         raise Denied("CONTAINER_NOT_FOUND", 404)
     if container["state"] != "RUNNING":
         raise Denied("CONTAINER_NOT_RUNNING", 409)
-    return {"target": {"resource_id": resource_id, **{key: container[key] for key in ("id", "project", "service", "state")}}, "observation_id": job["id"],
+    baseline = {"target": {"resource_id": resource_id, **{key: container[key] for key in ("id", "project", "service", "state")}}, "observation_id": job["id"],
             "observed_at": sample["observed_at"], "boot_id": sample["boot_id"],
             "scope_digest": resource["scope_digest"], "resource_revision": resource["revision"],
             "policy_revision": resource["policy_revision"]}
+    if "mount_status" in container:
+        baseline["mount_status"] = container["mount_status"]
+    return baseline
 
 
 def _checked_draft(db, auth, token, draft_id, if_match):
@@ -187,9 +190,10 @@ def check_draft_probe(draft_db, source_db, auth, token, draft_id, *, if_match, p
         raise Denied("NEW_PROBE_REQUIRED", 409)
     if any(current[key] != baseline[key] for key in ("target", "boot_id", "scope_digest", "resource_revision", "policy_revision")):
         raise Denied("STALE_BASELINE", 409)
-    # The deployed probe does not inspect mounts.
-    reason = ("RESTART_MOUNT_OBSERVATION_REQUIRED" if baseline.get("stateless_test_confirmed") is True
-              else "RESTART_OWNER_CONFIRMATION_REQUIRED")
+    reason = "RESTART_OWNER_CONFIRMATION_REQUIRED"
+    if baseline.get("stateless_test_confirmed") is True:
+        reason = {"PRESENT": "RESTART_MOUNTS_PRESENT", "NONE": "RESTART_DEPENDENCY_SCOPE_REQUIRED"}.get(
+            current.get("mount_status"), "RESTART_MOUNT_OBSERVATION_REQUIRED")
     return {"draft_id": row["id"], "revision": row["revision"], "plan_hash": row["plan_hash"],
             "observation_id": probe_id, "checked_at": checked_at, "baseline_check": "MATCHED",
             "backup_gate": "BACKUP_GATE_DENIED", "backup_gate_reason": reason,
