@@ -99,6 +99,19 @@ class DockerPayloadTests(unittest.TestCase):
             with self.subTest(invalid=invalid), self.assertRaises(Denied):
                 self.parse({"status": "OBSERVED", "containers": [invalid]}, version=6)
 
+    def test_v7_requires_dependency_scope_and_consistent_observations(self):
+        row = {**ROW, "published_ports": [], "mount_status": "NONE", "network_status": "ISOLATED"}
+        for status in ("ISOLATED", "OTHER", "UNKNOWN"):
+            payload = {"status": "OBSERVED", "containers": [{**row, "dependency_status": status}]}
+            self.assertEqual(self.parse(payload, version=7)["docker"], payload)
+            with self.assertRaises(Denied):
+                self.parse(payload, version=6)
+        for invalid in (row, {**row, "dependency_status": "SAFE"},
+                        {**row, "network_status": "OTHER", "dependency_status": "ISOLATED"},
+                        {**row, "mount_status": "PRESENT", "dependency_status": "ISOLATED"}):
+            with self.subTest(invalid=invalid), self.assertRaises(Denied):
+                self.parse({"status": "OBSERVED", "containers": [invalid]}, version=7)
+
     def test_protected_registry_requires_full_unique_ids_and_exact_fields(self):
         parse = HELPER["parse_docker_scope"]
         self.assertEqual(parse(canonical({"v": 1, "containers": SCOPE})), SCOPE)
@@ -121,12 +134,18 @@ class DockerTransportTests(unittest.TestCase):
                           "Command": "command-canary", "Mounts": [{"Source": "/private/path"}]}]
         self.inspect = {"Id": TARGET, "Config": {"Labels": self.response[0]["Labels"], "Env": ["secret-canary"]},
                         "State": {"Status": "running"}, "HostConfig": {}, "Mounts": []}
+        self.peers = [{"Id": TARGET, "State": "running"}]
         fixture = self
 
         class Handler(BaseHTTPRequestHandler):
             def do_GET(self):
                 fixture.requests.append(self.path)
-                value = fixture.inspect if self.path == f"/v1.44/containers/{TARGET}/json" else fixture.response
+                if self.path == "/v1.44/containers/json?all=1&limit=2":
+                    value = fixture.peers
+                elif self.path == f"/v1.44/containers/{TARGET}/json":
+                    value = fixture.inspect
+                else:
+                    value = fixture.response
                 if value is None:
                     self.send_error(404)
                     return
@@ -253,3 +272,41 @@ class DockerTransportTests(unittest.TestCase):
         self.inspect["Id"] = FOREIGN
         self.assertEqual(self.observe(include_ports=True, include_mounts=True, include_network=True)[0]["network_status"],
                          "UNKNOWN")
+
+    def test_dependency_scope_requires_private_host_config_and_exclusive_daemon(self):
+        self.inspect["NetworkSettings"] = {"Networks": {"none": {}}}
+        options = dict(include_ports=True, include_mounts=True, include_network=True, include_dependencies=True)
+        profile = {"NetworkMode": "none", "PidMode": "", "IpcMode": "private", "UTSMode": "",
+                   "CgroupnsMode": "private", "Privileged": False, "ReadonlyRootfs": True, "CapDrop": ["ALL"],
+                   "Runtime": "runc", "LogConfig": {"Type": "local", "Config": {}}}
+        for config, peers, expected in (
+            (profile, [{"Id": TARGET, "State": "running"}], "ISOLATED"),
+            (profile, [{"Id": TARGET, "State": "running"}, {"Id": FOREIGN, "State": "exited"}], "OTHER"),
+            (profile, [{"Id": TARGET, "State": "paused"}], "UNKNOWN"),
+            (profile, [{"Id": FOREIGN, "State": "running"}], "UNKNOWN"),
+            (profile, None, "UNKNOWN"),
+            ({**profile, "PidMode": "host"}, [], "OTHER"),
+            ({**profile, "IpcMode": "shareable"}, [], "OTHER"),
+            ({**profile, "Devices": [{"PathOnHost": "/secret-device"}]}, [], "OTHER"),
+            ({**profile, "Privileged": True}, [], "OTHER"),
+            ({**profile, "CapAdd": ["SYS_ADMIN"]}, [], "OTHER"),
+            ({**profile, "LogConfig": {"Type": "syslog", "Config": {"syslog-address": "tcp://192.0.2.10:514"}}},
+             [], "OTHER"),
+            ({**profile, "LogConfig": {"Type": "local", "Config": "bad"}}, [], "UNKNOWN"),
+            ({**profile, "LogConfig": None}, [], "UNKNOWN"),
+            ({**profile, "Runtime": "custom-runtime"}, [], "OTHER"),
+            ({**profile, "Runtime": ""}, [], "UNKNOWN"),
+            ({**profile, "CgroupnsMode": None}, [], "UNKNOWN"),
+        ):
+            with self.subTest(config=config, peers=peers):
+                self.inspect["HostConfig"] = config
+                self.peers = peers
+                self.requests.clear()
+                self.assertEqual(self.observe(**options), [
+                    {**ROW, "published_ports": None, "mount_status": "NONE", "network_status": "ISOLATED",
+                     "dependency_status": expected},
+                ])
+                if config == profile:
+                    self.assertEqual(self.requests[-1], "/v1.44/containers/json?all=1&limit=2")
+                else:
+                    self.assertEqual(len(self.requests), 2)

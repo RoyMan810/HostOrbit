@@ -58,7 +58,7 @@
 
 Probe v4 использует тот же ограниченный GET и проверку Compose-меток. Для каждого контейнера в `observation.last_success.docker.containers` возвращается `published_ports` с адресом привязки IPv4/IPv6, портом хоста, портом контейнера и протоколом `tcp`, `udp` или `sctp`. Записи `EXPOSE` и прямой маршрутизации без порта хоста исключаются. Пустой массив означает, что Docker не сообщил опубликованных привязок. `null` означает, что данные для контейнера недоступны, неполны или превышают лимит в восемь привязок. Сводка описывает данные Docker на момент наблюдения. Проверка доступности порта и поиск конфликтов с другими слушателями остаются отдельными задачами.
 
-При обновлении установите оба root-owned файла, `ssh-gateway` и `typed-helper`. Controller согласовывает версию с gateway и helper, включая v5/v4/v3/v2/v1. В старых наблюдениях и ответах v3 поле `published_ports` отсутствует. Форма цели restart preview и Change Plan сохраняется.
+При обновлении установите оба root-owned файла, `ssh-gateway` и `typed-helper`. Controller согласовывает версию с gateway и helper, включая v6/v5/v4/v3/v2/v1. В старых наблюдениях и ответах v3 поле `published_ports` отсутствует. Форма цели restart preview и Change Plan сохраняется.
 
 ### Подключённые тома и mounts
 
@@ -69,6 +69,12 @@ Probe v5 сохраняет сводку и порты. Для каждой ра
 ### Сетевая изоляция
 
 Probe v6 переиспользует Docker inspect той же подтверждённой цели. `network_status` имеет значение `ISOLATED` при режиме Docker `none` и подтверждённом подключении только к сети `none`. `OTHER` означает другой режим либо дополнительное сетевое подключение. Неполные сведения, несовпадение цели и ответы старых версий дают неизвестное состояние. Имена сетей, IP и идентификаторы сетевых подключений Controller не получает.
+
+### Зависимости тестового контейнера
+
+Probe v7 проверяет узкий профиль выделенного Docker-стенда. Для работающей цели без mounts в сети `none` требуются частные PID, IPC, UTS и cgroup namespaces, read-only rootfs, сброс всех capabilities, отсутствие дополнительных capabilities, устройств, device rules, links и privileged mode. Допускаются runtime `runc` и только локальные драйверы логирования `local`, `json-file` или `none`. Затем read-only запрос с `all=1&limit=2` требует ровно один контейнер на демоне с полным ID и состоянием выбранной цели. Второй контейнер блокирует допуск, даже если он остановлен. Controller получает только `dependency_status`. Идентификаторы, конфигурация и сведения о других контейнерах не передаются.
+
+`ISOLATED` подтверждает этот профиль на момент наблюдения, `OTHER` обозначает конфигурацию за его пределами, `UNKNOWN` — неполные данные. Helper v1–v6 не может подтвердить профиль. Owner отдельно подтверждает отсутствие воздействия на эксплуатационные сервисы.
 
 ## История SSH-задания
 
@@ -96,6 +102,6 @@ Probe v6 переиспользует Docker inspect той же подтвер�
 
 В репетиции только Owner может сохранить черновик с `confirm_stateless_test=True`. Это подтверждение, что выбранный импортированный контейнер тестовый, не хранит эксплуатационные данные в writable layer, не зависит от сохранения состояния процесса и не затрагивает эксплуатационные внешние сервисы при restart. Подтверждение включается в хеш конкретной ревизии и записывается с актором в Audit/Outbox. Для следующей ревизии требуется новое явное подтверждение.
 
-После успешного `check_draft_probe` совпадение baseline и решение Backup Gate выводятся отдельно. Без подтверждения возвращается `RESTART_OWNER_CONFIRMATION_REQUIRED`. При неполных данных о mounts возвращается `RESTART_MOUNT_OBSERVATION_REQUIRED`, для цели с mounts — `RESTART_MOUNTS_PRESENT`. При подтверждённом отсутствии mounts preflight различает `RESTART_NETWORK_OBSERVATION_REQUIRED` для неизвестной сети и `RESTART_NETWORK_NOT_ISOLATED` для неизолированной цели. Изолированная цель получает `RESTART_DEPENDENCY_SCOPE_REQUIRED` до проверки зависимостей между контейнерами и с хостом. Во всех случаях результат остаётся `BACKUP_GATE_DENIED` и `execution=BLOCKED`. Approval точного плана и допуск к исполнению остаются отдельными условиями [ТЗ v2.4](spec/HostOrbit_Technical_Spec_v2.4.md#backup-gate-для-docker-restart).
+После успешного `check_draft_probe` совпадение baseline и решение Backup Gate выводятся отдельно. Без подтверждения возвращается `RESTART_OWNER_CONFIRMATION_REQUIRED`. При неполных данных о mounts возвращается `RESTART_MOUNT_OBSERVATION_REQUIRED`, для цели с mounts — `RESTART_MOUNTS_PRESENT`. При подтверждённом отсутствии mounts preflight различает `RESTART_NETWORK_OBSERVATION_REQUIRED` для неизвестной сети и `RESTART_NETWORK_NOT_ISOLATED` для неизолированной цели. Цель в изолированной сети получает `RESTART_DEPENDENCY_SCOPE_REQUIRED` при неполных сведениях о зависимостях и `RESTART_DEPENDENCY_SCOPE_UNSUPPORTED` вне проверяемого профиля. Подтверждённый профиль с явным подтверждением Owner даёт `BACKUP_NOT_REQUIRED` для класса `RESTART_STATELESS_TEST_CONTAINER` в репетиции. Во всех случаях исполнение остаётся `BLOCKED`. Approval точного плана и допуск к исполнению остаются отдельными условиями [ТЗ v2.4](spec/HostOrbit_Technical_Spec_v2.4.md#backup-gate-для-docker-restart).
 
 Компонент доступен в репетиции. Live-миграция, HTTP-маршруты, допуск через backup gate, approval и исполнение требуют отдельной реализации. Обе проверки оставляют `execution=BLOCKED`.

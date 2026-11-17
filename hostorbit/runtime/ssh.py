@@ -13,6 +13,7 @@ from .storage import new_private_file, protected_bytes
 
 
 PROBES = (
+    (7, "hostorbit.v7.probe", b'{"operation":"probe","version":7}\n'),
     (6, "hostorbit.v6.probe", b'{"operation":"probe","version":6}\n'),
     (5, "hostorbit.v5.probe", b'{"operation":"probe","version":5}\n'),
     (4, "hostorbit.v4.probe", b'{"operation":"probe","version":4}\n'),
@@ -107,7 +108,7 @@ def parse_probe(output, version, *, now):
     except Denied:
         raise Denied("SSH_UNSUPPORTED_OUTPUT") from None
     names = ("v", "uid", "boot_id", "observed_at")
-    if version not in (1, 2, 3, 4, 5, 6):
+    if version not in (1, 2, 3, 4, 5, 6, 7):
         raise Denied("SSH_PROBE_INVALID")
     fields(value, names + ("software", "docker")[:min(version - 1, 2)])
     if type(value["v"]) is not int or value["v"] != version or type(value["uid"]) is not int or value["uid"] != 0:
@@ -119,7 +120,7 @@ def parse_probe(output, version, *, now):
         result["software"] = software_summary(value["software"])
     if version >= 3:
         result["docker"] = docker_summary(value["docker"], include_ports=version >= 4, include_mounts=version >= 5,
-                                         include_network=version == 6)
+                                         include_network=version >= 6, include_dependencies=version == 7)
     return result
 
 

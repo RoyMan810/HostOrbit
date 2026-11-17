@@ -31,7 +31,7 @@ class ChangeDraftTests(Fixture):
         self.complete_probe(job["id"], outcome=outcome, boot_id=boot_id)
         return job["id"]
 
-    def complete_probe(self, job_id, *, outcome="SUCCEEDED", boot_id="11111111-1111-1111-1111-111111111111", ports=None, mounts=None, network=None):
+    def complete_probe(self, job_id, *, outcome="SUCCEEDED", boot_id="11111111-1111-1111-1111-111111111111", ports=None, mounts=None, network=None, dependencies=None):
         claim, row = self.queue.claim(identifier())
         self.assertEqual(row["id"], job_id)
         self.queue.advance(claim, "INTENT_PREPARED", permit={"claims": self.queue.binding(row)})
@@ -49,6 +49,8 @@ class ChangeDraftTests(Fixture):
             result["docker"]["containers"][0].update(mount_status=mounts, published_ports=ports)
         if network is not None:
             result["docker"]["containers"][0]["network_status"] = network
+        if dependencies is not None:
+            result["docker"]["containers"][0]["dependency_status"] = dependencies
         self.queue.finish(claim, outcome, "PROBE_COMPLETE" if outcome == "SUCCEEDED" else "SSH_TIMEOUT",
                           result=result if outcome == "SUCCEEDED" else None)
 
@@ -303,6 +305,30 @@ class ChangeDraftTests(Fixture):
                 self.assertEqual(result["backup_gate_reason"], reason)
                 self.assertEqual(result["backup_gate"], "BACKUP_GATE_DENIED")
                 self.assertEqual(result["execution"], "BLOCKED")
+
+    def test_rehearsal_backup_result_requires_confirmed_isolated_dependency_scope(self):
+        draft, tag = self.save(confirm_stateless_test=True)
+        for dependencies, gate, reason in (
+            ("OTHER", "BACKUP_GATE_DENIED", "RESTART_DEPENDENCY_SCOPE_UNSUPPORTED"),
+            ("UNKNOWN", "BACKUP_GATE_DENIED", "RESTART_DEPENDENCY_SCOPE_REQUIRED"),
+            ("ISOLATED", "BACKUP_NOT_REQUIRED", "RESTART_STATELESS_TEST_CONTAINER"),
+        ):
+            with self.subTest(dependencies=dependencies):
+                self.now += 1
+                key = f"preflight-deps-{dependencies}"
+                fresh = self.request_probe(draft, tag, key=key)["id"]
+                self.complete_probe(fresh, mounts="NONE", network="ISOLATED", dependencies=dependencies)
+                result = self.check_probe(draft, tag, fresh, key=key)
+                self.assertEqual(result["backup_gate"], gate)
+                self.assertEqual(result["backup_gate_reason"], reason)
+                self.assertEqual(result["execution"], "BLOCKED")
+                self.assertEqual(result["plan_hash"], draft["plan_hash"])
+                self.assertEqual(result["observation_id"], fresh)
+        unconfirmed, tag = self.save(draft_id=draft["id"], if_match=tag)
+        self.now += 1
+        fresh = self.request_probe(unconfirmed, tag)["id"]
+        self.complete_probe(fresh, mounts="NONE", network="ISOLATED", dependencies="ISOLATED")
+        self.assertEqual(self.check_probe(unconfirmed, tag, fresh)["backup_gate"], "BACKUP_GATE_DENIED")
 
     def test_stateless_test_confirmation_requires_owner_and_explicit_boolean(self):
         self.create_user(grants=[{"permission": permission, "resource_id": SCOPE}

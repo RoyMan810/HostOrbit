@@ -4,7 +4,7 @@ Self-hosted система управления Linux-серверами по [�
 
 ## Текущее состояние
 
-**До production проект не готов.** [Stage0 принят](evidence/acceptance/stage0-2026-11-07/README.md) по 15 обязательным проверкам прототипов. [Stage1 Foundation был принят](evidence/acceptance/stage1-2026-11-08/README.md) на исторической ревизии. [Повторная проверка Foundation](evidence/revalidation/stage1-current/README.md) содержит шесть отчётов для ревизии `b706cbb` с проверкой SSH probe v6. На `main` после слияния PR #68 [HostOrbit CI](https://github.com/RoyMan810/HostOrbit/actions/runs/43026673122) прошёл все 10 задач на `a3dddff`, включая gates Stage0 и Stage1, нативные проверки Docker, SSH и подписанной установки. [Отдельный сценарий потери исходной VM](https://github.com/RoyMan810/HostOrbit/actions/runs/42804027706) проверен на ревизии `722d486`. Stage2, независимый DR и полная приёмка MVP остаются открытыми.
+**До production проект не готов.** [Stage0 принят](evidence/acceptance/stage0-2026-11-07/README.md) по 15 обязательным проверкам прототипов. [Stage1 Foundation был принят](evidence/acceptance/stage1-2026-11-08/README.md) на исторической ревизии. [Повторная проверка Foundation](evidence/revalidation/stage1-current/README.md) содержит шесть отчётов для ревизии `8cacfc4` с проверкой SSH probe v7. На `main` после слияния PR #68 [HostOrbit CI](https://github.com/RoyMan810/HostOrbit/actions/runs/43026673122) прошёл все 10 задач на `a3dddff`, включая gates Stage0 и Stage1, нативные проверки Docker, SSH и подписанной установки. [Отдельный сценарий потери исходной VM](https://github.com/RoyMan810/HostOrbit/actions/runs/42804027706) проверен на ревизии `722d486`. Stage2, независимый DR и полная приёмка MVP остаются открытыми.
 
 Доступна подписанная **development**-установка на Ubuntu 24.04 и новее, amd64; native-установка проверена на 24.04 и 26.04. Единственный включённый remote adapter — read-only `host.probe`. Production mutations, A/B updates, live migration и независимая DR-приёмка остаются открытыми.
 
@@ -83,7 +83,7 @@ Self-hosted система управления Linux-серверами по [�
 | Задача | Требования / gate | Статус | Что осталось до production |
 |---|---|---|---|
 | Прототипы и базовые контроли | P0-1–P0-4, CTRL-B01–B04, CTRL-B06–B10; Stage0 | Принято | Историческая приёмка прототипов сохранена; она не подтверждает все соответствующие production-сценарии. |
-| Повторная проверка Foundation | Stage1 | Подтверждено CI | Шесть отчётов Foundation обновлены по [подписанной проверке PR #76](evidence/revalidation/stage1-current/README.md). |
+| Повторная проверка Foundation | Stage1 | Подтверждено CI | Шесть отчётов Foundation обновлены по [подписанной проверке PR #77](evidence/revalidation/stage1-current/README.md). |
 | Сквозной сценарий и restore ресурса | Stage2; AC-28, CTRL-B05 / AC-B05 | Частично | Владелец принял AC-B05. Для AC-28 остаются исполняемый Change Plan, backup gate, approval, проверка эффекта и аудит. |
 | Полная MVP-приёмка | Stage3; все применимые MVP AC и P0 | Открыто | Выполнить требования реестра с доказательствами, включая отрицательные сценарии; не считать Stage0/1 заменой MVP gate. |
 | Безопасность и границы доверия | NFR-01 | Частично | Принять least privilege, изоляцию API/Worker/Broker/Vault, SSH host keys, typed operations, защиту секретов и SSRF. |
@@ -108,9 +108,9 @@ Self-hosted система управления Linux-серверами по [�
 - [x] Owner подтверждает тестовый контейнер в конкретной ревизии черновика. Подтверждение записывается в Audit/Outbox.
 - [x] SSH probe v5 проверяет mounts импортированного Docker-контейнера. Репетиция блокирует допуск при наличии mounts и при отсутствии достоверных данных.
 - [x] SSH probe v6 проверяет сетевую изоляцию контейнера. Репетиция блокирует допуск при неизвестном или неизолированном состоянии.
-- [ ] Подтвердить область зависимостей между контейнерами и с хостом.
+- [x] SSH probe v7 проверяет зависимости на выделенном Docker-стенде. Репетиция подтверждает отсутствие требования к ResourceBackup для подходящей цели.
 - [ ] Live-миграция, HTTP API и подключение preflight к рабочему Change Plan.
-- [ ] Реализация Backup Gate v2.4, approval, повторной проверки, типизированного перезапуска и сквозная приёмка.
+- [ ] Подключение Backup Gate к рабочему плану, approval, повторная проверка перед исполнением, типизированный перезапуск и сквозная приёмка.
 
 Границы реализации и процедура репетиции описаны в [документации Stage2](docs/stage2-inventory.md).
 
