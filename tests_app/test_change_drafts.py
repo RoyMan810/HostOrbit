@@ -2,16 +2,17 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing, contextmanager
 import json
 import sqlite3
+from unittest.mock import patch
 
 from hostorbit.auth import COOKIE, etag
 from hostorbit.change_drafts import (check_draft_baseline, check_draft_probe, get_draft,
-                                     record_draft_backup_decision, request_draft_probe, save_draft)
+                                     record_draft_approval, record_draft_backup_decision, request_draft_probe, save_draft)
 from hostorbit.database import Store, identifier
 from hostorbit.errors import Denied
 from hostorbit.migrations import rehearse
 from hostorbit.queue import JobQueue
 from hostorbit.runtime.protocol import canonical, checksum
-from test_auth_api import Fixture, OTHER, SCOPE
+from test_auth_api import Fixture, OTHER, PASSWORD, SCOPE
 
 
 CONTAINER = "c" * 64
@@ -370,6 +371,99 @@ class ChangeDraftTests(Fixture):
         self.save(draft_id=draft["id"], if_match=tag)
         with self.assertRaisesRegex(Denied, "STALE_REVISION"):
             self.record_decision(draft, tag, fresh)
+
+    def issue_rehearsal_grant(self, plan_hash):
+        # Run the production password, session, rate-limit and two-transaction
+        # reauth path against the same rehearsal copy as the approval.
+        with patch.object(self.store, "write", side_effect=lambda **_: self.transaction()):
+            return self.auth.reauthenticate(self.token, self.csrf, PASSWORD, plan_hash,
+                                            correlation=identifier())["id"]
+
+    def approve(self, draft, tag, probe_id, grant, *, key="preflight-request-one", csrf=None):
+        with self.transaction() as draft_db, self.store.connect(readonly=True) as source_db:
+            source_db.execute("BEGIN")
+            return record_draft_approval(draft_db, source_db, self.auth, self.token,
+                                         self.csrf if csrf is None else csrf, draft["id"],
+                                         if_match=tag, probe_id=probe_id, request_key=key, reauth_id=grant)
+
+    def test_owner_approval_binds_revision_probe_backup_and_reauth(self):
+        draft, tag = self.save(confirm_stateless_test=True)
+        self.now += 1
+        fresh = self.request_probe(draft, tag)["id"]
+        self.complete_probe(fresh, mounts="NONE", network="ISOLATED", dependencies="ISOLATED")
+        grant = self.issue_rehearsal_grant(draft["plan_hash"])
+        with self.assertRaisesRegex(Denied, "BACKUP_DECISION_REQUIRED"):
+            self.approve(draft, tag, fresh, grant)
+        decision = self.record_decision(draft, tag, fresh)
+        with self.assertRaisesRegex(Denied, "CSRF_REQUIRED"):
+            self.approve(draft, tag, fresh, grant, csrf="invalid")
+        with self.assertRaisesRegex(Denied, "PREFLIGHT_PROBE_NOT_BOUND"):
+            self.approve(draft, tag, fresh, grant, key="wrong-preflight-key")
+        result = self.approve(draft, tag, fresh, grant)
+        self.assertEqual(result["approval"], "REHEARSAL_RECORDED")
+        self.assertEqual(result["execution"], "BLOCKED")
+        self.assertEqual(result["backup_audit_seq"], decision["audit_seq"])
+        with self.assertRaisesRegex(Denied, "CHANGE_PLAN_ALREADY_APPROVED"):
+            self.approve(draft, tag, fresh, grant)
+        with self.transaction(write=False) as db:
+            self.assertEqual(db.execute("SELECT consumed FROM reauth WHERE id=?", (grant,)).fetchone()[0], 1)
+            event = json.loads(db.execute("SELECT payload FROM outbox WHERE seq=?", (result["audit_seq"],)).fetchone()[0])
+            self.assertEqual((event["event"], event["actor_id"], event["correlation_id"]),
+                             ("change_plan.approval_recorded", self.owner, draft["id"]))
+            for name, value in {"plan_hash": draft["plan_hash"], "revision": draft["revision"],
+                                "observation_id": fresh, "approval_id": result["approval_id"],
+                                "backup_audit_seq": decision["audit_seq"], "rehearsal": True}.items():
+                self.assertEqual(event["details"][name], value)
+            self.assertNotIn(grant, json.dumps(event))
+            self.assertEqual(db.execute("SELECT count(*) FROM jobs").fetchone()[0], 1)
+            Store.verify_audit_connection(db)
+        self.save(draft_id=draft["id"], if_match=tag)
+        with self.assertRaisesRegex(Denied, "STALE_REVISION"):
+            self.approve(draft, tag, fresh, grant)
+
+    def test_approval_rejects_denied_or_superseded_preflight_without_consuming_grant(self):
+        draft, tag = self.save(confirm_stateless_test=True)
+        self.now += 1
+        denied = self.request_probe(draft, tag)["id"]
+        self.complete_probe(denied, mounts="PRESENT")
+        grant = self.issue_rehearsal_grant(draft["plan_hash"])
+        self.record_decision(draft, tag, denied)
+        with self.assertRaisesRegex(Denied, "BACKUP_GATE_DENIED"):
+            self.approve(draft, tag, denied, grant)
+        self.now += 1
+        key = "preflight-renewed"
+        fresh = self.request_probe(draft, tag, key=key)["id"]
+        self.complete_probe(fresh, mounts="NONE", network="ISOLATED", dependencies="ISOLATED")
+        self.record_decision(draft, tag, fresh, key=key)
+        self.now += 1
+        self.probe()
+        with self.assertRaisesRegex(Denied, "NEW_PROBE_REQUIRED"):
+            self.approve(draft, tag, fresh, grant, key=key)
+        with self.transaction(write=False) as db:
+            self.assertEqual(db.execute("SELECT consumed FROM reauth WHERE id=?", (grant,)).fetchone()[0], 0)
+            self.assertEqual(db.execute("SELECT count(*) FROM audit WHERE event='change_plan.approval_recorded'").fetchone()[0], 0)
+
+    def test_approval_rejects_wrong_plan_and_rolls_back_grant_on_outbox_failure(self):
+        draft, tag = self.save(confirm_stateless_test=True)
+        self.now += 1
+        fresh = self.request_probe(draft, tag)["id"]
+        self.complete_probe(fresh, mounts="NONE", network="ISOLATED", dependencies="ISOLATED")
+        self.record_decision(draft, tag, fresh)
+        wrong = self.issue_rehearsal_grant("f" * 64)
+        with self.assertRaisesRegex(Denied, "REAUTH_REQUIRED"):
+            self.approve(draft, tag, fresh, wrong)
+        grant = self.issue_rehearsal_grant(draft["plan_hash"])
+        with self.assertRaises(sqlite3.IntegrityError):
+            with self.transaction() as draft_db, self.store.connect(readonly=True) as source_db:
+                source_db.execute("BEGIN")
+                draft_db.execute("""CREATE TEMP TRIGGER fixture_approval_outbox_failure BEFORE INSERT ON outbox
+                                    BEGIN SELECT RAISE(ABORT, 'fixture outbox unavailable'); END""")
+                record_draft_approval(draft_db, source_db, self.auth, self.token, self.csrf, draft["id"],
+                                      if_match=tag, probe_id=fresh, request_key="preflight-request-one", reauth_id=grant)
+        with self.transaction(write=False) as db:
+            self.assertEqual(db.execute("SELECT consumed FROM reauth WHERE id=?", (grant,)).fetchone()[0], 0)
+            self.assertEqual(db.execute("SELECT count(*) FROM audit WHERE event='change_plan.approval_recorded'").fetchone()[0], 0)
+        self.assertEqual(self.approve(draft, tag, fresh, grant)["approval"], "REHEARSAL_RECORDED")
 
     def test_denied_backup_decision_rolls_back_audit_when_outbox_write_fails(self):
         draft, tag = self.save()

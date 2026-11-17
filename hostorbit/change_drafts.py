@@ -211,13 +211,17 @@ def _check_probe(draft_db, source_db, auth, token, row, draft, probe_id, request
             "execution": draft["execution"]}
 
 
+def _backup_details(result):
+    return {**{key: result[key] for key in ("revision", "plan_hash", "observation_id",
+                                           "backup_gate", "backup_gate_reason")}, "rehearsal": True}
+
+
 def record_draft_backup_decision(draft_db, source_db, auth, token, csrf, draft_id, *,
                                  if_match, probe_id, request_key):
     """Record the rehearsed decision inside BEGIN IMMEDIATE; caller rolls back on error."""
     row, draft, actor = _checked_draft(draft_db, auth, token, draft_id, if_match, csrf=csrf, mutating=True)
     result = _check_probe(draft_db, source_db, auth, token, row, draft, probe_id, request_key)
-    details = {key: result[key] for key in ("revision", "plan_hash", "observation_id", "backup_gate", "backup_gate_reason")}
-    details["rehearsal"] = True
+    details = _backup_details(result)
     kind = "change_plan.backup_evaluated"
     outcome = "SUCCEEDED" if result["backup_gate"] == "BACKUP_NOT_REQUIRED" else "DENIED"
     checked_at = result["checked_at"]
@@ -231,6 +235,37 @@ def record_draft_backup_decision(draft_db, source_db, auth, token, csrf, draft_i
     seq = Store.event(draft_db, at=checked_at, actor=actor["id"], kind=kind, target=row["resource_id"],
                       outcome=outcome, correlation=draft_id, details=details)
     return {**result, "audit_seq": seq}
+
+
+def record_draft_approval(draft_db, source_db, auth, token, csrf, draft_id, *,
+                          if_match, probe_id, request_key, reauth_id):
+    """Consume a reauth grant and append rehearsal approval in one write transaction."""
+    row, draft, actor = _checked_draft(draft_db, auth, token, draft_id, if_match, csrf=csrf, mutating=True)
+    if actor["role"] != Role.OWNER:
+        raise Denied("CHANGE_PLAN_APPROVAL_OWNER_REQUIRED", 403)
+    result = _check_probe(draft_db, source_db, auth, token, row, draft, probe_id, request_key)
+    if result["backup_gate"] != "BACKUP_NOT_REQUIRED":
+        raise Denied("BACKUP_GATE_DENIED", 409)
+    decision = draft_db.execute("""SELECT seq FROM audit
+        WHERE target_id=? AND correlation_id=? AND actor_id=? AND event='change_plan.backup_evaluated'
+        AND outcome='SUCCEEDED' AND details=? AND at<=? ORDER BY seq DESC LIMIT 1""",
+        (row["resource_id"], draft_id, actor["id"], canonical(_backup_details(result)).decode(),
+         result["checked_at"])).fetchone()
+    if decision is None:
+        raise Denied("BACKUP_DECISION_REQUIRED", 409)
+    if draft_db.execute("""SELECT 1 FROM audit WHERE target_id=? AND correlation_id=?
+                          AND event='change_plan.approval_recorded' AND outcome='SUCCEEDED'
+                          AND json_extract(details, '$.plan_hash')=? LIMIT 1""",
+                        (row["resource_id"], draft_id, row["plan_hash"])).fetchone():
+        raise Denied("CHANGE_PLAN_ALREADY_APPROVED", 409)
+
+    auth.consume_reauthentication(draft_db, token, reauth_id, row["plan_hash"])
+    approval_id = identifier()
+    details = {**_backup_details(result), "approval_id": approval_id, "backup_audit_seq": decision["seq"]}
+    seq = Store.event(draft_db, at=result["checked_at"], actor=actor["id"], kind="change_plan.approval_recorded",
+                      target=row["resource_id"], outcome="SUCCEEDED", correlation=draft_id, details=details)
+    return {**result, "approval": "REHEARSAL_RECORDED", "approval_id": approval_id,
+            "backup_audit_seq": decision["seq"], "audit_seq": seq}
 
 
 def save_draft(db, auth, token, csrf, resource_id, container_id, *,
