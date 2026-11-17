@@ -4,7 +4,8 @@ import json
 import sqlite3
 
 from hostorbit.auth import COOKIE, etag
-from hostorbit.change_drafts import check_draft_baseline, check_draft_probe, get_draft, request_draft_probe, save_draft
+from hostorbit.change_drafts import (check_draft_baseline, check_draft_probe, get_draft,
+                                     record_draft_backup_decision, request_draft_probe, save_draft)
 from hostorbit.database import Store, identifier
 from hostorbit.errors import Denied
 from hostorbit.migrations import rehearse
@@ -329,6 +330,71 @@ class ChangeDraftTests(Fixture):
         fresh = self.request_probe(unconfirmed, tag)["id"]
         self.complete_probe(fresh, mounts="NONE", network="ISOLATED", dependencies="ISOLATED")
         self.assertEqual(self.check_probe(unconfirmed, tag, fresh)["backup_gate"], "BACKUP_GATE_DENIED")
+
+    def record_decision(self, draft, tag, job, *, key="preflight-request-one", csrf=None):
+        with self.transaction() as draft_db, self.store.connect(readonly=True) as source_db:
+            source_db.execute("BEGIN")
+            return record_draft_backup_decision(draft_db, source_db, self.auth, self.token,
+                                                self.csrf if csrf is None else csrf, draft["id"],
+                                                if_match=tag, probe_id=job, request_key=key)
+
+    def test_backup_decision_is_audited_once_per_actor_revision_and_probe(self):
+        draft, tag = self.save(confirm_stateless_test=True)
+        self.now += 1
+        fresh = self.request_probe(draft, tag)["id"]
+        self.complete_probe(fresh, mounts="NONE", network="ISOLATED", dependencies="ISOLATED")
+        with self.assertRaisesRegex(Denied, "CSRF_REQUIRED"):
+            self.record_decision(draft, tag, fresh, csrf="invalid")
+        with self.assertRaisesRegex(Denied, "PREFLIGHT_PROBE_NOT_BOUND"):
+            self.record_decision(draft, tag, fresh, key="wrong-preflight-key")
+        self.assertEqual(self.check_probe(draft, tag, fresh)["execution"], "BLOCKED")
+        with self.transaction(write=False) as db:
+            self.assertEqual(db.execute("SELECT count(*) FROM audit WHERE event='change_plan.backup_evaluated'").fetchone()[0], 0)
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            first, retried = pool.map(lambda _: self.record_decision(draft, tag, fresh), range(2))
+        self.now += 1
+        self.assertEqual(first, retried)
+        self.assertEqual(first, self.record_decision(draft, tag, fresh))
+        self.assertEqual(first["backup_gate"], "BACKUP_NOT_REQUIRED")
+        self.assertEqual(first["execution"], "BLOCKED")
+        with self.transaction(write=False) as db:
+            self.assertEqual(db.execute("SELECT count(*) FROM audit WHERE event='change_plan.backup_evaluated'").fetchone()[0], 1)
+            event = json.loads(db.execute("SELECT payload FROM outbox WHERE seq=?", (first["audit_seq"],)).fetchone()[0])
+            self.assertEqual((event["event"], event["actor_id"], event["target_id"], event["correlation_id"], event["outcome"]),
+                             ("change_plan.backup_evaluated", self.owner, SCOPE, draft["id"], "SUCCEEDED"))
+            self.assertEqual(event["details"], {"revision": draft["revision"], "plan_hash": draft["plan_hash"],
+                             "observation_id": fresh, "backup_gate": "BACKUP_NOT_REQUIRED",
+                             "backup_gate_reason": "RESTART_STATELESS_TEST_CONTAINER", "rehearsal": True})
+            Store.verify_audit_connection(db)
+        self.save(draft_id=draft["id"], if_match=tag)
+        with self.assertRaisesRegex(Denied, "STALE_REVISION"):
+            self.record_decision(draft, tag, fresh)
+
+    def test_denied_backup_decision_rolls_back_audit_when_outbox_write_fails(self):
+        draft, tag = self.save()
+        self.now += 1
+        fresh = self.request_probe(draft, tag)["id"]
+        self.complete_probe(fresh)
+        with self.assertRaises(sqlite3.IntegrityError):
+            with self.transaction() as draft_db, self.store.connect(readonly=True) as source_db:
+                source_db.execute("BEGIN")
+                draft_db.execute("""CREATE TEMP TRIGGER fixture_decision_outbox_failure BEFORE INSERT ON outbox
+                                    BEGIN SELECT RAISE(ABORT, 'fixture outbox unavailable'); END""")
+                record_draft_backup_decision(draft_db, source_db, self.auth, self.token, self.csrf, draft["id"],
+                                             if_match=tag, probe_id=fresh, request_key="preflight-request-one")
+        with self.transaction(write=False) as db:
+            self.assertEqual(db.execute("SELECT count(*) FROM audit WHERE event='change_plan.backup_evaluated'").fetchone()[0], 0)
+            Store.verify_audit_connection(db)
+        result = self.record_decision(draft, tag, fresh)
+        self.assertEqual(result["backup_gate"], "BACKUP_GATE_DENIED")
+        with self.transaction(write=False) as db:
+            event = db.execute("SELECT outcome,details FROM audit WHERE seq=?", (result["audit_seq"],)).fetchone()
+            self.assertEqual(event["outcome"], "DENIED")
+            self.assertEqual(json.loads(event["details"])["backup_gate_reason"], "RESTART_OWNER_CONFIRMATION_REQUIRED")
+        self.now += 301
+        with self.assertRaisesRegex(Denied, "FRESH_OBSERVATION_REQUIRED"):
+            self.record_decision(draft, tag, fresh)
 
     def test_stateless_test_confirmation_requires_owner_and_explicit_boolean(self):
         self.create_user(grants=[{"permission": permission, "resource_id": SCOPE}
