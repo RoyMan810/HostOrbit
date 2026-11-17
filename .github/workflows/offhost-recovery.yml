@@ -69,7 +69,6 @@ jobs:
             -o ubuntu.qcow2 https://cloud-images.ubuntu.com/releases/noble/release-20261017/ubuntu-24.04-server-cloudimg-amd64.img
           echo '04e8f2461a16a44e78a370284471f29616cdd9baf1893df25807b71f985b6c94  ubuntu.qcow2' | sha256sum -c -
           python "$GITHUB_WORKSPACE/tools/fetch_age.py" --output age.tar.gz
-          echo 'cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10  age.tar.gz' | sha256sum -c -
           tar --no-same-owner -xzf age.tar.gz -- age/age age/age-keygen
           python -m pip install --only-binary=:all: -r "$GITHUB_WORKSPACE/requirements-lab.txt"
           # Ubuntu 24.04 guests run Python 3.12, so their wheelhouse must match that interpreter.

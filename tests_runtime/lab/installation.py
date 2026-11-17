@@ -23,6 +23,7 @@ from threading import Thread
 import time
 import urllib.error
 from urllib.request import Request, urlopen
+from zipfile import ZipFile
 
 
 REPO = Path(__file__).resolve().parents[2]
@@ -831,6 +832,15 @@ def main():
                  "/etc/tmpfiles.d/hostorbit.conf", "/etc/sysusers.d/hostorbit.conf"):
         if Path(path).exists():
             raise SystemExit("Fixture installation namespace already exists")
+    wheel, = (args.bundle / "wheelhouse").glob("hostorbit-*.whl")
+    with ZipFile(wheel) as archive:
+        manifest = json.loads(archive.read("hostorbit/release-manifest.json"))
+        if manifest["remote_mutation_enabled"] is not False:
+            raise RuntimeError("Development wheel allows remote mutation")
+        if any(name.startswith(("stage0/", "tests/", "tests_app/", "tests_runtime/", "tests_tools/"))
+               for name in archive.namelist()):
+            raise RuntimeError("Development wheel contains repository test or lab code")
+
     base = [str(HOST_PYTHON), str(REPO / "deploy/installer.py"), "install", "--bundle", str(args.bundle),
             "--trust-key", str(args.trust_key), "--development", "--origin", ORIGIN,
             "--port", str(PORT), "--docker-host", args.docker_host]

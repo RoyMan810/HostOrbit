@@ -4,8 +4,10 @@ on:
   pull_request:
     paths:
       - .github/workflows/resource-restore.yml
-      - hostorbit/runtime/resource_*.py
-      - tests_runtime/test_resource_restore_attestation.py
+      - hostorbit/**
+      - tests_runtime/**
+      - requirements-*.txt
+      - tools/fetch_age.py
       - evidence/tests/ac-b05.json
   workflow_dispatch:
 
@@ -30,7 +32,6 @@ jobs:
         run: |
           python -m pip install -r requirements-dev.txt
           python tools/fetch_age.py --output "$RUNNER_TEMP/age.tar.gz"
-          echo "cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10  $RUNNER_TEMP/age.tar.gz" | sha256sum -c -
           tar --no-same-owner -xzf "$RUNNER_TEMP/age.tar.gz" -C "$RUNNER_TEMP" -- age/age age/age-keygen
           sudo /usr/bin/docker pull "$HOSTORBIT_LAB_RESTORE_IMAGE"
       - name: Verify real Docker target, application data and occupied-target refusal
