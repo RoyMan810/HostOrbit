@@ -48,7 +48,7 @@ class MigrationBackupTests(unittest.TestCase):
             new_private_file(ciphertext, os.urandom(150000))
             now = clocks()
             self.manifest = {"v": 1, "type": "controller.snapshot", "snapshot_id": snapshot_id,
-                             "source_instance": instance, "gate_epoch": 0, "schema": 2, "audit_head": "0" * 64,
+                             "source_instance": instance, "gate_epoch": 0, "schema": 3, "audit_head": "0" * 64,
                              "audit_sequence": 0, "boot_id": now["boot_id"], "monotonic_ns": now["mono_ns"],
                              "captured_utc": 0, "time_trusted": False, "source_commit": "a" * 40,
                              "pin_sha256": "b" * 64,

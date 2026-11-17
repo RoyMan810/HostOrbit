@@ -22,9 +22,11 @@ OTHER = "01JCYQZ4T9V8MNVYEH3D2M7Q1B"
 
 
 class Fixture(unittest.TestCase):
+    schema = 3
+
     def setUp(self):
         self.directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
-        self.store = Store.initialize(self.directory / "controller.sqlite3")
+        self.store = Store.initialize(self.directory / "controller.sqlite3", schema=self.schema)
         self.now = 1_800_000_000
         self.auth = AuthService(self.store, clock=lambda: self.now)
         self.owner = self.auth.create_owner(self.auth.issue_bootstrap(), "roman", PASSWORD)

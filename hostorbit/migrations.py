@@ -14,29 +14,14 @@ import sqlite3
 import stat
 import time
 
-from .database import SCHEMA_VERSION, Store, _SCHEMA, canonical, identifier
+from .database import SCHEMA_VERSION, Store, _PLAN_SCHEMA, _SCHEMA, canonical, identifier
 from .errors import Denied
 from .runtime.storage import directory_sync, new_private_file
 
 
 _HISTORICAL_SCHEMA_SHA256 = "825d6b23d2ac197fa0e62fd7a649ce8563ef84a5f0cdee3135817dd619894db3"
 _QUEUE_TABLES = ("resources", "jobs", "request_keys", "job_incidents")
-_PLAN_SCHEMA = """
-CREATE TABLE change_plan_drafts (
-    id TEXT NOT NULL,
-    revision INTEGER NOT NULL CHECK(revision >= 1),
-    actor_id TEXT NOT NULL REFERENCES users(id),
-    resource_id TEXT NOT NULL REFERENCES resources(id),
-    action TEXT NOT NULL CHECK(action = 'docker.restart'),
-    baseline TEXT NOT NULL CHECK(json_valid(baseline) AND json_type(baseline) = 'object'),
-    plan_hash TEXT NOT NULL CHECK(length(plan_hash) = 64 AND plan_hash NOT GLOB '*[^0-9a-f]*'),
-    created_at INTEGER NOT NULL CHECK(created_at >= 0),
-    PRIMARY KEY(id, revision)
-) STRICT;
-CREATE INDEX change_plan_drafts_resource ON change_plan_drafts(resource_id, id);
-CREATE INDEX change_plan_drafts_hash ON change_plan_drafts(plan_hash);
-PRAGMA user_version = 3;
-"""
+
 
 
 def historical_schema():
@@ -58,17 +43,17 @@ def _schema_from_sql(script):
 
 
 def expected_schema(version):
-    if version not in (1, 2):
+    if version not in (1, 2, 3):
         raise Denied("MIGRATION_SCHEMA_UNSUPPORTED")
-    return _schema_from_sql(historical_schema() if version == 1 else _SCHEMA)
+    if version == 1:
+        return _schema_from_sql(historical_schema())
+    return _schema_from_sql(_SCHEMA + (_PLAN_SCHEMA if version == 3 else ""))
 
 
 def _verify(db, version):
-    if SCHEMA_VERSION != 2 or db.execute("PRAGMA user_version").fetchone()[0] != version:
+    if db.execute("PRAGMA user_version").fetchone()[0] != version:
         raise Denied("MIGRATION_SCHEMA_UNSUPPORTED")
-    # Schema 3 is a rehearsal output. The runtime and Rescue continue to use
-    # expected_schema(), which accepts only the supported release schemas.
-    expected = _schema_from_sql(_SCHEMA + _PLAN_SCHEMA) if version == 3 else expected_schema(version)
+    expected = expected_schema(version)
     if schema_rows(db) != expected:
         raise Denied("MIGRATION_SCHEMA_DRIFT")
     if ([tuple(row) for row in db.execute("PRAGMA integrity_check")] != [("ok",)]

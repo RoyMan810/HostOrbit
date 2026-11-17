@@ -16,7 +16,7 @@ from hostorbit.runtime.protocol import canonical
 class MigrationReviewTests(unittest.TestCase):
     def setUp(self):
         root = Path(self.enterContext(tempfile.TemporaryDirectory()))
-        store = Store.initialize(root / "controller" / "controller.sqlite3")
+        store = Store.initialize(root / "controller" / "controller.sqlite3", schema=2)
         with store.write() as db:
             Store.event(db, at=1, actor="fixture", kind="fixture.started", target="controller",
                         outcome="SUCCEEDED", correlation="fixture")

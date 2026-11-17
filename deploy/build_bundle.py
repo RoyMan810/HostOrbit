@@ -70,6 +70,7 @@ def main(argv=None):
     if subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=no"], cwd=root).strip():
         parser.error("Build from a committed source revision")
     with committed_source(root, source) as tree:
+        sqlite_schema = json.loads((tree / "hostorbit/release-manifest.json").read_text())["sqlite_schema"]
         version = tomllib.loads((tree / "pyproject.toml").read_text())["project"]["version"]
         try:
             requirements = wheel_lock(tree)
@@ -116,7 +117,7 @@ def main(argv=None):
              for path in sorted(output.rglob("*")) if path.is_file()]
     value = {"v": 1, "application": "HostOrbit", "version": version, "channel": "development",
              "source_commit": source, "python_image": args.python_image, "platform": "ubuntu-24.04-amd64",
-             "python": "3.15", "sqlite_schema": 2, "remote_mutation_enabled": False, "files": files,
+             "python": "3.15", "sqlite_schema": sqlite_schema, "remote_mutation_enabled": False, "files": files,
              "signing_key_sha256": hashlib.sha256(bytes(signer.verify_key)).hexdigest()}
     data = canonical(value)
     (output / "manifest.json").write_bytes(data)

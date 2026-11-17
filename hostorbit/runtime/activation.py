@@ -159,7 +159,7 @@ class Activation:
                     or gate["policy_digest"] != self.policy.digest or db.execute("SELECT 1 FROM attempts").fetchone()):
                 raise Denied("ACTIVATION_BASELINE_INVALID")
         with self.store.read() as db:
-            if db.execute("PRAGMA user_version").fetchone()[0] != 2:
+            if db.execute("PRAGMA user_version").fetchone()[0] not in (2, 3):
                 raise Denied("ACTIVATION_SCHEMA_MIGRATION_REQUIRED")
             self.store.verify_audit_connection(db)
             if db.execute("SELECT 1 FROM jobs WHERE status NOT IN ('SUCCEEDED','FAILED','UNKNOWN_OUTCOME','CANCELLED_SAFE')").fetchone():

@@ -19,6 +19,8 @@ CONTAINER = "c" * 64
 
 
 class ChangeDraftTests(Fixture):
+    schema = 2
+
     def setUp(self):
         super().setUp()
         self.queue = JobQueue(self.store, clock=lambda: self.now)

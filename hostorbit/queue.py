@@ -29,7 +29,7 @@ class JobQueue:
 
     @staticmethod
     def _schema(db):
-        if db.execute("PRAGMA user_version").fetchone()[0] != 2:
+        if db.execute("PRAGMA user_version").fetchone()[0] not in (2, 3):
             raise Denied("QUEUE_SCHEMA_REQUIRES_VERIFIED_MIGRATION", 503)
 
     def _event(self, db, row, event, *, reason=None):

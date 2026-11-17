@@ -249,7 +249,7 @@ class MigrationTests(unittest.TestCase):
 class PlanDraftMigrationTests(unittest.TestCase):
     def setUp(self):
         self.root = Path(self.enterContext(tempfile.TemporaryDirectory()))
-        self.store = Store.initialize(self.root / "live" / "controller.sqlite3")
+        self.store = Store.initialize(self.root / "live" / "controller.sqlite3", schema=2)
         auth = AuthService(self.store)
         password = "Fixture-owner-password-117!"
         auth.create_owner(auth.issue_bootstrap(), "roman", password)
@@ -289,11 +289,8 @@ class PlanDraftMigrationTests(unittest.TestCase):
         with self.store.read() as db:
             self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 2)
             self.assertEqual(schema_rows(db), expected_schema(2))
-        with self.assertRaisesRegex(RuntimeError, "DATABASE_CONTRACT_MISMATCH"):
-            with Store(self.output / "migrated.sqlite3").connect():
-                pass
-        with self.assertRaisesRegex(Denied, "MIGRATION_SCHEMA_UNSUPPORTED"):
-            expected_schema(3)
+        with Store(self.output / "migrated.sqlite3").connect(readonly=True) as db:
+            self.assertEqual(schema_rows(db), expected_schema(3))
 
     def test_rolls_back_plan_schema_when_audit_commit_fails(self):
         head = self.store.verify_audit()

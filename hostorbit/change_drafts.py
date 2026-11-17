@@ -128,7 +128,7 @@ def _probe_audit(db, resource_id, probe_id):
 
 def _probe_source(draft_db, source_db, auth, token, resource_id, original_probe_id):
     if (not source_db.in_transaction or source_db.execute("PRAGMA query_only").fetchone()[0] != 1
-            or source_db.execute("PRAGMA user_version").fetchone()[0] != 2):
+            or source_db.execute("PRAGMA user_version").fetchone()[0] not in (2, 3)):
         raise Denied("PROBE_SOURCE_UNSUPPORTED", 503)
     actor = auth._session(source_db, token)
     _require(source_db, actor, resource_id, restart=True)
