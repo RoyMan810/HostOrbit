@@ -1,10 +1,12 @@
-"""Report local TCP listeners for one port in the current Linux network namespace."""
+"""Diagnose one TCP port locally or from the host running an explicit probe."""
 
 import argparse
+import errno
 from ipaddress import ip_address
 import json
 from pathlib import Path
 import re
+import socket
 import sys
 
 
@@ -30,9 +32,13 @@ def _read_bindings(stream, port, version):
     return [str(address) for address in sorted(addresses)]
 
 
-def inspect_port(port):
+def _validate_port(port):
     if type(port) is not int or not 1 <= port <= 65535:
         raise ValueError("port must be between 1 and 65535")
+
+
+def inspect_port(port):
+    _validate_port(port)
     report = {"port": port, "protocol": "tcp", "scope": "CURRENT_NETWORK_NAMESPACE", "external_reachability": "NOT_TESTED"}
     for version, filename in ((4, "tcp"), (6, "tcp6")):
         try:
@@ -45,16 +51,47 @@ def inspect_port(port):
     return report
 
 
+def probe_port(destination, port):
+    _validate_port(port)
+    address = ip_address(destination)
+    if address.version == 6:
+        if address.scope_id is not None or address.is_link_local:
+            raise ValueError("IPv6 addresses that require an interface scope are unsupported")
+        address = address.ipv4_mapped or address
+    if address.is_unspecified or address.is_multicast or str(address) == "255.255.255.255":
+        raise ValueError("a unicast destination address is required")
+
+    family = socket.AF_INET if address.version == 4 else socket.AF_INET6
+    try:
+        with socket.socket(family, socket.SOCK_STREAM) as connection:
+            connection.settimeout(3)
+            connection.connect((str(address), port))
+        state = "CONNECTED"
+    except TimeoutError:
+        state = "TIMED_OUT"
+    except OSError as error:
+        state = {errno.ECONNREFUSED: "REFUSED", errno.ENETUNREACH: "UNREACHABLE",
+                 errno.EHOSTUNREACH: "UNREACHABLE"}.get(error.errno, "ERROR")
+    return {"address": str(address), "port": port, "protocol": "tcp", "scope": "FROM_PROBE_HOST",
+            "tcp_reachability": state}
+
+
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="List local TCP bind addresses for one port")
+    parser = argparse.ArgumentParser(description="Inspect a local TCP port or make one TCP connection")
     parser.add_argument("--port", type=int, required=True)
+    parser.add_argument("--connect", metavar="IP", help="numeric IPv4 or IPv6 destination")
     args = parser.parse_args(argv)
     try:
-        report = inspect_port(args.port)
+        if args.connect is not None:
+            report = probe_port(args.connect, args.port)
+            ok = report["tcp_reachability"] == "CONNECTED"
+        else:
+            report = inspect_port(args.port)
+            ok = all(report[family]["state"] != "UNKNOWN" for family in ("ipv4", "ipv6"))
     except ValueError as error:
         parser.error(str(error))
     print(json.dumps(report))
-    return int(any(report[family]["state"] == "UNKNOWN" for family in ("ipv4", "ipv6")))
+    return int(not ok)
 
 
 if __name__ == "__main__":

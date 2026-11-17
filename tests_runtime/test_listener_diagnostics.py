@@ -1,10 +1,11 @@
+import errno
 import io
 import json
 from pathlib import Path
 import socket
 import sys
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from unittest.mock import patch
 
 from hostorbit.runtime.listener_diagnostics import _read_bindings, inspect_port, main
@@ -73,3 +74,53 @@ class ListenerDiagnosticsTests(unittest.TestCase):
             report = inspect_port(server.getsockname()[1])
             self.assertEqual(report["ipv6"], {"state": "LISTENING", "addresses": ["::1"]})
             self.assertEqual(report["external_reachability"], "NOT_TESTED")
+            output = io.StringIO()
+            with redirect_stdout(output):
+                self.assertEqual(main(["--port", str(report["port"]), "--connect", "::1"]), 0)
+            self.assertEqual(json.loads(output.getvalue())["tcp_reachability"], "CONNECTED")
+
+
+    def test_connect_mode_distinguishes_refusal_and_a_successful_tcp_handshake(self):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
+            server.bind(("127.0.0.1", 0))
+            port = server.getsockname()[1]
+            args = ["--port", str(port), "--connect", "127.0.0.1"]
+            output = io.StringIO()
+            with redirect_stdout(output):
+                self.assertEqual(main(args), 1)
+            self.assertEqual(json.loads(output.getvalue())["tcp_reachability"], "REFUSED")
+            server.listen()
+            output = io.StringIO()
+            with redirect_stdout(output):
+                self.assertEqual(main(args), 0)
+            report = json.loads(output.getvalue())
+            self.assertEqual(report, {"address": "127.0.0.1", "port": port, "protocol": "tcp",
+                                      "scope": "FROM_PROBE_HOST", "tcp_reachability": "CONNECTED"})
+            server.settimeout(1)
+            conn, _ = server.accept()
+            with conn:
+                self.assertEqual(conn.recv(1), b"")
+
+    def test_connect_mode_classifies_errors_without_exposing_diagnostics(self):
+        for error, state in ((TimeoutError("private diagnostic"), "TIMED_OUT"),
+                             (OSError(errno.ENETUNREACH, "private diagnostic"), "UNREACHABLE"),
+                             (PermissionError("private diagnostic"), "ERROR")):
+            with self.subTest(state=state), patch("hostorbit.runtime.listener_diagnostics.socket.socket") as transport:
+                conn = transport.return_value.__enter__.return_value
+                conn.connect.side_effect = error
+                output = io.StringIO()
+                with redirect_stdout(output):
+                    self.assertEqual(main(["--port", "443", "--connect", "2001:db8::1"]), 1)
+                self.assertEqual(json.loads(output.getvalue())["tcp_reachability"], state)
+                self.assertNotIn("private diagnostic", output.getvalue())
+                transport.assert_called_once_with(socket.AF_INET6, socket.SOCK_STREAM)
+                conn.settimeout.assert_called_once_with(3)
+                conn.connect.assert_called_once_with(("2001:db8::1", 443))
+
+    def test_connect_mode_rejects_invalid_destinations_before_opening_a_socket(self):
+        for address in ("example.org", "::", "224.0.0.1", "fe80::1%eth0", "fe80::1", "255.255.255.255"):
+            with self.subTest(address=address), patch.object(socket, "socket") as transport:
+                with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
+                    main(["--port", "443", "--connect", address])
+                self.assertEqual(error.exception.code, 2)
+                transport.assert_not_called()
