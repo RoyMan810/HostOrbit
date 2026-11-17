@@ -12,7 +12,7 @@ import time
 from dataclasses import dataclass
 
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 _ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 _SCHEMA = """
 CREATE TABLE users (
@@ -95,6 +95,23 @@ CREATE TABLE job_incidents (
 PRAGMA user_version = 2;
 """
 
+_PLAN_SCHEMA = """
+CREATE TABLE change_plan_drafts (
+    id TEXT NOT NULL,
+    revision INTEGER NOT NULL CHECK(revision >= 1),
+    actor_id TEXT NOT NULL REFERENCES users(id),
+    resource_id TEXT NOT NULL REFERENCES resources(id),
+    action TEXT NOT NULL CHECK(action = 'docker.restart'),
+    baseline TEXT NOT NULL CHECK(json_valid(baseline) AND json_type(baseline) = 'object'),
+    plan_hash TEXT NOT NULL CHECK(length(plan_hash) = 64 AND plan_hash NOT GLOB '*[^0-9a-f]*'),
+    created_at INTEGER NOT NULL CHECK(created_at >= 0),
+    PRIMARY KEY(id, revision)
+) STRICT;
+CREATE INDEX change_plan_drafts_resource ON change_plan_drafts(resource_id, id);
+CREATE INDEX change_plan_drafts_hash ON change_plan_drafts(plan_hash);
+PRAGMA user_version = 3;
+"""
+
 
 def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
@@ -137,7 +154,9 @@ class Store:
             raise RuntimeError("DATABASE_PERMISSIONS")
 
     @classmethod
-    def initialize(cls, path: Path, *, access: DataAccess | None = None):
+    def initialize(cls, path: Path, *, access: DataAccess | None = None, schema=SCHEMA_VERSION):
+        if type(schema) is not int or schema not in (2, SCHEMA_VERSION):
+            raise RuntimeError("DATABASE_CONTRACT_MISMATCH")
         store = cls(path, access=access)
         shared = store.access.shared_gid is not None
         store.path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
@@ -156,7 +175,7 @@ class Store:
         os.chown(store.path.parent, store.access.owner_uid, store.access.shared_gid if shared else -1)
         store.path.parent.chmod(0o2770 if shared else 0o700)
         with store.connect(initializing=True) as db:
-            db.executescript("BEGIN IMMEDIATE;\n" + _SCHEMA)
+            db.executescript("BEGIN IMMEDIATE;\n" + _SCHEMA + (_PLAN_SCHEMA if schema == 3 else ""))
             db.execute("COMMIT")
         return store
 
@@ -178,7 +197,7 @@ class Store:
             for name, expected in {"journal_mode": "wal", "synchronous": 2, "foreign_keys": 1, "busy_timeout": 5000,
                                    "user_version": 0 if initializing else SCHEMA_VERSION}.items():
                 actual = db.execute(f"PRAGMA {name}").fetchone()[0]
-                if actual != expected and not (name == "user_version" and not initializing and actual == 1):
+                if actual != expected and not (name == "user_version" and not initializing and actual in (1, 2)):
                     raise RuntimeError("DATABASE_CONTRACT_MISMATCH")
             try:
                 yield db

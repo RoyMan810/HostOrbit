@@ -36,7 +36,7 @@ class RecoveryInstallationTests(unittest.TestCase):
         checked = recovery_install.check(self.state)
         self.assertEqual(checked["status"], "RECOVERY_INSTALLATION_ELIGIBLE")
         self.assertEqual(checked["mode"], "READ_ONLY_RECOVERY")
-        self.assertEqual(checked["schema"], 2)
+        self.assertEqual(checked["schema"], 3)
         self.assertFalse((self.state / "installation.claim.json").exists())
 
     def test_consumed_installation_and_incomplete_import_cannot_be_reused(self):

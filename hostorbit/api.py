@@ -16,6 +16,8 @@ from starlette.concurrency import run_in_threadpool
 from . import __version__
 from .admission import Admission
 from .auth import ABSOLUTE_SECONDS, COOKIE, AuthService, Role
+from .change_drafts import (get_draft, record_draft_approval, record_draft_backup_decision,
+                            request_draft_probe, save_draft)
 from .config import Settings
 from .database import AuditIntegrityError, DataAccess, Store, canonical, identifier
 from .errors import Denied
@@ -154,6 +156,19 @@ class UpdateUser(Input):
 class Reauthentication(Input):
     password: Annotated[SecretStr, Field(min_length=1, max_length=128)]
     plan_hash: Annotated[str, Field(pattern="^[0-9a-f]{64}$")]
+
+
+class DraftInput(Input):
+    confirm_stateless_test: bool = False
+
+
+class DraftPreflight(Input):
+    probe_id: Annotated[str, Field(pattern="^" + ULID + "$", max_length=26)]
+    request_key: Annotated[str, Field(pattern="^[A-Za-z0-9_-]{16,128}$")]
+
+
+class DraftApproval(DraftPreflight):
+    reauth_id: Annotated[str, Field(pattern="^" + ULID + "$", max_length=26)]
 
 
 def create_app(settings: Settings, *, auth: AuthService | None = None):
@@ -307,6 +322,56 @@ def create_app(settings: Settings, *, auth: AuthService | None = None):
     @app.get("/api/v1/resources/{resource_id}/docker/containers/{container_id}/restart-preview")
     def restart_preview(resource_id: str, container_id: str, request: Request, actor=Depends(principal)):
         return inventory.restart_preview(service, token(request), resource_id, container_id)
+
+    @app.post("/api/v1/resources/{resource_id}/docker/containers/{container_id}/restart-drafts", status_code=201)
+    def create_restart_draft(resource_id: str, container_id: str, body: DraftInput,
+                             request: Request, response: Response, actor=Depends(principal)):
+        with service.store.write() as db:
+            result, tag = save_draft(db, service, token(request), csrf(request), resource_id, container_id,
+                                     confirm_stateless_test=body.confirm_stateless_test)
+        response.headers["ETag"] = tag
+        response.headers["Location"] = f'/api/v1/change-plans/{result["id"]}'
+        return result
+
+    @app.get("/api/v1/change-plans/{draft_id}")
+    def read_restart_draft(draft_id: str, request: Request, response: Response, actor=Depends(principal)):
+        with service.store.read() as db:
+            result, tag = get_draft(db, service, token(request), draft_id)
+        response.headers["ETag"] = tag
+        return result
+
+    @app.put("/api/v1/change-plans/{draft_id}")
+    def revise_restart_draft(draft_id: str, body: DraftInput, request: Request, response: Response, actor=Depends(principal)):
+        with service.store.write() as db:
+            current, _ = get_draft(db, service, token(request), draft_id)
+            target = current["baseline"]["target"]
+            result, tag = save_draft(db, service, token(request), csrf(request), target["resource_id"], target["id"],
+                                     draft_id=draft_id, if_match=request.headers.get("if-match"),
+                                     confirm_stateless_test=body.confirm_stateless_test)
+        response.headers["ETag"] = tag
+        return result
+
+    @app.post("/api/v1/change-plans/{draft_id}/preflight", status_code=202)
+    def request_restart_preflight(draft_id: str, body: Input, request: Request, response: Response, actor=Depends(principal)):
+        with service.store.read() as db:
+            result = request_draft_probe(db, queue, service, token(request), csrf(request), draft_id,
+                                         if_match=request.headers.get("if-match"), request_key=request.headers.get("idempotency-key"))
+        response.headers["Location"] = f'/api/v1/jobs/{result["id"]}'
+        return result
+
+    @app.post("/api/v1/change-plans/{draft_id}/backup-decision")
+    def decide_restart_backup(draft_id: str, body: DraftPreflight, request: Request, actor=Depends(principal)):
+        with service.store.write() as db, service.store.connect(readonly=True) as evidence:
+            evidence.execute("BEGIN")
+            return record_draft_backup_decision(db, evidence, service, token(request), csrf(request), draft_id,
+                                                if_match=request.headers.get("if-match"), **body.model_dump())
+
+    @app.post("/api/v1/change-plans/{draft_id}/approval")
+    def approve_restart_draft(draft_id: str, body: DraftApproval, request: Request, actor=Depends(principal)):
+        with service.store.write() as db, service.store.connect(readonly=True) as evidence:
+            evidence.execute("BEGIN")
+            return record_draft_approval(db, evidence, service, token(request), csrf(request), draft_id,
+                                         if_match=request.headers.get("if-match"), **body.model_dump())
 
     @app.get("/api/v1/jobs/{job_id}")
     def get_job(job_id: str, request: Request, response: Response, actor=Depends(principal)):

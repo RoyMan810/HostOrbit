@@ -67,6 +67,29 @@ class RescueTests(unittest.TestCase):
         return RecoveryTarget(self.root / "target-state", owner=os.geteuid(), age_path=self.age).accept(
             self.bundle, owner_digest=digest, username="roman", password=PASSWORD, **kwargs)
 
+    def test_schema_three_import_keeps_plan_audit_and_removes_active_drafts(self):
+        store = self.fixture.store
+        resource, draft = identifier(), identifier()
+        from hostorbit.queue import JobQueue
+        JobQueue(store).register_resource(resource, "a" * 64, 1)
+        with store.write() as db:
+            db.execute("INSERT INTO change_plan_drafts VALUES(?,1,?,?,'docker.restart','{}',?,1)",
+                       (draft, self.fixture.owner, resource, "b" * 64))
+            Store.event(db, at=1, actor=self.fixture.owner, kind="change_plan.draft_saved", target=resource,
+                        outcome="SUCCEEDED", correlation=draft, details={"revision": 1, "plan_hash": "b" * 64})
+        self.source = self.fixture.backup.create(self.fixture.recipient)
+        self.envelope = json.loads(Path(self.source["provenance"]).read_bytes())
+        self.assertEqual(self.envelope["claims"]["manifest"]["schema"], 3)
+        request = self.issue("drafts")
+        review = self.pack(request)
+        RecoveryTarget(self.root / "drafts-state", owner=os.geteuid(), age_path=self.age).accept(
+            self.bundle, owner_digest=review["bundle_sha256"], username="roman", password=PASSWORD)
+        with Store(self.root / "drafts-data/app/controller.sqlite3").connect(readonly=True) as restored:
+            self.assertEqual(restored.execute("SELECT count(*) FROM change_plan_drafts").fetchone()[0], 0)
+            self.assertEqual(restored.execute("SELECT enabled FROM resources WHERE id=?", (resource,)).fetchone()[0], 0)
+            self.assertIsNotNone(restored.execute("SELECT 1 FROM audit WHERE correlation_id=?", (draft,)).fetchone())
+            Store.verify_audit_connection(restored)
+
     def test_production_roundtrip_imports_private_data_with_new_inactive_identity_and_seal(self):
         review = self.pack()
         self.assertEqual(review["status"], "OWNER_REVIEW_REQUIRED")

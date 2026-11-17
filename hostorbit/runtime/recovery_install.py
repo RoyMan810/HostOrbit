@@ -106,8 +106,10 @@ def _record(state, *, installed=False):
                 or json.loads(event["details"]).get("bundle_sha256") != row["bundle_sha256"]
                 or (source[0] if source else "0" * 64) != claims["manifest"]["audit_head"]):
             raise Denied("RECOVERY_APPLICATION_INVALID")
-        if claims["manifest"]["schema"] == 2 and (db.execute("SELECT 1 FROM resources WHERE enabled<>0").fetchone()
+        if claims["manifest"]["schema"] in (2, 3) and (db.execute("SELECT 1 FROM resources WHERE enabled<>0").fetchone()
                 or db.execute("SELECT 1 FROM jobs WHERE status NOT IN ('SUCCEEDED','FAILED','UNKNOWN_OUTCOME','CANCELLED_SAFE')").fetchone()):
+            raise Denied("RECOVERY_AUTOMATION_NOT_QUARANTINED")
+        if claims["manifest"]["schema"] == 3 and db.execute("SELECT 1 FROM change_plan_drafts LIMIT 1").fetchone():
             raise Denied("RECOVERY_AUTOMATION_NOT_QUARANTINED")
     return state, destination, request, row, receipt, claims, policy
 
@@ -217,7 +219,7 @@ def apply(state, config, artifact_digest):
                 db.execute("BEGIN IMMEDIATE")
                 for table in ("reauth", "sessions", "bootstrap"):
                     db.execute(f"DELETE FROM {table}")
-                if claims["manifest"]["schema"] == 2:
+                if claims["manifest"]["schema"] in (2, 3):
                     db.execute("UPDATE jobs SET permit=NULL,claimed_by=NULL,claim_nonce=NULL")
                 Store.event(db, at=time.time_ns() // 10**9, actor=row["owner_id"], kind="recovery.installed",
                             target=request["target_id"], outcome="READ_ONLY_RECOVERY", correlation=request["target_id"], details=claim)

@@ -1,6 +1,6 @@
 # Stage2: инвентарь зарегистрированных VPS
 
-Первый компонент Stage2 по FR-006/FR-018 из [ТЗ v2.4](spec/HostOrbit_Technical_Spec_v2.4.md): список и карточка уже локально зарегистрированных ресурсов. Существующие Auth, SQLite schema 2 и очередь наблюдений остаются источниками истины. Реализация использует FastAPI и стандартную библиотеку без новых зависимостей.
+Первый компонент Stage2 по FR-006/FR-018 из [ТЗ v2.4](spec/HostOrbit_Technical_Spec_v2.4.md): список и карточка уже локально зарегистрированных ресурсов. Существующие Auth, SQLite схем 2 и 3 и очередь наблюдений остаются источниками истины. Реализация использует FastAPI и стандартную библиотеку без новых зависимостей.
 
 Выбран read model поверх существующей очереди: новый постоянный snapshot потребовал бы миграции и второго источника состояния. Регистрация через Web и обнаружение Docker/Nginx требуют отдельных контрактов и сюда не входят. Stage2/AC-28 этим компонентом не принимаются.
 
@@ -176,4 +176,20 @@ python -m hostorbit.runtime.listener_diagnostics --resolve site.example --expect
 
 `record_draft_approval` повторяет preflight для последней ревизии по ETag. Owner подтверждает ровно тот probe, для которого на репетиционной копии уже записан успешный Backup Gate. Одноразовая повторная аутентификация должна относиться к той же сессии и хешу плана. Её погашение и событие `change_plan.approval_recorded` в Audit/Outbox входят в одну транзакцию. Запись связывает approval ID, ревизию, хеш, probe и номер события Backup Gate. Повторное подтверждение той же ревизии отклоняется. `check_draft_approval` сверяет записанный approval ID с текущими ревизией, probe и решением Backup Gate в транзакции чтения. Подмена ID, новая ревизия или новое наблюдение блокируют проверку.
 
-Подтверждение помечается `REHEARSAL_RECORDED` и оставляет `execution=BLOCKED`. Для рабочего сценария ещё нужны проверенная миграция, защищённый HTTP-маршрут, проверка TimeHealth, допуск к эффекту и сквозной стенд AC-28.
+Подтверждение помечается `REHEARSAL_RECORDED` и оставляет `execution=BLOCKED`. На чистой установке схемы 3 доступны защищённые HTTP-маршруты для черновика, preflight, Backup Gate и подтверждения. Для рабочего эффекта ещё нужны TimeHealth, допуск, типизированный перезапуск и сквозной стенд AC-28.
+
+
+### Проверка Change Plan на чистом стенде
+
+Для запросов записи используйте защищённую Owner-сессию, `Origin` и `X-CSRF-Token`. Начните с завершённого наблюдения импортированного контейнера.
+
+| Маршрут | Данные и результат |
+|---|---|
+| `POST /api/v1/resources/{resource_id}/docker/containers/{container_id}/restart-drafts` | `confirm_stateless_test: true` фиксирует подтверждение Owner. Ответ содержит `Location`, `ETag` и хеш плана. |
+| `GET /api/v1/change-plans/{id}` | Читает последнюю ревизию и её `ETag`. |
+| `PUT /api/v1/change-plans/{id}` | С `If-Match` создаёт новую ревизию того же контейнера. Для Backup Gate подтвердите тестовый контейнер заново. |
+| `POST /api/v1/change-plans/{id}/preflight` | С `If-Match`, `Idempotency-Key` и телом `{}` создаёт read-only probe. Дождитесь его завершения через `Location`. |
+| `POST /api/v1/change-plans/{id}/backup-decision` | С `If-Match` и телом `{probe_id, request_key}` записывает решение для probe и исходного ключа preflight. |
+| `POST /api/v1/change-plans/{id}/approval` | Получите одноразовый `reauth_id` через `POST /api/v1/auth/reauth` для хеша плана. Передайте его с теми же `probe_id`, `request_key` и `If-Match`. |
+
+В текущей сборке подтверждение возвращает `REHEARSAL_RECORDED` и `execution: BLOCKED`. Для стендового перезапуска ещё требуется подключить исполнение через Worker, Broker и host authority.
