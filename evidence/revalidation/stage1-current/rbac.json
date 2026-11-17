@@ -2,37 +2,37 @@
   "artifacts": [
     {
       "path": "evidence/revalidation/stage1-current/source-manifest.json",
-      "sha256": "c6fbe0eced2a2d488da66ce4665e299bd582a5651769b7a5f88b565fe51ca2ae"
+      "sha256": "f72e2aec669c02aef28069c64087979277bda1c763ede13219f386bd134f97b7"
     },
     {
       "path": "evidence/revalidation/stage1-current/bundle-manifest.json",
-      "sha256": "78ada93f98cb74a456e7f3c1abb9d0a50f81a8d66a4273d57d74e499caf72331"
+      "sha256": "17d1c4f509fe062119d72f6f7a77f2101591abbb622b8f699e506e55e5d5362c"
     },
     {
       "path": "evidence/revalidation/stage1-current/bundle-manifest.sig",
-      "sha256": "8e42fb44a7703eefc06c89f2a6aa6411a0e3d80fb184636ebb1b161ea6a88de5"
+      "sha256": "14e73b6d33ccb2162bb629a74898503a46f60a2f40219d7c1c62657e78713d18"
     },
     {
       "path": "evidence/revalidation/stage1-current/test-signer.pub",
-      "sha256": "a325886b4663b29cd6bd76d0beb608a5b197d12ddbbc157bbefaf570b63bc608"
+      "sha256": "119fdf32e1cabb0f887fefb3b1d1479409d520f476a250dd210fcccad5899128"
     },
     {
       "path": "evidence/revalidation/stage1-current/sbom.cdx.json",
-      "sha256": "e6505e17a087f511073ddd17ef1371043b8827da0a026299f760427149fd8700"
+      "sha256": "10e68343e4ee5ee91f1df8832a2ec1de51c6be0f3bde4c14b76be7670614aceb"
     },
     {
       "path": "evidence/revalidation/stage1-current/ci-observations.json",
-      "sha256": "9470acb0907354819dbdd47186d805fdd33c519a31dada0981fd76a13dd43183"
+      "sha256": "cfde5dac59b657bb92f6e630b942a78d3935a77b23c8ad91c28ff0462167fa13"
     }
   ],
-  "build_digest": "78ada93f98cb74a456e7f3c1abb9d0a50f81a8d66a4273d57d74e499caf72331",
+  "build_digest": "17d1c4f509fe062119d72f6f7a77f2101591abbb622b8f699e506e55e5d5362c",
   "capability": "rbac",
   "ci_job_ids": [
-    133606972429,
-    133606972052
+    133865523314,
+    133865523315
   ],
   "environment": "GitHub-hosted Ubuntu 24.04 runners. The signed development bundle uses Python 3.15.2.",
-  "evidence_digest": "9fad3bfc0ec71c16a4099a4a36396d2bb1371fa30534f8ed7f666068de3f3123",
+  "evidence_digest": "558f450c66d8ee145ae3743b33767b6a82ccc8745a21bfb652c04fe1518919f8",
   "fault_injection": "test_no_operator_wildcard_or_view_secret_grant_and_owner_is_local_only",
   "initial_state": "Clean committed source and disposable GitHub-hosted Ubuntu 24.04 CI runners; development install and ephemeral test signer.",
   "limitations": [
@@ -40,7 +40,7 @@
     "The signed development bundle uses an ephemeral test signer. SBOM scope excludes the complete OS and OCI base image.",
     "Independent disaster recovery, Owner restore attestation and capacity soak require separate validation."
   ],
-  "manifest_digest": "c6fbe0eced2a2d488da66ce4665e299bd582a5651769b7a5f88b565fe51ca2ae",
+  "manifest_digest": "f72e2aec669c02aef28069c64087979277bda1c763ede13219f386bd134f97b7",
   "negative_checks": [
     "test_no_operator_wildcard_or_view_secret_grant_and_owner_is_local_only"
   ],
@@ -49,17 +49,17 @@
   "positive_checks": [
     "test_operator_scope_and_auditor_read_only_permissions_are_checked_in_manager"
   ],
-  "recorded_at_utc": "2026-11-16T21:00:12.697184+00:00",
+  "recorded_at_utc": "2026-11-17T06:35:14.640721+00:00",
   "revalidation_of": {
     "evidence_digest": "06db12f72baac39e52d805f53f243ba1fa0afde819dbaa5eadb2171676283eb6",
     "path": "evidence/capabilities/stage1/rbac.json",
     "source_commit": "285db2c39c77456e98a7b073b17e1432f62e99f5"
   },
   "reviewer": "Automated revalidation against GitHub CI and the source-bound signed development bundle metadata.",
-  "sbom_digest": "e6505e17a087f511073ddd17ef1371043b8827da0a026299f760427149fd8700",
+  "sbom_digest": "10e68343e4ee5ee91f1df8832a2ec1de51c6be0f3bde4c14b76be7670614aceb",
   "scenario": "Foundation: Owner/Admin/Operator/Auditor, explicit server-side grants/scopes, no Owner bootstrap/delegation from Web, role/session revocation and manager-level authorization before queue dispatch.",
   "scope": "FOUNDATION_ONLY",
-  "source_commit": "466c83d29490adec7cc3ac3bdcf918825a07ec6e",
+  "source_commit": "2f093e88882a94ca95fe90eadb256f87237d5a1d",
   "source_files": [
     {
       "path": ".github/workflows/checks.yml",
@@ -247,7 +247,7 @@
     },
     {
       "path": "hostorbit/runtime/protocol.py",
-      "sha256": "9ae3c0eabaae69aa2b4dc1e96125d042125c4b70c5c7b198df0838687fc470d2"
+      "sha256": "6ee6a3f8ca3cedd2b19b1ea7afe534fa5977fe54c279cc48c591e2c7de6a150e"
     },
     {
       "path": "hostorbit/runtime/publication.py",
@@ -287,7 +287,7 @@
     },
     {
       "path": "hostorbit/runtime/ssh.py",
-      "sha256": "b15aefd2be704ae0b99fcdfbfb6717100bc34a4585ce7ace1b4988d3a1b67e5f"
+      "sha256": "5acbc847859c588c0c3a010832407be5c0d67d0bdcf3e67dbc3ae7d9ce7365ce"
     },
     {
       "path": "hostorbit/runtime/storage.py",
@@ -315,11 +315,11 @@
     },
     {
       "path": "remote/ssh-gateway",
-      "sha256": "6f9f28d43a6b91928c7370debbc7a4a6997068dc2756aa0eccfd3ebaca3f22f0"
+      "sha256": "f87ce9e65fd0d132f6fac9034ef2892e185f8fe33bcf900e257722d804baccb0"
     },
     {
       "path": "remote/typed-helper",
-      "sha256": "af50f05556a4bb688925562e1ee644546165874db2ef7369a8bb2267a3647ade"
+      "sha256": "a8748bba403f8140856006a3590ce48f0b73f0df1a0705973e0fa97e2b5410c0"
     },
     {
       "path": "requirements-app.txt",
@@ -367,7 +367,7 @@
     },
     {
       "path": "tests_runtime/lab/docker_discovery.py",
-      "sha256": "0c2ce4cb1052cdf7f88cc9f3734ccf9ee5f3f9d6e0fbb92487fde694cccec57e"
+      "sha256": "d98976740f2e59b5185713e75137860a7ec5860dcb25ac6fffc4e4195441a72f"
     },
     {
       "path": "tests_runtime/lab/installation.py",
@@ -411,7 +411,7 @@
     },
     {
       "path": "tests_runtime/test_docker_discovery.py",
-      "sha256": "ac5300902690b666bd7350e12fc811fc1306ada98090a60db5b9bcf628dac32d"
+      "sha256": "7ffa5c520aade26a5bae7a128fdf9fa1be820a19af7ae7e1f3ca42cb9caaf472"
     },
     {
       "path": "tests_runtime/test_installation.py",
@@ -451,7 +451,7 @@
     },
     {
       "path": "tests_runtime/test_ssh_discovery.py",
-      "sha256": "4c8a99d009179f2c4a44b18cc4d103be60970a55230d769c0661a4906a75f1f3"
+      "sha256": "0bc7ab5ef4695ff9d4d308ec290a0a989f33a0fc44c49cd7d122c4b31564362b"
     },
     {
       "path": "tests_runtime/test_timehealth.py",
@@ -463,7 +463,7 @@
     },
     {
       "path": "tests_runtime/test_worker_broker.py",
-      "sha256": "4c4dc3015c97b250ea574e01fe2c2cc1d324e866d066e7220b512529fbfd715c"
+      "sha256": "c12687fa9744d6debf431b861fedf09431cb957cba9840739b745fbba1d99cb2"
     },
     {
       "path": "tests_runtime/test_writer_barrier.py",
