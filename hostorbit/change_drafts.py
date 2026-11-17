@@ -98,18 +98,18 @@ def _baseline(db, resource_id, container_id, now):
     return baseline
 
 
-def _checked_draft(db, auth, token, draft_id, if_match):
-    actor = _session(db, auth, token)
+def _checked_draft(db, auth, token, draft_id, if_match, *, csrf=None, mutating=False):
+    actor = _session(db, auth, token, csrf=csrf, mutating=mutating)
     row = _latest(db, draft_id)
     _require(db, actor, row["resource_id"], restart=True)
     draft = _stored(row)
     check_etag(if_match, _public(draft, row["plan_hash"])[1])
-    return row, draft
+    return row, draft, actor
 
 
 def check_draft_baseline(db, auth, token, draft_id, *, if_match):
     """Recheck the exact draft against the local read snapshot."""
-    row, draft = _checked_draft(db, auth, token, draft_id, if_match)
+    row, draft, _ = _checked_draft(db, auth, token, draft_id, if_match)
     checked_at = int(auth.clock())
     baseline = draft["baseline"]
     current = _baseline(db, row["resource_id"], baseline["target"]["id"], checked_at)
@@ -150,7 +150,7 @@ def _probe_key(plan_hash, baseline, request_key):
 
 def request_draft_probe(draft_db, queue, auth, token, csrf, draft_id, *, if_match, request_key):
     """Queue one read-only observation for this rehearsal revision and retry key."""
-    row, draft = _checked_draft(draft_db, auth, token, draft_id, if_match)
+    row, draft, _ = _checked_draft(draft_db, auth, token, draft_id, if_match)
     resource_id = row["resource_id"]
     baseline = draft["baseline"]
     scoped_key = _probe_key(row["plan_hash"], baseline, request_key)
@@ -168,7 +168,11 @@ def request_draft_probe(draft_db, queue, auth, token, csrf, draft_id, *, if_matc
 
 def check_draft_probe(draft_db, source_db, auth, token, draft_id, *, if_match, probe_id, request_key):
     """Validate the queued observation bound to this draft revision and request."""
-    row, draft = _checked_draft(draft_db, auth, token, draft_id, if_match)
+    row, draft, _ = _checked_draft(draft_db, auth, token, draft_id, if_match)
+    return _check_probe(draft_db, source_db, auth, token, row, draft, probe_id, request_key)
+
+
+def _check_probe(draft_db, source_db, auth, token, row, draft, probe_id, request_key):
     resource_id = row["resource_id"]
     baseline = draft["baseline"]
     original, actor_id = _probe_source(draft_db, source_db, auth, token, resource_id, baseline["observation_id"])
@@ -205,6 +209,28 @@ def check_draft_probe(draft_db, source_db, auth, token, draft_id, *, if_match, p
             "observation_id": probe_id, "checked_at": checked_at, "baseline_check": "MATCHED",
             "backup_gate": gate, "backup_gate_reason": reason,
             "execution": draft["execution"]}
+
+
+def record_draft_backup_decision(draft_db, source_db, auth, token, csrf, draft_id, *,
+                                 if_match, probe_id, request_key):
+    """Record the rehearsed decision inside BEGIN IMMEDIATE; caller rolls back on error."""
+    row, draft, actor = _checked_draft(draft_db, auth, token, draft_id, if_match, csrf=csrf, mutating=True)
+    result = _check_probe(draft_db, source_db, auth, token, row, draft, probe_id, request_key)
+    details = {key: result[key] for key in ("revision", "plan_hash", "observation_id", "backup_gate", "backup_gate_reason")}
+    details["rehearsal"] = True
+    kind = "change_plan.backup_evaluated"
+    outcome = "SUCCEEDED" if result["backup_gate"] == "BACKUP_NOT_REQUIRED" else "DENIED"
+    checked_at = result["checked_at"]
+    existing = draft_db.execute("""SELECT seq, at FROM audit
+                                   WHERE target_id=? AND at<=? AND correlation_id=? AND event=?
+                                   AND actor_id=? AND outcome=? AND details=? ORDER BY seq DESC LIMIT 1""",
+                                (row["resource_id"], checked_at, draft_id, kind, actor["id"], outcome,
+                                 canonical(details).decode())).fetchone()
+    if existing is not None:
+        return {**result, "checked_at": existing["at"], "audit_seq": existing["seq"]}
+    seq = Store.event(draft_db, at=checked_at, actor=actor["id"], kind=kind, target=row["resource_id"],
+                      outcome=outcome, correlation=draft_id, details=details)
+    return {**result, "audit_seq": seq}
 
 
 def save_draft(db, auth, token, csrf, resource_id, container_id, *,
