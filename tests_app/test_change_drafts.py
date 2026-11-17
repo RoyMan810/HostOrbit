@@ -5,7 +5,7 @@ import sqlite3
 from unittest.mock import patch
 
 from hostorbit.auth import COOKIE, etag
-from hostorbit.change_drafts import (check_draft_baseline, check_draft_probe, get_draft,
+from hostorbit.change_drafts import (check_draft_approval, check_draft_baseline, check_draft_probe, get_draft,
                                      record_draft_approval, record_draft_backup_decision, request_draft_probe, save_draft)
 from hostorbit.database import Store, identifier
 from hostorbit.errors import Denied
@@ -399,7 +399,16 @@ class ChangeDraftTests(Fixture):
             self.approve(draft, tag, fresh, grant, csrf="invalid")
         with self.assertRaisesRegex(Denied, "PREFLIGHT_PROBE_NOT_BOUND"):
             self.approve(draft, tag, fresh, grant, key="wrong-preflight-key")
-        result = self.approve(draft, tag, fresh, grant)
+        def attempt(_):
+            try:
+                return self.approve(draft, tag, fresh, grant)
+            except Denied as error:
+                return error.code
+
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            attempts = list(pool.map(attempt, range(2)))
+        self.assertIn("CHANGE_PLAN_ALREADY_APPROVED", attempts)
+        result, = [item for item in attempts if isinstance(item, dict)]
         self.assertEqual(result["approval"], "REHEARSAL_RECORDED")
         self.assertEqual(result["execution"], "BLOCKED")
         self.assertEqual(result["backup_audit_seq"], decision["audit_seq"])
@@ -420,6 +429,33 @@ class ChangeDraftTests(Fixture):
         self.save(draft_id=draft["id"], if_match=tag)
         with self.assertRaisesRegex(Denied, "STALE_REVISION"):
             self.approve(draft, tag, fresh, grant)
+
+    def test_stored_approval_is_read_only_and_rechecks_current_observation(self):
+        draft, tag = self.save(confirm_stateless_test=True)
+        self.now += 1
+        fresh = self.request_probe(draft, tag)["id"]
+        self.complete_probe(fresh, mounts="NONE", network="ISOLATED", dependencies="ISOLATED")
+        self.record_decision(draft, tag, fresh)
+        approval = self.approve(draft, tag, fresh, self.issue_rehearsal_grant(draft["plan_hash"]))
+
+        def check(approval_id):
+            with self.transaction(write=False) as draft_db, self.store.connect(readonly=True) as source_db:
+                source_db.execute("BEGIN")
+                return check_draft_approval(draft_db, source_db, self.auth, self.token, draft["id"],
+                                            if_match=tag, probe_id=fresh, request_key="preflight-request-one",
+                                            approval_id=approval_id)
+
+        result = check(approval["approval_id"])
+        self.assertEqual(result, {**approval, "approval": "REHEARSAL_VERIFIED"})
+        with self.assertRaisesRegex(Denied, "CHANGE_PLAN_APPROVAL_REQUIRED"):
+            check(identifier())
+        self.now += 1
+        self.probe()
+        with self.assertRaisesRegex(Denied, "NEW_PROBE_REQUIRED"):
+            check(approval["approval_id"])
+        self.save(draft_id=draft["id"], if_match=tag)
+        with self.assertRaisesRegex(Denied, "STALE_REVISION"):
+            check(approval["approval_id"])
 
     def test_approval_rejects_denied_or_superseded_preflight_without_consuming_grant(self):
         draft, tag = self.save(confirm_stateless_test=True)
