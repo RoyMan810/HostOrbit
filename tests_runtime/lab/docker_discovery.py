@@ -47,7 +47,7 @@ def main():
 
     try:
         running = create(prefix, "web", "--publish", "127.0.0.1::8080/tcp", "--expose", "8081/tcp")
-        stopped = create(prefix, "worker", "--network", "none")
+        stopped = create(prefix, "worker", "--network", "none", "--ipc", "private", "--cgroupns", "private")
         foreign = create(prefix + "-foreign", "private", "--network", "none")
         mounted = create(prefix, "mounted", "--network", "none", "--tmpfs", "/fixture-tmpfs")
         docker("start", running, mounted)
@@ -89,6 +89,17 @@ def main():
             assert observe(registry, protected_socket, include_ports=True) == {"status": "OBSERVED", "containers": [
                 {**wrong[0], "state": "UNKNOWN", "published_ports": None},
             ]}
+            registry.write_text(json.dumps({"v": 1, "containers": [scope[1]]}))
+            options = dict(include_ports=True, include_mounts=True, include_network=True, include_dependencies=True)
+            result = observe(registry, protected_socket, **options)
+            assert result["containers"][0]["dependency_status"] == "OTHER", result
+            docker("rm", "-f", running, foreign, mounted)
+            ids[:] = [stopped]
+            result = observe(registry, protected_socket, **options)
+            assert result == {"status": "OBSERVED", "containers": [
+                {**scope[1], "state": "RUNNING", "published_ports": [], "mount_status": "NONE",
+                 "network_status": "ISOLATED", "dependency_status": "ISOLATED"},
+            ]}, result
             protected_socket.unlink()
             protected_socket.symlink_to(socket_path)
             assert observe(registry, protected_socket) == {"status": "UNAVAILABLE", "containers": []}

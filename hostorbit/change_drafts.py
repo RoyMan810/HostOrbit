@@ -94,7 +94,7 @@ def _baseline(db, resource_id, container_id, now):
             "observed_at": sample["observed_at"], "boot_id": sample["boot_id"],
             "scope_digest": resource["scope_digest"], "resource_revision": resource["revision"],
             "policy_revision": resource["policy_revision"]}
-    baseline.update({key: container[key] for key in ("mount_status", "network_status") if key in container})
+    baseline.update({key: container[key] for key in ("mount_status", "network_status", "dependency_status") if key in container})
     return baseline
 
 
@@ -189,16 +189,21 @@ def check_draft_probe(draft_db, source_db, auth, token, draft_id, *, if_match, p
         raise Denied("NEW_PROBE_REQUIRED", 409)
     if any(current[key] != baseline[key] for key in ("target", "boot_id", "scope_digest", "resource_revision", "policy_revision")):
         raise Denied("STALE_BASELINE", 409)
-    reason = "RESTART_OWNER_CONFIRMATION_REQUIRED"
+    gate, reason = "BACKUP_GATE_DENIED", "RESTART_OWNER_CONFIRMATION_REQUIRED"
     if baseline.get("stateless_test_confirmed") is True:
         mounts = current.get("mount_status")
         reason = "RESTART_MOUNTS_PRESENT" if mounts == "PRESENT" else "RESTART_MOUNT_OBSERVATION_REQUIRED"
         if mounts == "NONE":
             reason = {"OTHER": "RESTART_NETWORK_NOT_ISOLATED", "ISOLATED": "RESTART_DEPENDENCY_SCOPE_REQUIRED"}.get(
                 current.get("network_status"), "RESTART_NETWORK_OBSERVATION_REQUIRED")
+            if current.get("network_status") == "ISOLATED":
+                if current.get("dependency_status") == "ISOLATED":
+                    gate, reason = "BACKUP_NOT_REQUIRED", "RESTART_STATELESS_TEST_CONTAINER"
+                elif current.get("dependency_status") == "OTHER":
+                    reason = "RESTART_DEPENDENCY_SCOPE_UNSUPPORTED"
     return {"draft_id": row["id"], "revision": row["revision"], "plan_hash": row["plan_hash"],
             "observation_id": probe_id, "checked_at": checked_at, "baseline_check": "MATCHED",
-            "backup_gate": "BACKUP_GATE_DENIED", "backup_gate_reason": reason,
+            "backup_gate": gate, "backup_gate_reason": reason,
             "execution": draft["execution"]}
 
 
