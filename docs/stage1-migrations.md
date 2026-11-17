@@ -27,6 +27,19 @@ sudo /opt/hostorbit/venv/bin/hostorbit \
 
 Схема 3 доступна для репетиции. Установщик и Controller продолжают работать со схемой 2, а существующий контракт Rescue сохраняет поддержку схем 1 и 2. Копия схемы 3 предназначена для локальной проверки будущего хранилища черновиков.
 
+## Предварительная проверка ControllerBackup для рабочей миграции
+
+После успешного `hostorbit-backup publish` запустите на Controller:
+
+```bash
+sudo /opt/hostorbit/venv/bin/python -m hostorbit.runtime.migration_backup \
+  --snapshot-id ID_СНИМКА
+```
+
+Проверка сверяет подпись снимка, его Controller и версию рабочей схемы, запись `PUBLISHED` в локальном журнале и защищённую квитанцию для текущего SFTP-назначения. Возраст считается от начала барьера захвата с запасом на suspend. Смена загрузки или возраст свыше 30 минут требуют нового снимка. Поле `maximum_age_seconds` показывает верхнюю оценку возраста. Время публикации и системное UTC на расчёт не влияют.
+
+Успех возвращает `FRESH_PUBLICATION_RECORDED` и `backup_gate: DENIED`. Команда проверяет ранее записанную публикацию. Актуальную доступность SFTP-копии, независимость площадки и возможность восстановления нужно подтвердить отдельно.
+
 ## Граница текущего блока
 
 Команды live apply пока нет. Успешная репетиция не выдаёт maintenance permit, не подтверждает Vault/DEK portability, `RESTORE_ATTESTED` или DR readiness. Для применения к рабочей БД требуется связать утверждённый update plan и подписанный совместимый release с независимым host authority, согласованной off-host ControllerBackup ≤30 минут, проверенной restore-процедурой и host TimeHealth. [Host TimeHealth](stage1-time-health.md) уже проверяется независимым supervisor; его привязка к live migration остаётся частью следующего updater workflow. Эти предусловия не заменяются boolean-флагами или `--force`.
