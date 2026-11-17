@@ -117,6 +117,7 @@ function Detail({ resource, t, lang, now, expired, canPreview }: {
       <div><dt>{t.since}</dt><dd>{time(resource.created_at)}</dd></div>
       <div><dt>{t.policy}</dt><dd>{resource.policy_revision}</dd></div>
       <div><dt>{t.firewallSshChanges}</dt><dd>{t.unsupported}</dd></div>
+      <div><dt>{t.caddyManagement}</dt><dd>{t.unsupported}</dd></div>
     </dl>
     {observation.last_success && <div className="software">
       <h3>{t.observedSoftware}</h3>

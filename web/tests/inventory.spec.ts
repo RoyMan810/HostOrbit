@@ -374,19 +374,23 @@ test('distinguishes current SSH reachability, historical data and an unchecked V
   await expect(detail.getByText('Not checked', { exact: true })).toBeVisible()
 })
 
-test('shows Firewall and SSH edits as unsupported in English and Russian', async ({ page }) => {
+test('shows Firewall, SSH and Caddy changes as unsupported in English and Russian', async ({ page }) => {
   await signIn(page)
   const detail = page.getByRole('region', { name: 'VPS details' })
   await page.getByRole('button', { name: new RegExp(never) }).click()
-  await expect(detail.getByText('Firewall and SSH changes', { exact: true })).toBeVisible()
-  await expect(detail.getByText('Unsupported', { exact: true })).toBeVisible()
+  for (const action of ['Firewall and SSH changes', 'Caddy management']) {
+    const fact = detail.getByText(action, { exact: true }).locator('..')
+    await expect(fact.getByText('Unsupported', { exact: true })).toBeVisible()
+  }
   await page.getByLabel('Language').selectOption('ru')
   const russianDetail = page.getByRole('region', { name: 'Карточка VPS' })
-  await expect(russianDetail.getByText('Изменения Firewall и SSH', { exact: true })).toBeVisible()
-  await expect(russianDetail.getByText('Не поддерживаются', { exact: true })).toBeVisible()
+  for (const action of ['Изменения Firewall и SSH', 'Операции управления Caddy']) {
+    const fact = russianDetail.getByText(action, { exact: true }).locator('..')
+    await expect(fact.getByText('Не поддерживаются', { exact: true })).toBeVisible()
+  }
 })
 
-test('rejects direct Firewall and SSH edits even with an Owner session and CSRF token', async ({ page }) => {
+test('rejects direct Firewall, SSH and Caddy edits even with an Owner session and CSRF token', async ({ page }) => {
   await signIn(page)
   const session = await page.request.get('/api/v1/auth/session')
   expect(session.status()).toBe(200)
@@ -395,7 +399,7 @@ test('rejects direct Firewall and SSH edits even with an Owner session and CSRF 
   expect(csrf_token).toBeTruthy()
   const headers = { Origin: new URL(page.url()).origin, 'X-CSRF-Token': csrf_token }
   const resource = '/api/v1/resources/' + fresh
-  for (const area of ['firewall', 'ssh']) {
+  for (const area of ['firewall', 'ssh', 'caddy']) {
     const direct = await page.request.put(resource + '/' + area, { headers, data: {} })
     // The HTTPS fixture's static fallback can reject an unregistered write as 405.
     expect([
