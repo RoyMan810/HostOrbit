@@ -374,6 +374,45 @@ test('distinguishes current SSH reachability, historical data and an unchecked V
   await expect(detail.getByText('Not checked', { exact: true })).toBeVisible()
 })
 
+test('shows Firewall and SSH edits as unsupported in English and Russian', async ({ page }) => {
+  await signIn(page)
+  const detail = page.getByRole('region', { name: 'VPS details' })
+  await page.getByRole('button', { name: new RegExp(never) }).click()
+  await expect(detail.getByText('Firewall and SSH changes', { exact: true })).toBeVisible()
+  await expect(detail.getByText('Unsupported', { exact: true })).toBeVisible()
+  await page.getByLabel('Language').selectOption('ru')
+  const russianDetail = page.getByRole('region', { name: 'Карточка VPS' })
+  await expect(russianDetail.getByText('Изменения Firewall и SSH', { exact: true })).toBeVisible()
+  await expect(russianDetail.getByText('Не поддерживаются', { exact: true })).toBeVisible()
+})
+
+test('rejects direct Firewall and SSH edits even with an Owner session and CSRF token', async ({ page }) => {
+  await signIn(page)
+  const session = await page.request.get('/api/v1/auth/session')
+  expect(session.status()).toBe(200)
+  const { csrf_token, user } = await session.json()
+  expect(user.role).toBe('Owner')
+  expect(csrf_token).toBeTruthy()
+  const headers = { Origin: new URL(page.url()).origin, 'X-CSRF-Token': csrf_token }
+  const resource = '/api/v1/resources/' + fresh
+  for (const area of ['firewall', 'ssh']) {
+    const direct = await page.request.put(resource + '/' + area, { headers, data: {} })
+    // The HTTPS fixture's static fallback can reject an unregistered write as 405.
+    expect([
+      [404, 'RESOURCE_NOT_FOUND'],
+      [405, 'METHOD_NOT_ALLOWED'],
+    ]).toContainEqual([direct.status(), (await direct.json()).code])
+
+    const observation = await page.request.post(resource + '/observations', {
+      headers: { ...headers, 'Idempotency-Key': 'unsupported-network-edit-' + area },
+      data: { capability: area + '.apply' },
+    })
+    expect(observation.status()).toBe(422)
+    expect(await observation.json()).toMatchObject({ code: 'VALIDATION_FAILED' })
+    expect(observation.headers()['location']).toBeUndefined()
+  }
+})
+
 test('respects scoped inventory and clears it after the session is lost', async ({ page, context }) => {
   await signIn(page, 'fixture-operator')
   await expect(page.getByRole('button', { name: new RegExp(fresh) })).toBeVisible()
