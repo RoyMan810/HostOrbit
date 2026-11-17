@@ -2,6 +2,7 @@
 
 import argparse
 import errno
+from http.client import HTTPException, HTTPResponse
 from ipaddress import ip_address
 import json
 from pathlib import Path
@@ -54,37 +55,87 @@ def inspect_port(port):
     return report
 
 
-def _tls_server_name(name):
+def _dns_name(name):
     name = name.removesuffix(".")
     labels = name.split(".")
     if len(name) > 253 or labels[-1].isdigit() or any(not _DNS_LABEL.fullmatch(label) for label in labels):
-        raise ValueError("TLS server name must be a DNS name in ASCII or Punycode")
+        raise ValueError("name must be a DNS name in ASCII or Punycode")
     return name.lower()
 
 
-def _probe_tls(connection, server_name):
+def _resolve_addresses(name, expected_ips):
+    name = _dns_name(name)
+    expected = {ip_address(value) for value in expected_ips}
+    if any(getattr(address, "scope_id", None) is not None for address in expected):
+        raise ValueError("expected IP addresses must not contain an interface scope")
+    report = {"name": name, "scope": "SYSTEM_RESOLVER", "addresses": []}
+    try:
+        replies = socket.getaddrinfo(name + ".", None, family=socket.AF_UNSPEC, type=socket.SOCK_STREAM)
+    except socket.gaierror as error:
+        state = "NO_ADDRESSES" if error.errno in (socket.EAI_NONAME, socket.EAI_NODATA) else "LOOKUP_FAILED"
+        return {**report, "state": state}
+    addresses = {ip_address(endpoint[0]) for family, _, _, _, endpoint in replies
+                 if family in (socket.AF_INET, socket.AF_INET6)}
+    if not addresses:
+        return {**report, "state": "NO_ADDRESSES"}
+    report["addresses"] = _format_addresses(addresses)
+    if expected:
+        return {**report, "state": "MATCH" if addresses == expected else "MISMATCH",
+                "missing_addresses": _format_addresses(expected - addresses),
+                "unexpected_addresses": _format_addresses(addresses - expected)}
+    return {**report, "state": "RESOLVED"}
+
+
+def _format_addresses(addresses):
+    return [str(address) for address in sorted(addresses, key=lambda address: (address.version, int(address)))]
+
+
+def _probe_https(secured, name, port, path):
+    host = name if port == 443 else f"{name}:{port}"
+    request = f"HEAD {path} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n"
+    try:
+        secured.sendall(request.encode("ascii"))
+        with HTTPResponse(secured, method="HEAD") as response:
+            response.begin()
+            return {"state": "RESPONDED", "status": response.status}
+    except TimeoutError:
+        return {"state": "TIMED_OUT"}
+    except (OSError, HTTPException):
+        return {"state": "ERROR"}
+
+
+def _probe_tls(connection, server_name, port, https_path):
     result = {"server_name": server_name}
+    https = {"state": "NOT_TESTED"}
     try:
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         context.hostname_checks_common_name = False
         context.load_default_certs()
         with context.wrap_socket(connection, server_hostname=server_name) as secured:
             result["expires_at"] = ssl.cert_time_to_seconds(secured.getpeercert()["notAfter"])
-        result["state"] = "VERIFIED"
+            result["state"] = "VERIFIED"
+            if https_path is not None:
+                https = _probe_https(secured, server_name, port, https_path)
     except ssl.SSLCertVerificationError:
         result["state"] = "CERTIFICATE_INVALID"
     except TimeoutError:
         result["state"] = "TIMED_OUT"
     except (OSError, ValueError, KeyError):
         result["state"] = "ERROR"
-    return result
+    return result, https
 
 
-def probe_port(destination, port, *, tls_name=None):
+def probe_port(destination, port, *, tls_name=None, https_path=None):
     _validate_port(port)
+    if https_path is not None and (
+        tls_name is None or not https_path.startswith("/") or https_path.startswith("//")
+        or not re.fullmatch(r"[!-~]{1,2048}", https_path) or "#" in https_path
+    ):
+        raise ValueError("--https-path requires --tls-name and an ASCII path starting with one slash")
     if tls_name is not None:
-        tls_name = _tls_server_name(tls_name)
+        tls_name = _dns_name(tls_name)
         tls = {"server_name": tls_name, "state": "NOT_TESTED"}
+    https = {"state": "NOT_TESTED"}
     address = ip_address(destination)
     if address.version == 6:
         if address.scope_id is not None or address.is_link_local:
@@ -99,7 +150,7 @@ def probe_port(destination, port, *, tls_name=None):
             connection.settimeout(3)
             connection.connect((str(address), port))
             if tls_name is not None:
-                tls = _probe_tls(connection, tls_name)
+                tls, https = _probe_tls(connection, tls_name, port, https_path)
         state = "CONNECTED"
     except TimeoutError:
         state = "TIMED_OUT"
@@ -110,23 +161,42 @@ def probe_port(destination, port, *, tls_name=None):
               "tcp_reachability": state}
     if tls_name is not None:
         report["tls"] = tls
+    if https_path is not None:
+        report["https"] = https
     return report
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Inspect a local TCP port or probe a remote TCP/TLS endpoint")
-    parser.add_argument("--port", type=int, required=True)
-    parser.add_argument("--connect", metavar="IP", help="numeric IPv4 or IPv6 destination")
+    parser = argparse.ArgumentParser(description="Inspect TCP listeners, probe TCP/TLS/HTTPS, or resolve a DNS name")
+    parser.add_argument("--port", type=int)
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--connect", metavar="IP", help="numeric IPv4 or IPv6 destination")
+    modes.add_argument("--resolve", metavar="DNS", help="look up addresses using the system resolver")
+    parser.add_argument("--expect-ip", action="append", default=[], metavar="IP", help="expected address; repeat for a set")
     parser.add_argument("--tls-name", metavar="DNS", help="verify the TLS certificate for this DNS name")
+    parser.add_argument("--https-path", metavar="PATH", help="send HEAD over the verified TLS connection")
     args = parser.parse_args(argv)
+    if args.resolve is not None and args.port is not None:
+        parser.error("--resolve does not use --port")
+    if args.resolve is None and args.port is None:
+        parser.error("--port is required for TCP checks")
+    if args.expect_ip and args.resolve is None:
+        parser.error("--expect-ip requires --resolve")
     if args.tls_name is not None and args.connect is None:
         parser.error("--tls-name requires --connect")
+    if args.https_path is not None and args.tls_name is None:
+        parser.error("--https-path requires --tls-name")
     try:
-        if args.connect is not None:
-            report = probe_port(args.connect, args.port, tls_name=args.tls_name)
+        if args.resolve is not None:
+            report = _resolve_addresses(args.resolve, args.expect_ip)
+            ok = report["state"] in ("RESOLVED", "MATCH")
+        elif args.connect is not None:
+            report = probe_port(args.connect, args.port, tls_name=args.tls_name, https_path=args.https_path)
             ok = report["tcp_reachability"] == "CONNECTED"
             if args.tls_name is not None:
                 ok = ok and report["tls"]["state"] == "VERIFIED"
+            if args.https_path is not None:
+                ok = ok and 200 <= report["https"].get("status", 0) < 300
         else:
             report = inspect_port(args.port)
             ok = all(report[family]["state"] != "UNKNOWN" for family in ("ipv4", "ipv6"))
