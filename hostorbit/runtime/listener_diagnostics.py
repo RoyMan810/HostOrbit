@@ -55,6 +55,38 @@ def inspect_port(port):
     return report
 
 
+def check_bind(destination, port):
+    proposed = ip_address(destination)
+    if proposed.version == 6:
+        if proposed.scope_id is not None or proposed.is_link_local or proposed.ipv4_mapped is not None:
+            raise ValueError("use an unscoped native IPv4 or IPv6 bind address")
+    if proposed.is_multicast or str(proposed) == "255.255.255.255":
+        raise ValueError("a unicast or wildcard bind address is required")
+
+    report = inspect_port(port)
+    candidates = []
+    unknown = False
+    for version in (4, 6):
+        if version == 4 and proposed.version == 6 and not proposed.is_unspecified:
+            continue  # Native IPv6 unicast does not overlap an IPv4 listener.
+        family = report[f"ipv{version}"]
+        unknown |= family["state"] == "UNKNOWN"
+        for value in family["addresses"]:
+            bound = ip_address(value)
+            effective = (bound.ipv4_mapped or bound) if version == 6 else bound
+            if effective.version == proposed.version:
+                overlaps = proposed == effective or proposed.is_unspecified or effective.is_unspecified
+            else:
+                # The socket tables do not show whether an IPv6 wildcard is v6-only.
+                ipv6 = proposed if proposed.version == 6 else effective
+                overlaps = ipv6.is_unspecified
+            if overlaps:
+                candidates.append(value)
+    state = "POSSIBLE_CONFLICT" if candidates else "UNKNOWN" if unknown else "NO_CONFLICT_OBSERVED"
+    report["bind_check"] = {"address": str(proposed), "state": state, "candidate_addresses": candidates}
+    return report
+
+
 def _dns_name(name):
     name = name.removesuffix(".")
     labels = name.split(".")
@@ -170,6 +202,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description="Inspect TCP listeners, probe TCP/TLS/HTTPS, or resolve a DNS name")
     parser.add_argument("--port", type=int)
     modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--check-bind", metavar="IP", help="check for overlapping local TCP listeners")
     modes.add_argument("--connect", metavar="IP", help="numeric IPv4 or IPv6 destination")
     modes.add_argument("--resolve", metavar="DNS", help="look up addresses using the system resolver")
     parser.add_argument("--expect-ip", action="append", default=[], metavar="IP", help="expected address; repeat for a set")
@@ -197,6 +230,9 @@ def main(argv=None):
                 ok = ok and report["tls"]["state"] == "VERIFIED"
             if args.https_path is not None:
                 ok = ok and 200 <= report["https"].get("status", 0) < 300
+        elif args.check_bind is not None:
+            report = check_bind(args.check_bind, args.port)
+            ok = report["bind_check"]["state"] == "NO_CONFLICT_OBSERVED"
         else:
             report = inspect_port(args.port)
             ok = all(report[family]["state"] != "UNKNOWN" for family in ("ipv4", "ipv6"))

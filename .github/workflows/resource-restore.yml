@@ -6,6 +6,7 @@ on:
       - .github/workflows/resource-restore.yml
       - hostorbit/runtime/resource_*.py
       - tests_runtime/test_resource_restore_attestation.py
+      - evidence/tests/ac-b05.json
   workflow_dispatch:
 
 permissions:
