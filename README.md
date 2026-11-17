@@ -83,7 +83,7 @@ Self-hosted система управления Linux-серверами по [�
 | Задача | Требования / gate | Статус | Что осталось до production |
 |---|---|---|---|
 | Прототипы и базовые контроли | P0-1–P0-4, CTRL-B01–B04, CTRL-B06–B10; Stage0 | Принято | Историческая приёмка прототипов сохранена; она не подтверждает все соответствующие production-сценарии. |
-| Повторная проверка Foundation | Stage1 | Подтверждено CI | Шесть отчётов Foundation обновлены по [подписанной проверке PR #77](evidence/revalidation/stage1-current/README.md). |
+| Повторная проверка Foundation | Stage1 | Подтверждено CI | Шесть отчётов Foundation обновлены по [подписанной проверке PR #90](evidence/revalidation/stage1-current/README.md). |
 | Сквозной сценарий и restore ресурса | Stage2; AC-28, CTRL-B05 / AC-B05 | Частично | Владелец принял AC-B05. Для AC-28 остаются исполняемый Change Plan, backup gate, approval, проверка эффекта и аудит. |
 | Полная MVP-приёмка | Stage3; все применимые MVP AC и P0 | Открыто | Выполнить требования реестра с доказательствами, включая отрицательные сценарии; не считать Stage0/1 заменой MVP gate. |
 | Безопасность и границы доверия | NFR-01 | Частично | Принять least privilege, изоляцию API/Worker/Broker/Vault, SSH host keys, typed operations, защиту секретов и SSRF. |
