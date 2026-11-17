@@ -397,8 +397,11 @@ test('rejects direct Firewall and SSH edits even with an Owner session and CSRF 
   const resource = '/api/v1/resources/' + fresh
   for (const area of ['firewall', 'ssh']) {
     const direct = await page.request.put(resource + '/' + area, { headers, data: {} })
-    expect(direct.status()).toBe(404)
-    expect(await direct.json()).toMatchObject({ code: 'RESOURCE_NOT_FOUND' })
+    // The HTTPS fixture's static fallback can reject an unregistered write as 405.
+    expect([
+      [404, 'RESOURCE_NOT_FOUND'],
+      [405, 'METHOD_NOT_ALLOWED'],
+    ]).toContainEqual([direct.status(), (await direct.json()).code])
 
     const observation = await page.request.post(resource + '/observations', {
       headers: { ...headers, 'Idempotency-Key': 'unsupported-network-edit-' + area },
