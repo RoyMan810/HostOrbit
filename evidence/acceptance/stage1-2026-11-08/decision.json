@@ -4,7 +4,7 @@
     "current_regression_tests": 66,
     "decision": "ACCEPTED_RECONFIRMED",
     "passing_reports": 15,
-    "previous_record": "evidence/acceptance/stage0-2026-11-07/README.md",
+    "previous_record": "evidence/acceptance/stage0-2026-11-07/review-index.json",
     "prototype_source_changed_since_accepted_build": false,
     "required_tests": [
       "AC-A01",

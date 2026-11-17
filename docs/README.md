@@ -26,9 +26,9 @@
 - [tools/](../tools/) и [tests_tools/](../tests_tools/) — проверки репозитория и инструменты обслуживания с тестами.
 - [.github/workflows/](../.github/workflows/) — автоматические проверки и обслуживание веток.
 
-### История и локальные файлы
+### Приёмочные данные и локальные файлы
 
-- [evidence/](../evidence/) — принятые решения, отчёты и контрольные суммы проверенных ревизий. Реестр требований и Stage0 используются текущим CI; не удаляйте их как временные данные.
+- [evidence/](../evidence/) — машиночитаемые отчёты и контрольные суммы, используемые реестром и CI.
 - `__pycache__/`, `.ruff_cache/` и `web/test-results/` — восстанавливаемые кэши и результаты локальных проверок. `.venv/` и `web/node_modules/` содержат установленные зависимости, а `web/dist/` — сборку интерфейса; они не входят в Git, но могут использоваться локально.
 
 ## Controller и развёртывание
@@ -50,11 +50,8 @@
 - [Установка восстановленного Controller](stage1-recovery-installation.md)
 - [Локальная Owner activation и quarantine](stage1-recovery-activation.md)
 
-## Приёмка и история
+## Приёмка
 
 - [Лаборатория Stage0](stage0-laboratory.md)
-- [ADR-0001: этап AC-28](adr/0001-registry-ac28-stage.md)
-- [Приёмка Stage0](../evidence/acceptance/stage0-2026-11-07/README.md)
-- [Приёмка Stage1 Foundation](../evidence/acceptance/stage1-2026-11-08/README.md)
-
-Датированные evidence описывают конкретную проверенную ревизию; их старые counts, digests и ограничения сохраняют исторический смысл. Они не служат инструкцией по установке текущего кода. [Отчёты аудита](audit/README.md) описывают состояние на дату проверки. Актуальные приоритеты задаёт ТЗ v2.4.
+- [Текущие проверки Stage1 Foundation](../evidence/revalidation/stage1-current/README.md)
+- [Приёмочные данные AC-B05](../evidence/tests/ac-b05.json)
