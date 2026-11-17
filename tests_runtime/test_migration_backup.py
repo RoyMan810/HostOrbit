@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 from pathlib import Path
@@ -15,11 +16,11 @@ from hostorbit.runtime.controller_backup import sign_provenance
 from hostorbit.runtime.coordinator import Coordinator
 from hostorbit.runtime.migration_backup import check_publication
 from hostorbit.runtime.policy import Policy
-from hostorbit.runtime.protocol import canonical, checksum
+from hostorbit.runtime.protocol import canonical
 from hostorbit.runtime.publication import Publisher
-from hostorbit.runtime.sftp_publication import completion
+from hostorbit.runtime.sftp_publication import publish_session
 from hostorbit.runtime.storage import new_private_file
-from test_sftp_publication import destination
+from test_sftp_publication import Remote, destination
 
 
 class MigrationBackupTests(unittest.TestCase):
@@ -44,7 +45,7 @@ class MigrationBackupTests(unittest.TestCase):
             self.capture = self.coordinator.directory / "captures" / snapshot_id
             self.capture.mkdir(mode=0o700, parents=True)
             ciphertext = self.capture / "controller.age"
-            new_private_file(ciphertext, os.urandom(2048))
+            new_private_file(ciphertext, os.urandom(150000))
             now = clocks()
             self.manifest = {"v": 1, "type": "controller.snapshot", "snapshot_id": snapshot_id,
                              "source_instance": instance, "gate_epoch": 0, "schema": 2, "audit_head": "0" * 64,
@@ -60,15 +61,24 @@ class MigrationBackupTests(unittest.TestCase):
             self.coordinator._transition(self.snapshot, phase)
         self.journal = authority.journal
 
+        self.remote = Remote()
+
         def runner(config, directory, snapshot_id, target, envelope):
-            value = completion(target, snapshot_id, envelope["claims"], canonical(envelope))
-            return {**value, "marker_sha256": checksum(value), "remote_path": target.value["directory"] + "/" + snapshot_id,
-                    "verified": True}
+            return asyncio.run(publish_session(self.remote, target, snapshot_id, directory / "controller.age",
+                                               envelope["claims"], canonical(envelope), lambda: None))
 
         self.publisher = Publisher(self.config, target_path=self.target, owner=os.geteuid(), runner=runner)
 
-    def check(self):
-        return check_publication(self.config, self.snapshot, target_path=self.target, owner=os.geteuid())
+    def check(self, **options):
+        return check_publication(self.config, self.snapshot, target_path=self.target, owner=os.geteuid(), **options)
+
+    def download(self):
+        self.publisher.publish(self.snapshot)
+        directory = self.target.parent / "download"
+        directory.mkdir(mode=0o700)
+        for remote_path, data in self.remote.files.items():
+            new_private_file(directory / Path(remote_path).name, data)
+        return directory
 
     def test_published_snapshot_reports_preflight_without_authorizing_migration(self):
         self.publisher.publish(self.snapshot)
@@ -134,3 +144,62 @@ class MigrationBackupTests(unittest.TestCase):
         provenance.write_bytes(canonical(envelope))
         with self.assertRaisesRegex(Denied, "ARCHIVE_PROVENANCE_INVALID"):
             self.check()
+
+    def test_downloaded_copy_matches_publication_without_local_ciphertext(self):
+        downloaded = self.download()
+        (self.capture / "controller.age").unlink()
+        result = self.check(downloaded_copy=downloaded)
+        self.assertEqual(result["status"], "FRESH_BACKUP_COPY_VERIFIED")
+        self.assertEqual(result["marker_sha256"], self.check()["marker_sha256"])
+        self.assertEqual(result["backup_gate"], "DENIED")
+        self.assertFalse(result["restore_verified"])
+        self.assertFalse(result["failure_domain_verified"])
+
+    def test_each_downloaded_member_is_bound_to_the_publication(self):
+        downloaded = self.download()
+        for name in ("COMPLETE", "provenance.json", "controller.age"):
+            with self.subTest(name=name):
+                member = downloaded / name
+                original = member.read_bytes()
+                member.write_bytes(bytes([original[0] ^ 1]) + original[1:])
+                with self.assertRaisesRegex(Denied, "MIGRATION_BACKUP_COPY_MISMATCH"):
+                    self.check(downloaded_copy=downloaded)
+                member.write_bytes(original)
+
+    def test_missing_or_unexpected_members_are_denied(self):
+        downloaded = self.download()
+        extra = downloaded / "another-file"
+        new_private_file(extra, b"extra")
+        with self.assertRaisesRegex(Denied, "MIGRATION_BACKUP_COPY_INCOMPLETE"):
+            self.check(downloaded_copy=downloaded)
+        extra.unlink()
+        (downloaded / "COMPLETE").unlink()
+        with self.assertRaisesRegex(Denied, "MIGRATION_BACKUP_COPY_INCOMPLETE"):
+            self.check(downloaded_copy=downloaded)
+
+    def test_downloaded_member_must_be_a_private_regular_file(self):
+        downloaded = self.download()
+        member = downloaded / "controller.age"
+        member.chmod(0o644)
+        with self.assertRaisesRegex(Denied, "MIGRATION_BACKUP_COPY_UNSAFE"):
+            self.check(downloaded_copy=downloaded)
+        member.unlink()
+        member.symlink_to(self.capture / "controller.age")
+        with self.assertRaisesRegex(Denied, "MIGRATION_BACKUP_COPY_UNSAFE"):
+            self.check(downloaded_copy=downloaded)
+
+    def test_signed_copy_must_still_meet_the_freshness_limit(self):
+        downloaded = self.download()
+        with self.coordinator.journal.connect() as db:
+            start = db.execute("SELECT monotonic_ns FROM transitions WHERE phase='SHORT_BARRIER'").fetchone()[0]
+        now = {**clocks(), "tick_ns": start + 1800 * NANOSECOND + 1}
+        with patch("hostorbit.runtime.migration_backup.clocks", return_value=now):
+            with self.assertRaisesRegex(Denied, "MIGRATION_BACKUP_STALE"):
+                self.check(downloaded_copy=downloaded)
+
+    def test_truncated_ciphertext_is_denied(self):
+        downloaded = self.download()
+        ciphertext = downloaded / "controller.age"
+        ciphertext.write_bytes(ciphertext.read_bytes()[:-1])
+        with self.assertRaisesRegex(Denied, "MIGRATION_BACKUP_COPY_MISMATCH"):
+            self.check(downloaded_copy=downloaded)
