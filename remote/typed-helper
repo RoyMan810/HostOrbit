@@ -176,14 +176,19 @@ def network_status(value):
 def dependency_status(path, identity, host):
     private_modes = {"PidMode": "", "IpcMode": "private", "UTSMode": "", "CgroupnsMode": "private"}
     optional_lists = [host.get(key) for key in ("Links", "Devices", "DeviceRequests", "DeviceCgroupRules", "CapAdd")]
+    logging = host.get("LogConfig")
     if (any(not isinstance(host.get(key), str) for key in private_modes)
             or type(host.get("Privileged")) is not bool or type(host.get("ReadonlyRootfs")) is not bool
+            or not isinstance(host.get("Runtime"), str) or not host["Runtime"]
+            or not isinstance(logging, dict) or not isinstance(logging.get("Type"), str)
+            or not logging["Type"] or not isinstance(logging.get("Config"), dict)
             or not isinstance(host.get("CapDrop"), list)
             or any(not isinstance(capability, str) for capability in host["CapDrop"])
             or any(entries is not None and not isinstance(entries, list) for entries in optional_lists)):
         return "UNKNOWN"
     if (any(host[key] != mode for key, mode in private_modes.items())
-            or host["Privileged"] or not host["ReadonlyRootfs"] or "ALL" not in host["CapDrop"] or any(optional_lists)):
+            or host["Privileged"] or not host["ReadonlyRootfs"] or "ALL" not in host["CapDrop"] or any(optional_lists)
+            or host["Runtime"] != "runc" or logging["Type"] not in ("local", "json-file", "none")):
         return "OTHER"
     try:
         containers = docker_get(path, "/v1.44/containers/json?all=1&limit=2")

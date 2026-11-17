@@ -47,7 +47,8 @@ def main():
 
     try:
         running = create(prefix, "web", "--publish", "127.0.0.1::8080/tcp", "--expose", "8081/tcp")
-        stopped = create(prefix, "worker", "--network", "none", "--ipc", "private", "--cgroupns", "private")
+        stopped = create(prefix, "worker", "--network", "none", "--ipc", "private", "--cgroupns", "private",
+                         "--runtime", "runc", "--log-driver", "local")
         foreign = create(prefix + "-foreign", "private", "--network", "none")
         mounted = create(prefix, "mounted", "--network", "none", "--tmpfs", "/fixture-tmpfs")
         docker("start", running, mounted)

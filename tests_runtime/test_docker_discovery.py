@@ -277,7 +277,8 @@ class DockerTransportTests(unittest.TestCase):
         self.inspect["NetworkSettings"] = {"Networks": {"none": {}}}
         options = dict(include_ports=True, include_mounts=True, include_network=True, include_dependencies=True)
         profile = {"NetworkMode": "none", "PidMode": "", "IpcMode": "private", "UTSMode": "",
-                   "CgroupnsMode": "private", "Privileged": False, "ReadonlyRootfs": True, "CapDrop": ["ALL"]}
+                   "CgroupnsMode": "private", "Privileged": False, "ReadonlyRootfs": True, "CapDrop": ["ALL"],
+                   "Runtime": "runc", "LogConfig": {"Type": "local", "Config": {}}}
         for config, peers, expected in (
             (profile, [{"Id": TARGET, "State": "running"}], "ISOLATED"),
             (profile, [{"Id": TARGET, "State": "running"}, {"Id": FOREIGN, "State": "exited"}], "OTHER"),
@@ -289,6 +290,12 @@ class DockerTransportTests(unittest.TestCase):
             ({**profile, "Devices": [{"PathOnHost": "/secret-device"}]}, [], "OTHER"),
             ({**profile, "Privileged": True}, [], "OTHER"),
             ({**profile, "CapAdd": ["SYS_ADMIN"]}, [], "OTHER"),
+            ({**profile, "LogConfig": {"Type": "syslog", "Config": {"syslog-address": "tcp://192.0.2.10:514"}}},
+             [], "OTHER"),
+            ({**profile, "LogConfig": {"Type": "local", "Config": "bad"}}, [], "UNKNOWN"),
+            ({**profile, "LogConfig": None}, [], "UNKNOWN"),
+            ({**profile, "Runtime": "custom-runtime"}, [], "OTHER"),
+            ({**profile, "Runtime": ""}, [], "UNKNOWN"),
             ({**profile, "CgroupnsMode": None}, [], "UNKNOWN"),
         ):
             with self.subTest(config=config, peers=peers):
