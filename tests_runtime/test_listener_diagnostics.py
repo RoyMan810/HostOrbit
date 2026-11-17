@@ -124,3 +124,31 @@ class ListenerDiagnosticsTests(unittest.TestCase):
                     main(["--port", "443", "--connect", address])
                 self.assertEqual(error.exception.code, 2)
                 transport.assert_not_called()
+
+
+class BindDiagnosticsTests(unittest.TestCase):
+    def test_detects_an_overlap_with_a_real_listener(self):
+        with socket.socket() as listener:
+            listener.bind(("127.0.0.1", 0))
+            listener.listen()
+            port = listener.getsockname()[1]
+            for address in ("127.0.0.1", "0.0.0.0", "::"):
+                with self.subTest(address=address):
+                    output = io.StringIO()
+                    with redirect_stdout(output):
+                        self.assertEqual(main(["--check-bind", address, "--port", str(port)]), 1)
+                    result = json.loads(output.getvalue())
+                    self.assertEqual(result["bind_check"]["state"], "POSSIBLE_CONFLICT")
+                    self.assertIn("127.0.0.1", result["bind_check"]["candidate_addresses"])
+
+    def test_dual_stack_and_unavailable_tables_are_conservative(self):
+        from hostorbit.runtime.listener_diagnostics import check_bind
+
+        report = {"ipv4": {"state": "UNKNOWN", "addresses": []},
+                  "ipv6": {"state": "LISTENING", "addresses": ["::", "::ffff:c000:201"]}}
+        with patch("hostorbit.runtime.listener_diagnostics.inspect_port", return_value=report):
+            self.assertEqual(check_bind("192.0.2.1", 443)["bind_check"]["candidate_addresses"], ["::", "::ffff:c000:201"])
+            self.assertEqual(check_bind("192.0.2.2", 443)["bind_check"]["candidate_addresses"], ["::"])
+            report["ipv6"]["addresses"] = ["::ffff:c000:201"]
+            self.assertEqual(check_bind("192.0.2.2", 443)["bind_check"]["state"], "UNKNOWN")
+            self.assertEqual(check_bind("2001:db8::1", 443)["bind_check"]["state"], "NO_CONFLICT_OBSERVED")
