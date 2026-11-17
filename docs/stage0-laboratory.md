@@ -1,6 +1,6 @@
 # Лаборатория Stage0
 
-Прототипы `stage0/` и стенды `tests/lab/` поддерживают принятые критерии Stage0. Они не входят в Controller wheel. Прикладной код находится в `hostorbit/`. Источник результатов — [принятые отчёты](../evidence/acceptance/stage0-2026-11-07/README.md); команды проверки — в [CONTRIBUTING](../CONTRIBUTING.md).
+Прототипы `stage0/` и стенды `tests/lab/` поддерживают принятые критерии Stage0. Они не входят в Controller wheel. Прикладной код находится в `hostorbit/`. Источник результатов — [машиночитаемый индекс приёмки](../evidence/acceptance/stage0-2026-11-07/review-index.json); команды проверки — в [CONTRIBUTING](../CONTRIBUTING.md).
 
 ## Допуск к изменениям
 
