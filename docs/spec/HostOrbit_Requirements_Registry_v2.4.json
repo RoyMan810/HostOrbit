@@ -1114,14 +1114,14 @@
       ],
       "dependencies": [],
       "description": "Restore source eligibility: Restore valid previous-day source archive into new empty volume; success after compatibility/origin/attestation; refuse restore on occupied target regardless of age.",
-      "evidence_path": "evidence/b05_test.json",
-      "evidence_status": "NOT_RUN",
+      "evidence_path": "evidence/tests/ac-b05.json",
+      "evidence_status": "PASS",
       "id": "CTRL-B05",
       "kind": "CONTROL",
       "owner": "Backup/Resource Restore",
       "release_inclusion": "MVP",
       "stage": "Stage2",
-      "state": "DESIGNED"
+      "state": "ACCEPTED"
     },
     {
       "acceptance_ids": [
@@ -2243,7 +2243,7 @@
       ],
       "owner": "Backup/Resource Restore",
       "stage": "Stage2",
-      "status": "NOT_RUN"
+      "status": "PASS"
     },
     {
       "assertion": "Validator rejects missing descriptions, stage, release, assertion, AC owner, dependency; test session idle/absolute expiry, logout/revocation, role change, CSRF denial and Stage0/MVP gates derived from registry.",

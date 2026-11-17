@@ -1,0 +1,40 @@
+{
+  "test_id": "AC-B05",
+  "outcome": "PASS",
+  "assertion": "Restore valid previous-day source archive into new empty volume; success after compatibility/origin/attestation; refuse restore on occupied target regardless of age.",
+  "recorded_at_utc": "2026-11-17T19:30:03.938643+00:00",
+  "source_commit": "22d4c56b9955ce2cb84317340057c3d161b34f8e",
+  "source_tree": "0d0e2a85e376611eed5779c0b78354cea223fad6",
+  "tested_pr_head": "789ca3a49b3082c2520eff43640e01e889377a3e",
+  "build_digest": "0681671b81e337d6f6df9ac4e730b1ee90387ae4e38f1a36a9e5d8e9b6eaf5c3",
+  "manifest_digest": "ceaa0fe7699ab34d22829a6d5d57a3cafd6c8a1b64b7befa8fc18666d534c607",
+  "sbom_digest": "d58cd4aa03b3c2754b6f4af6a7332d45bfa0335130908a670b58b5bed7a56657",
+  "environment": "Disposable GitHub-hosted Ubuntu 24.04, Python 3.15.2, real Docker daemon and pinned Python OCI image.",
+  "initial_state": "An encrypted and signed SQLite fixture archive dated the previous day, a valid signed procedure attestation, and an unused Docker volume name.",
+  "scenario": "Restore a previous-day Docker volume archive to a new empty volume through the offline Rescue CLI.",
+  "fault_injection": "Retry with the occupied volume name; test the occupied target independently after the successful write.",
+  "observation": "The CLI returned RESTORE_WRITTEN. A read-only Docker mount confirmed file ownership, mode, SQLite integrity and restored application data. The second CLI attempt returned RESTORE_DOCKER_TARGET_EXISTS; target checks returned RESTORE_TARGET_OCCUPIED.",
+  "reviewer": "Codex verified the fresh CI checkout and result; project Owner accepted the earlier laboratory run on 2026-11-10 as recorded in README.",
+  "owner_accepted_run": "https://github.com/RoyMan810/HostOrbit/actions/runs/42843283619",
+  "ci_job": "https://github.com/RoyMan810/HostOrbit/actions/runs/44158690787/job/134306289442",
+  "decoded_ci_log_sha256": "b79e03aa2a1568d32a85abdcd98cf78b4939662ffdf0db4ac49e49f070881e24",
+  "signed_build_metadata": {
+    "workflow": "https://github.com/RoyMan810/HostOrbit/actions/runs/44158690953",
+    "artifact": "stage1-bundle-evidence",
+    "artifact_zip_sha256": "8bb2ac9e402fc46114a2281d60c220df457d19397b61428e7f6addb9783791cb",
+    "signer_public_key_sha256": "fdd8d267d2f717c97473b1fd1dcbf58602676a4808e4d293a042d33e88e9c4be",
+    "archived_path": "evidence/acceptance/stage2-ac-b05/signed-build-metadata.zip"
+  },
+  "limitations": [
+    "The restore job uses source code on the same tested tree as the separate signed development build.",
+    "Offline terminal and Owner input are fixtures; generated test credentials and attestation are used.",
+    "Scope is the disposable Docker resource restore; Controller disaster recovery and MVP release have separate criteria."
+  ],
+  "evidence_digest": "b040790581fdc71ad4fdb6a9e3e029a331b892601f07da69345f4469042e7ebc",
+  "ci_observations": [
+    "2026-11-17T19:27:10.4179529Z HEAD is now at 22d4c56 Merge 789ca3a49b3082c2520eff43640e01e889377a3e into 9fa2462bd3a21f45447718d15b17f9e21e7e4bcf",
+    "2026-11-17T19:27:28.8809449Z test_restored_data_is_usable_in_a_new_docker_volume (test_resource_restore_attestation.RestoreAttestationTests.test_restored_data_is_usable_in_a_new_docker_volume) ... ok",
+    "2026-11-17T19:27:28.8811812Z Ran 1 test in 1.012s",
+    "2026-11-17T19:27:28.8813593Z OK"
+  ]
+}
