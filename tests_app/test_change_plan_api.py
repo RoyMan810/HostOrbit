@@ -154,6 +154,12 @@ class ChangePlanAPITests(Fixture):
         self.assertTrue(worker.run_one())
         self.assertFalse(worker.run_one())
         self.assertEqual(states(request), ["QUEUED", "INTENT_PREPARED", "DISPATCHING", "SUCCEEDED"])
+        plan_id = request.headers["location"].split("/")[-2]
+        detail = self.client.get(f"/api/v1/audit/change-plans/{plan_id}/revisions/1")
+        self.assertEqual(detail.status_code, 200, detail.text)
+        self.assertEqual(detail.json()["operation"], {
+            "id": request.json()["id"], "status": "SUCCEEDED", "reason": "DOCKER_RESTART_VERIFIED"})
+        self.assertEqual(detail.json()["backup_decision"]["gate"], "BACKUP_NOT_REQUIRED")
         self.assertEqual(execute.call_args.args[3]["started_at"], STARTED_AT)
         execute.assert_called_once()
 
@@ -189,3 +195,54 @@ class ChangePlanAPITests(Fixture):
         self.create_user(name="limited", grants=[{"permission": "vps:read", "resource_id": identifier()}])
         other = self.other_client("limited")
         self.assertEqual(other.get(draft.headers["location"]).status_code, 404)
+
+    def test_audit_reads_the_exact_revision_and_ignores_unrelated_evidence(self):
+        draft = self.draft()
+        plan = draft.json()
+        route = f"/api/v1/audit/change-plans/{plan['id']}/revisions/"
+        self.now += 1
+        headers = self.headers(**{"If-Match": draft.headers["etag"], "Idempotency-Key": REQUEST_KEY})
+        job = self.client.post(draft.headers["location"] + "/preflight", json={}, headers=headers).json()["id"]
+        self.complete_probe(job)
+        decision = self.client.post(draft.headers["location"] + "/backup-decision",
+                                    json={"probe_id": job, "request_key": REQUEST_KEY}, headers=headers)
+        self.assertEqual(decision.status_code, 200, decision.text)
+        newer = self.client.put(draft.headers["location"], json={}, headers=headers)
+        self.assertEqual(newer.status_code, 200, newer.text)
+        with self.store.write() as db:
+            self.store.event(db, at=self.now, actor=self.owner, kind="change_plan.backup_evaluated",
+                             target=SCOPE, correlation=plan["id"], outcome="DENIED", details={
+                                 "revision": 1, "plan_hash": newer.json()["plan_hash"],
+                                 "backup_gate": "BACKUP_GATE_DENIED", "backup_gate_reason": "UNRELATED"})
+            self.store.event(db, at=self.now, actor=self.owner, kind="change_plan.restart_finished",
+                             target=SCOPE, correlation=plan["id"], outcome="SUCCEEDED",
+                             details={"operation_id": identifier(), "revision": 1})
+        saved = self.client.get(route + "1")
+        self.assertEqual(saved.status_code, 200, saved.text)
+        self.assertEqual(saved.json(), {"plan": plan, "operation": None, "backup_decision": {
+            "gate": "BACKUP_NOT_REQUIRED", "reason": "RESTART_STATELESS_TEST_CONTAINER"}})
+        self.assertEqual(self.client.get(route + "2").json(), {
+            "plan": newer.json(), "operation": None, "backup_decision": None})
+        self.assertNotIn("probe_nonce", saved.text)
+        self.assertNotIn("scope_digest", saved.text)
+        self.assertEqual(self.client.get(route + "3").status_code, 404)
+        with self.store.write() as db:
+            db.execute("UPDATE change_plan_drafts SET plan_hash=? WHERE id=? AND revision=1", ("0"*64, plan["id"]))
+        self.assertEqual(self.client.get(route + "1").json()["code"], "CHANGE_PLAN_INTEGRITY")
+
+    def test_audit_plan_requires_both_audit_and_current_resource_access(self):
+        plan = self.draft().json()
+        route = f"/api/v1/audit/change-plans/{plan['id']}/revisions/1"
+        self.create_user(name="scoped", role="Auditor", grants=[
+            {"permission": "audit:read", "resource_id": "*"}, {"permission": "vps:read", "resource_id": SCOPE}])
+        other = self.other_client("scoped")
+        self.assertEqual(other.get(route).status_code, 200)
+        with self.store.write() as db:
+            db.execute("DELETE FROM grants WHERE permission='vps:read'")
+        response = other.get(route)
+        self.assertEqual(response.status_code, 404)
+        self.assertNotIn(CONTAINER, response.text)
+        self.create_user(name="only-vps", grants=[{"permission": "vps:read", "resource_id": SCOPE}])
+        response = self.other_client("only-vps").get(route)
+        self.assertEqual(response.status_code, 403)
+        self.assertNotIn(CONTAINER, response.text)

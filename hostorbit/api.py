@@ -15,6 +15,7 @@ from starlette.concurrency import run_in_threadpool
 
 from . import __version__
 from .admission import Admission
+from .audit_plan import audit_plan_revision
 from .auth import ABSOLUTE_SECONDS, COOKIE, AuthService, Role
 from .change_drafts import (get_draft, record_draft_approval, record_draft_backup_decision,
                             request_draft_probe, save_draft)
@@ -291,6 +292,13 @@ def create_app(settings: Settings, *, auth: AuthService | None = None):
     @app.get("/api/v1/audit")
     def audit(request: Request, after: Annotated[int, Field(ge=0, lt=2**63)] = 0, actor=Depends(audit_access)):
         return {"items": service.audit_events(token(request), after)}
+
+    @app.get("/api/v1/audit/change-plans/{draft_id}/revisions/{revision}")
+    def audit_change_plan(draft_id: Annotated[str, Field(pattern="^" + ULID + "$")],
+                          revision: Annotated[int, Field(ge=1, lt=2**31)],
+                          request: Request, actor=Depends(principal)):
+        with service.store.read() as db:
+            return audit_plan_revision(db, service, token(request), draft_id, revision)
 
     @app.get("/api/v1/audit/integrity")
     def audit_integrity(actor=Depends(audit_access)):
