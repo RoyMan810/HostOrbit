@@ -1,11 +1,11 @@
 {
   "scope": "Tracked Foundation application, deploy, remote and test paths plus historical report paths and CI/build inputs; each file matches the checked commit.",
-  "source_commit": "455a7f23be288c512cf073aa944f51cf94f1d31f",
-  "source_tree": "13e1f3adc46dc5c967fe537b73e7cb9229e82441",
+  "source_commit": "689d279e0636d783e26ce9f5abf86df194a2beac",
+  "source_tree": "8fd5e4536b8e1816a55b062c60e4ba65e44c8350",
   "files": [
     {
       "path": ".github/workflows/checks.yml",
-      "sha256": "340df3682a94f1bb47811d97d12bb0e542aa5b5019d065b52642fde779debe4f"
+      "sha256": "d62239411d231af8a01dcb1ab6e9bdf75bf848bbf95dde9bc6c6fcd1ed1054d0"
     },
     {
       "path": "deploy/Controller.Dockerfile",
@@ -225,7 +225,7 @@
     },
     {
       "path": "hostorbit/runtime/resource_archive.py",
-      "sha256": "0ed632772602196e9d65719c630e09645b595269fda51b85f07bb8c0fa00948a"
+      "sha256": "ebf2bdae9c1fa7bbae6488e4ebe5103630b3ffa195c80add0821aba898bd52c0"
     },
     {
       "path": "hostorbit/runtime/sftp_publication.py",
