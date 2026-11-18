@@ -99,6 +99,11 @@ def fixture(directory):
         else:
             queue.finish(claim, outcome, "SSH_CONNECTION_LOST")
 
+    @app.post("/__fixture__/reset-api-budget", status_code=204)
+    def reset_api_budget():
+        with store.write() as db:
+            db.execute("DELETE FROM api_calls")
+
     @app.post("/__fixture__/restarts/{draft_id}/unknown", status_code=204)
     def report_unknown_restart(draft_id: str):
         with store.write() as db:

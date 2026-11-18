@@ -660,7 +660,10 @@ test('displays the Controller denial for an operator with read access only', asy
 })
 
 test('reviews and queues an approved v8 restart in the real Controller exactly once', async ({ page }) => {
+  // This scenario shares the fixture Owner with the other browser contexts.
+  expect((await page.request.post('/__fixture__/reset-api-budget')).status()).toBe(204)
   await signIn(page)
+  await page.getByRole('button', { name: new RegExp(never) }).click()
   const baselineReply = acceptedProbe(page)
   await page.getByRole('button', { name: 'Run SSH check' }).click()
   const baseline = await (await baselineReply).json()
