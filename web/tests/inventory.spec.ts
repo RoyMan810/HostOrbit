@@ -659,6 +659,56 @@ test('displays the Controller denial for an operator with read access only', asy
   await expect(page.getByRole('button', { name: 'Retry the same request' })).toHaveCount(0)
 })
 
+test('reviews and queues an approved v8 restart in the real Controller exactly once', async ({ page }) => {
+  await signIn(page)
+  const baselineReply = acceptedProbe(page)
+  await page.getByRole('button', { name: 'Run SSH check' }).click()
+  const baseline = await (await baselineReply).json()
+  const complete = (id: string) => page.request.post('/__fixture__/jobs/' + id + '/finish', {
+    params: { outcome: 'SUCCEEDED', restart: 'true' },
+  })
+  expect((await complete(baseline.id)).status()).toBe(204)
+  await expect(page.getByText('Check completed', { exact: true })).toBeVisible()
+  await expect(page.getByText('No published host ports', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Preview restart for fixture / web' }).click()
+
+  const save = page.getByRole('button', { name: 'Create restart plan' })
+  await expect(save).toBeDisabled()
+  await page.getByRole('checkbox', { name: 'This isolated test container' }).check()
+  await save.click()
+  await expect(page.getByText('Plan revision 1', { exact: false })).toBeVisible()
+  const preflightReply = page.waitForResponse(response =>
+    response.url().endsWith('/preflight') && response.status() === 202)
+  await page.getByRole('button', { name: 'Run preflight' }).click()
+  const job = await (await preflightReply).json()
+  expect((await complete(job.id)).status()).toBe(204)
+  await page.getByRole('button', { name: 'Refresh status' }).click()
+  await expect(page.getByText('Backup Gate confirmed that a resource backup is not required.')).toBeVisible()
+  await page.getByLabel('Owner password').fill(password)
+  const execute = page.getByRole('button', { name: 'Queue Docker restart' })
+  await expect(execute).toHaveCount(0)
+  await page.getByRole('button', { name: 'Confirm this revision' }).click()
+  await expect(execute).toBeEnabled()
+  await expect(page.getByLabel('Owner password')).toHaveCount(0)
+
+  let accepted = ''
+  await page.route('**/execution-requests', async route => {
+    const response = await route.fetch()
+    expect(response.status()).toBe(202)
+    accepted = (await response.json()).id
+    await route.abort('failed')
+  }, { times: 1 })
+  await execute.click()
+  await expect(page.getByRole('alert')).toContainText('The Controller could not confirm this step.')
+  expect(accepted).toBeTruthy()
+  const retry = page.waitForResponse(response => response.url().endsWith('/execution-requests') && response.status() === 202)
+  await execute.click()
+  expect((await (await retry).json()).id).toBe(accepted)
+  const timeline = page.getByRole('region', { name: 'Restart timeline' })
+  await expect(timeline.getByRole('listitem')).toHaveCount(1)
+  await expect(timeline.getByRole('listitem')).toHaveText('Queued')
+})
+
 test('a denied retry leaves the earlier acceptance uncertain and blocks a fresh key', async ({ page }) => {
   await signIn(page)
   let acceptedId = ''
