@@ -36,6 +36,19 @@ class DockerPayloadTests(unittest.TestCase):
                  "docker": docker}
         return parse_probe(canonical(value), version, now=1000)
 
+    def test_v8_start_time_is_strict_and_preserves_nanoseconds(self):
+        started = "2026-11-18T01:02:03.123456789Z"
+        row = {**ROW, "published_ports": [], "mount_status": "NONE", "network_status": "ISOLATED",
+               "dependency_status": "ISOLATED", "started_at": started}
+        self.assertEqual(self.parse({"status": "OBSERVED", "containers": [row]}, version=8)["docker"]["containers"][0], row)
+        self.assertEqual(HELPER["docker_started_at"]({"State": {"StartedAt": started}}), started)
+        for bad in ("0001-01-01T00:00:00Z", "2026-02-30T01:02:03Z", "canary"):
+            with self.subTest(bad=bad), self.assertRaises(Denied):
+                self.assertIsNone(HELPER["docker_started_at"]({"State": {"StartedAt": bad}}))
+                self.parse({"status": "OBSERVED", "containers": [{**row, "started_at": bad}]}, version=8)
+        with self.assertRaises(Denied):
+            self.parse({"status": "OBSERVED", "containers": [row]}, version=7)
+
     def test_v3_accepts_only_the_bounded_typed_summary(self):
         self.assertEqual(self.parse(SUMMARY)["docker"], SUMMARY)
         for payload in ({"status": "OBSERVED", "containers": []},

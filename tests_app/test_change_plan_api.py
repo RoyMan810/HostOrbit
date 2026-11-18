@@ -5,6 +5,7 @@ from test_auth_api import Fixture, PASSWORD, SCOPE
 
 CONTAINER = "c" * 64
 REQUEST_KEY = "fixture-preflight-001"
+STARTED_AT = "2026-11-18T01:02:03.123456789Z"
 
 
 class ChangePlanAPITests(Fixture):
@@ -13,7 +14,7 @@ class ChangePlanAPITests(Fixture):
         self.queue = JobQueue(self.store, clock=self.auth.clock)
         self.queue.register_resource(SCOPE, "a" * 64, 1)
 
-    def complete_probe(self, job):
+    def complete_probe(self, job, *, started_at=STARTED_AT):
         claim, row = self.queue.claim(identifier())
         self.assertEqual(row["id"], job)
         self.queue.advance(claim, "INTENT_PREPARED", permit={"claims": self.queue.binding(row)})
@@ -26,7 +27,7 @@ class ChangePlanAPITests(Fixture):
             "docker": {"status": "OBSERVED", "containers": [{
                 "id": CONTAINER, "project": "fixture", "service": "web", "state": "RUNNING",
                 "mount_status": "NONE", "network_status": "ISOLATED",
-                "dependency_status": "ISOLATED", "published_ports": [],
+                "dependency_status": "ISOLATED", "published_ports": [], "started_at": started_at,
             }]},
         })
 
@@ -67,6 +68,7 @@ class ChangePlanAPITests(Fixture):
         content = {**evidence, "reauth_id": grant.json()["id"]}
         approved = self.client.post(route + "/approval", json=content, headers=headers)
         self.assertEqual(approved.status_code, 200, approved.text)
+        self.assertEqual(approved.json()["started_at"], STARTED_AT)
         self.assertEqual(approved.json()["approval"], "REHEARSAL_RECORDED")
         self.assertEqual(approved.json()["execution"], "BLOCKED")
         replay = self.client.post(route + "/approval", json=content, headers=headers)
@@ -79,6 +81,21 @@ class ChangePlanAPITests(Fixture):
         with self.store.read() as db:
             self.assertEqual(db.execute("SELECT DISTINCT action FROM jobs").fetchall()[0][0], "host.probe")
             self.assertEqual(db.execute("SELECT count(*) FROM jobs").fetchone()[0], 2)
+
+    def test_preflight_rejects_a_restart_after_saving_the_draft(self):
+        draft = self.draft()
+        self.assertEqual(draft.json()["baseline"]["started_at"], STARTED_AT)
+        headers = self.headers(**{"If-Match": draft.headers["etag"], "Idempotency-Key": REQUEST_KEY})
+        self.now += 1
+        route = draft.headers["location"]
+        preflight = self.client.post(route + "/preflight", json={}, headers=headers)
+        self.assertEqual(preflight.status_code, 202, preflight.text)
+        job = preflight.json()["id"]
+        self.complete_probe(job, started_at="2026-11-18T01:02:04Z")
+        decision = self.client.post(route + "/backup-decision", headers=headers,
+                                    json={"probe_id": job, "request_key": REQUEST_KEY})
+        self.assertEqual(decision.status_code, 409, decision.text)
+        self.assertEqual(decision.json()["code"], "STALE_BASELINE")
 
     def test_scoped_session_cannot_read_another_vps_draft(self):
         draft = self.draft()

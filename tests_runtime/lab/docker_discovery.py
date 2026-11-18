@@ -101,6 +101,9 @@ def main():
                 {**scope[1], "state": "RUNNING", "published_ports": [], "mount_status": "NONE",
                  "network_status": "ISOLATED", "dependency_status": "ISOLATED"},
             ]}, result
+            result = observe(registry, protected_socket, include_started_at=True, **options)
+            started_at = docker("inspect", "--format", "{{.State.StartedAt}}", stopped)
+            assert result["containers"][0]["started_at"] == started_at, result
             protected_socket.unlink()
             protected_socket.symlink_to(socket_path)
             assert observe(registry, protected_socket) == {"status": "UNAVAILABLE", "containers": []}

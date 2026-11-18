@@ -94,7 +94,7 @@ def _baseline(db, resource_id, container_id, now):
             "observed_at": sample["observed_at"], "boot_id": sample["boot_id"],
             "scope_digest": resource["scope_digest"], "resource_revision": resource["revision"],
             "policy_revision": resource["policy_revision"]}
-    baseline.update({key: container[key] for key in ("mount_status", "network_status", "dependency_status") if key in container})
+    baseline.update({key: container[key] for key in ("mount_status", "network_status", "dependency_status", "started_at") if key in container})
     return baseline
 
 
@@ -193,6 +193,9 @@ def _check_probe(draft_db, source_db, auth, token, row, draft, probe_id, request
         raise Denied("NEW_PROBE_REQUIRED", 409)
     if any(current[key] != baseline[key] for key in ("target", "boot_id", "scope_digest", "resource_revision", "policy_revision")):
         raise Denied("STALE_BASELINE", 409)
+    started_at = current.get("started_at")
+    if baseline.get("started_at") is not None and started_at != baseline["started_at"]:
+        raise Denied("STALE_BASELINE", 409)
     gate, reason = "BACKUP_GATE_DENIED", "RESTART_OWNER_CONFIRMATION_REQUIRED"
     if baseline.get("stateless_test_confirmed") is True:
         mounts = current.get("mount_status")
@@ -208,12 +211,12 @@ def _check_probe(draft_db, source_db, auth, token, row, draft, probe_id, request
     return {"draft_id": row["id"], "revision": row["revision"], "plan_hash": row["plan_hash"],
             "observation_id": probe_id, "checked_at": checked_at, "baseline_check": "MATCHED",
             "backup_gate": gate, "backup_gate_reason": reason,
-            "execution": draft["execution"]}
+            "execution": draft["execution"], **({"started_at": started_at} if started_at is not None else {})}
 
 
 def _backup_details(result):
-    return {**{key: result[key] for key in ("revision", "plan_hash", "observation_id",
-                                           "backup_gate", "backup_gate_reason")}, "rehearsal": True}
+    keys = ("revision", "plan_hash", "observation_id", "backup_gate", "backup_gate_reason", "started_at")
+    return {**{key: result[key] for key in keys if key in result}, "rehearsal": True}
 
 
 def record_draft_backup_decision(draft_db, source_db, auth, token, csrf, draft_id, *,
