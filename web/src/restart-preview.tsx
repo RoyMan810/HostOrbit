@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { ApiError, request } from './api'
-import type { DockerContainer, DockerRestartPreview, Observation, Resource } from './api'
+import type { DockerContainer, DockerRestartPreview, Observation, Resource, Session } from './api'
 import type { Copy } from './copy'
+import { RestartPlan } from './restart-plan'
 
 type Status = 'idle' | 'loading' | 'ready' | 'denied' | 'stale' | 'rateLimited' | 'error'
 
-export function RestartPreview({ resource, container, sample, t, expired }: {
+export function RestartPreview({ resource, container, sample, t, expired, session }: {
   resource: Resource
   container: DockerContainer
   sample: NonNullable<Observation['last_success']>
   t: Copy
   expired: () => void
+  session: Session
 }) {
   const [status, setStatus] = useState<Status>('idle')
   const pending = useRef<AbortController | null>(null)
@@ -52,7 +54,7 @@ export function RestartPreview({ resource, container, sample, t, expired }: {
   }
 
   return <div className="docker-preview">
-    <button type="button" disabled={status === 'loading'} onClick={loadPreview}
+    <button type="button" disabled={status === 'loading' || status === 'ready'} onClick={loadPreview}
       aria-label={`${t.restartPreviewFor} ${container.project} / ${container.service}`}
       aria-describedby={`docker-container-${container.id}`}>
       {status === 'loading' ? t.loading : t.restartPreview}
@@ -62,6 +64,8 @@ export function RestartPreview({ resource, container, sample, t, expired }: {
       <p>{t.restartPreviewRisk}</p>
       <code>{container.id}</code>
     </div>}
+    {status === 'ready' && session.user.role === 'Owner' && typeof container.started_at === 'string' &&
+      <RestartPlan resource={resource} container={container} sample={sample} csrf={session.csrf_token} t={t} expired={expired}/>}
     {status === 'denied' && <p role="alert" className="error">{t.restartPreviewDenied}</p>}
     {status === 'stale' && <p role="alert" className="error">{t.restartPreviewStale}</p>}
     {status === 'rateLimited' && <p role="alert" className="error">{t.rateLimited}</p>}

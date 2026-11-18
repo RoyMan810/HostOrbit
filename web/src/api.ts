@@ -15,6 +15,7 @@ export interface DockerContainer {
   project: string
   service: string
   state: ContainerState
+  started_at?: string | null
 }
 interface DockerPortBinding {
   address: string
@@ -73,11 +74,14 @@ export async function request<T>(path: string, options: {
   body?: object
   csrf?: string
   idempotencyKey?: string
+  ifMatch?: string
+  onHeaders?: (headers: Headers) => void
 } = {}): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' }
   if (options.body) headers['Content-Type'] = 'application/json'
   if (options.csrf) headers['X-CSRF-Token'] = options.csrf
   if (options.idempotencyKey) headers['Idempotency-Key'] = options.idempotencyKey
+  if (options.ifMatch) headers['If-Match'] = options.ifMatch
   const response = await fetch('/api/v1' + path, {
     method: options.body ? 'POST' : 'GET',
     body: options.body ? JSON.stringify(options.body) : undefined,
@@ -88,6 +92,7 @@ export async function request<T>(path: string, options: {
     headers,
   })
   if (!response.ok) throw new ApiError(response.status)
+  options.onHeaders?.(response.headers)
   if (response.status === 204) return undefined as T
   return response.json() as Promise<T>
 }

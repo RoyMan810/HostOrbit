@@ -72,7 +72,7 @@ def fixture(directory):
             db.execute("UPDATE resources SET enabled=0 WHERE id=?", (resource_id,))
 
     @app.post("/__fixture__/jobs/{job_id}/finish", status_code=204)
-    def finish_job(job_id: str, outcome: Literal["SUCCEEDED", "UNKNOWN_OUTCOME"]):
+    def finish_job(job_id: str, outcome: Literal["SUCCEEDED", "UNKNOWN_OUTCOME"], restart: bool = False):
         # Advance the actual durable queue in the disposable browser fixture.
         with store.read() as db:
             queued = db.execute(
@@ -85,10 +85,16 @@ def fixture(directory):
         for state in ("DISPATCHING", "EXECUTING", "VERIFYING"):
             queue.advance(claim, state)
         if outcome == "SUCCEEDED":
-            queue.finish(claim, outcome, "PROBE_VERIFIED", result={
-                "status": "REACHABLE", "source": "restricted_helper", "observed_at": int(time.time()),
-                "boot_id": "11111111-1111-1111-1111-111111111111",
-            })
+            result = {"status": "REACHABLE", "source": "restricted_helper", "observed_at": int(time.time()),
+                      "boot_id": "11111111-1111-1111-1111-111111111111"}
+            if restart:
+                result["software"] = {"docker": "PRESENT", "nginx": "NOT_DETECTED"}
+                result["docker"] = {"status": "OBSERVED", "containers": [{
+                    "id": "a" * 64, "project": "fixture", "service": "web", "state": "RUNNING",
+                    "published_ports": [], "mount_status": "NONE", "network_status": "ISOLATED",
+                    "dependency_status": "ISOLATED", "started_at": "2026-11-18T00:00:00.123456789Z",
+                }]}
+            queue.finish(claim, outcome, "PROBE_VERIFIED", result=result)
         else:
             queue.finish(claim, outcome, "SSH_CONNECTION_LOST")
 

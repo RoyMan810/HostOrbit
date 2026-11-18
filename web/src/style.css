@@ -156,3 +156,12 @@ dd { margin: 5px 0 0; font-size: 14px; font-weight: 650; }
 .docker-ports ul { margin: 4px 0 0; padding-inline-start: 18px; }
 .docker-preview { display: grid; justify-items: start; gap: 8px; margin-top: 8px; }
 .docker-preview-result { display: grid; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
+
+.restart-plan, .restart-plan form, .restart-plan label:has(input[type="password"]) {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  min-width: 0;
+}
+.restart-plan ol { padding-inline-start: 1.4rem; }
+.restart-plan code { overflow-wrap: anywhere; }

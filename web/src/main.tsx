@@ -93,8 +93,8 @@ function statusReason(reason: string, t: Copy) {
   }
 }
 
-function Detail({ resource, t, lang, now, expired, canPreview }: {
-  resource: Resource; t: Copy; lang: Language; now: number; expired: () => void; canPreview: boolean
+function Detail({ resource, t, lang, now, expired, session }: {
+  resource: Resource; t: Copy; lang: Language; now: number; expired: () => void; session: Session
 }) {
   const observation = resource.observation
   const current = observationState(observation, now)
@@ -153,10 +153,10 @@ function Detail({ resource, t, lang, now, expired, canPreview }: {
                 })}
               </ul>}
           </div>
-          {canPreview && resource.enabled && current.status === 'REACHABLE' && container.state === 'RUNNING' && sample &&
+          {session.user.role !== 'Auditor' && resource.enabled && current.status === 'REACHABLE' && container.state === 'RUNNING' && sample &&
             <RestartPreview key={JSON.stringify([resource.id, resource.revision, resource.policy_revision,
-              sample.observed_at, sample.boot_id, container.project, container.service])}
-              resource={resource} container={container} sample={sample} t={t} expired={expired}/>}
+              sample.observed_at, sample.boot_id, container.project, container.service, container.started_at])}
+              resource={resource} container={container} sample={sample} t={t} expired={expired} session={session}/>}
         </li>)}
       </ul> : <p>{t.dockerStatus[docker.status]}</p>}
     </div>}
@@ -258,7 +258,7 @@ function Inventory({ t, lang, expired, session }: { t: Copy; lang: Language; exp
         {detailError != null ? <p className="notice error" role="alert">
           {detailError instanceof ApiError && [403, 404].includes(detailError.status) ? t.missing : message(detailError, t)}
         </p> : current ? <Detail resource={current} t={t} lang={lang} now={now}
-          expired={expired} canPreview={session.user.role !== 'Auditor'}/> :
+          expired={expired} session={session}/> :
           <p className="notice" role="status">{selected && !error ? t.loading : t.select}</p>}
         <ProbeControl resource={current} session={session} t={t} lang={lang} expired={expired} reload={reload}/>
       </section>
