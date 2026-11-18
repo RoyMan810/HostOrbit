@@ -1,5 +1,6 @@
 """Canonical bounded frames shared by local IPC and signed capabilities."""
 
+from datetime import datetime
 import hashlib
 from ipaddress import ip_address
 import json
@@ -100,7 +101,7 @@ def _validate_published_ports(ports, state):
         seen.add((address, host, private, protocol))
 
 
-def docker_summary(value, *, include_ports=None, include_mounts=None, include_network=None, include_dependencies=None):
+def docker_summary(value, *, include_ports=None, include_mounts=None, include_network=None, include_dependencies=None, include_started_at=None):
     fields(value, ("status", "containers"))
     status, rows = value["status"], value["containers"]
     if (status not in ("OBSERVED", "NOT_CONFIGURED", "POLICY_INVALID", "UNAVAILABLE")
@@ -130,6 +131,12 @@ def docker_summary(value, *, include_ports=None, include_mounts=None, include_ne
         if not include_network:
             raise Denied("PROBE_DOCKER_INVALID")
         names += ("dependency_status",)
+    if include_started_at is None:
+        include_started_at = bool(rows and isinstance(rows[0], dict) and "started_at" in rows[0])
+    if include_started_at:
+        if not include_dependencies:
+            raise Denied("PROBE_DOCKER_INVALID")
+        names += ("started_at",)
     seen = set()
     for item in rows:
         fields(item, names)
@@ -155,4 +162,14 @@ def docker_summary(value, *, include_ports=None, include_mounts=None, include_ne
             and item["dependency_status"] != "UNKNOWN"
         ):
             raise Denied("PROBE_DOCKER_INVALID")
+        if include_started_at and item["started_at"] is not None:
+            started_at = item["started_at"]
+            if (item["state"] != "RUNNING" or not isinstance(started_at, str)
+                    or started_at.startswith("0001-01-01T00:00:00")
+                    or not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,9})?Z", started_at)):
+                raise Denied("PROBE_DOCKER_INVALID")
+            try:
+                datetime.fromisoformat(started_at)
+            except ValueError:
+                raise Denied("PROBE_DOCKER_INVALID") from None
     return value
