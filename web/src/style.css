@@ -163,5 +163,3 @@ dd { margin: 5px 0 0; font-size: 14px; font-weight: 650; }
   gap: 8px;
   min-width: 0;
 }
-.restart-plan ol { padding-inline-start: 1.4rem; }
-.restart-plan code { overflow-wrap: anywhere; }

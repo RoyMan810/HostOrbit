@@ -2,16 +2,27 @@ import { useEffect, useState } from 'react'
 import { ApiError, isUlid, request } from './api'
 import type { Copy, Language } from './copy'
 import { JobTimeline } from './job-timeline'
+import { restartHash } from './restart-timeline'
 
 type AuditEvent = {
   seq: number
   event: {
     at: number; actor_id: string; event: string; target_id: string; outcome: string; correlation_id: string
-    details?: { revision?: unknown }
+    details?: { revision?: unknown; operation_id?: unknown }
   }
 }
 
 type AuditEntry = AuditEvent & { planRevision: number | null }
+
+const restartEvents = new Set(['change_plan.restart_requested', 'change_plan.restart_prepared', 'change_plan.restart_finished'])
+
+function restartLink(event: AuditEvent['event']) {
+  const { revision, operation_id: operationId } = event.details ?? {}
+  if (!restartEvents.has(event.event) || !isUlid(event.correlation_id) || !isUlid(event.target_id) ||
+      !isUlid(operationId) || typeof revision !== 'number' || !Number.isSafeInteger(revision) ||
+      revision < 1 || revision > 2_147_483_647) return null
+  return restartHash({ planId: event.correlation_id, operationId, revision })
+}
 
 const jobEvents = new Set(['job.accepted', 'job.transition', 'job.finished'])
 const authOutcomes = new Map([
@@ -187,6 +198,7 @@ export function Audit({ t, lang, expired }: { t: Copy; lang: Language; expired: 
               && entry.event.correlation_id === event.correlation_id && entry.event.target_id === event.target_id)
             const previous = related.filter(entry => entry.seq < seq).at(-1)
             const next = related.find(entry => entry.seq > seq)
+            const restart = restartLink(event)
             return <li key={seq}>
               <strong>{event.event}</strong> <span id={`audit-event-${seq}`} tabIndex={planRevision === null ? undefined : -1}>#{seq} · {event.outcome}</span>
               <dl className="audit-facts">
@@ -202,6 +214,7 @@ export function Audit({ t, lang, expired }: { t: Copy; lang: Language; expired: 
                   <a href={`#audit-event-${entry.seq}`}>{t.auditPlanRevision} {entry.planRevision} · #{entry.seq}</a>
                 </li>)}</ul>
               </div>}
+              {restart && <a href={restart}>{t.restartTimeline}</a>}
               {jobEvents.has(event.event) && isUlid(event.correlation_id) &&
                 <JobTimeline jobId={event.correlation_id} t={t} lang={lang} expired={expired}
                   describedBy={`audit-event-${seq}`}/>}
