@@ -5,14 +5,16 @@ from threading import Event
 from .database import identifier
 from .errors import Denied
 from .queue import JobQueue
+from .restart_requests import RestartWorker
 from .runtime.protocol import checksum, docker_summary, fields, integer, software_summary, text
 from .runtime.storage import process_lock
 
 
 class Worker:
-    def __init__(self, queue: JobQueue, gate, broker, *, secret_refs, observe=None):
+    def __init__(self, queue: JobQueue, gate, broker, *, secret_refs, observe=None, restart_refs=None):
         self.queue, self.gate, self.broker = queue, gate, broker
         self.secret_refs = secret_refs
+        self.restart = RestartWorker(queue.store, gate, broker, queue.clock, restart_refs) if restart_refs is not None else None
         self.id = identifier()
         self.observe = observe or (lambda _: None)
 
@@ -32,6 +34,8 @@ class Worker:
         return "UNKNOWN_OUTCOME"
 
     def run_one(self):
+        if self.restart is not None and self.restart.run_one():
+            return True
         try:
             claimed = self.queue.claim(self.id)
         except Denied as error:
@@ -102,6 +106,8 @@ class Worker:
             # them against a fresh authority or require schema-2 queue tables.
             if not recovery_profile():
                 self.queue.recover(self._recover_result)
+                if self.restart is not None:
+                    self.restart.recover()
             while not stop.is_set():
                 found = False if recovery_profile() else self.run_one()
                 if once:

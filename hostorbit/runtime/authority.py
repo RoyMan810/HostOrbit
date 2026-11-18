@@ -14,7 +14,7 @@ from nacl.signing import SigningKey, VerifyKey
 
 from ..errors import Denied
 from . import policy as policy_module
-from .protocol import SHA256, ULID, canonical, checksum, fields, integer, text
+from .protocol import SHA256, ULID, canonical, checksum, fields, integer, restart_payload, text
 from .storage import Journal, new_private_file, protected_bytes
 from .timehealth import ANCHOR_FIELDS, TimeHealth
 
@@ -38,8 +38,14 @@ def host_binding():
 
 def verify_permit(permit, verify_key, *, now):
     fields(permit, ("claims", "signature"))
-    anchored = isinstance(permit["claims"], dict) and permit["claims"].get("mutating") is True
-    claims = fields(permit["claims"], (*_BINDING_FIELDS, "v", "authority_id", "epoch", "nonce", "issued_at", "expires_at", "lock_closure_digest", "mutating", *(("time_anchor",) if anchored else ())))
+    value = permit["claims"]
+    if not isinstance(value, dict):
+        raise Denied("PERMIT_PROTOCOL_INVALID")
+    extras = ("time_anchor",) if value.get("mutating") is True else ()
+    if value.get("capability") == "docker.restart":
+        extras += ("restart",)
+    claims = fields(value, (*_BINDING_FIELDS, "v", "authority_id", "epoch", "nonce", "issued_at",
+                            "expires_at", "lock_closure_digest", "mutating", *extras))
     if type(claims["v"]) is not int or claims["v"] != 1 or type(claims["mutating"]) is not bool:
         raise Denied("PERMIT_PROTOCOL_INVALID")
     try:
@@ -156,7 +162,14 @@ class Authority:
         name = request.get("capability") if isinstance(request, dict) else None
         capability = policy_module.CAPABILITIES.get(name) if isinstance(name, str) else None
         anchored = capability is not None and capability.mutating
-        fields(request, (*_BINDING_FIELDS, *(("time_anchor",) if anchored else ())))
+        if name == "docker.restart":
+            target_id = request.get("target")
+            target = self.policy.targets.get(target_id) if isinstance(target_id, str) else None
+            if target is None or name not in target.value["capabilities"]:
+                raise Denied("CAPABILITY_DISABLED")
+        fields(request, (*_BINDING_FIELDS, *(("time_anchor",) if anchored else ()), *(("restart",) if name == "docker.restart" else ())))
+        if name == "docker.restart" and restart_payload(request["restart"])["operation_id"] != request["job_id"]:
+            raise Denied("PERMIT_BINDING_INVALID")
         for key in ("job_id", "plan_id", "actor_id", "target"):
             text(request[key], ULID)
         text(request["approval_id"], ULID)
@@ -169,7 +182,7 @@ class Authority:
             gate = self._gate(db)
             if not gate["activated"] or (mutating and gate["state"] != "NORMAL"):
                 raise Denied("GATE_CLOSED")
-            if self.recovery_authorization and target.id not in self.recovery_authorization["allowed_targets"]:
+            if self.recovery_authorization and (mutating or target.id not in self.recovery_authorization["allowed_targets"]):
                 raise Denied("TARGET_QUARANTINED")
             if mutating and db.execute("SELECT 1 FROM incidents").fetchone():
                 raise Denied("OPEN_INCIDENT")
@@ -192,7 +205,7 @@ class Authority:
             gate = self._gate(db)
             if not gate["activated"]:
                 raise Denied("GATE_CLOSED")
-            if self.recovery_authorization and claims["target"] not in self.recovery_authorization["allowed_targets"]:
+            if self.recovery_authorization and (claims["mutating"] or claims["target"] not in self.recovery_authorization["allowed_targets"]):
                 raise Denied("TARGET_QUARANTINED")
             if claims["epoch"] != gate["epoch"] or (claims["mutating"] and gate["state"] != "NORMAL"):
                 raise Denied("STALE_GATE_EPOCH")

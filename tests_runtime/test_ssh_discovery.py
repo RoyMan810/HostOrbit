@@ -10,7 +10,7 @@ import asyncssh
 
 from hostorbit.errors import Denied
 from hostorbit.runtime.protocol import canonical
-from hostorbit.runtime.ssh import exchange, parse_probe
+from hostorbit.runtime.ssh import exchange, exchange_restart, parse_probe
 
 
 BOOT = '12345678-1234-1234-1234-123456789abc'
@@ -101,3 +101,18 @@ class ProbeNegotiationTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaisesRegex(Denied, 'SSH_REMOTE_PROBE_FAILED'):
                     await self.probe()
                 self.assertEqual(len(self.requests), 1)
+
+
+    async def test_restart_is_one_fixed_command_with_a_typed_reply(self):
+        request = {"operation_id": "0" * 26, "container_id": "a" * 64, "boot_id": BOOT,
+                   "started_at": "2026-11-18T01:02:03.123456789Z"}
+        result = {"outcome": "SUCCEEDED", "code": "DOCKER_RESTART_VERIFIED"}
+        self.reply = lambda _: (0, canonical(result))
+        output = await exchange_restart(self.target, self.client_key, self.known_hosts, request)
+        self.assertEqual(output, result)
+        self.assertEqual(self.requests, [("hostorbit.v1.docker-restart", canonical(request) + b"\n")])
+        self.requests.clear()
+        self.reply = lambda _: (70, canonical(result))
+        with self.assertRaisesRegex(Denied, "SSH_RESTART_REPLY_INVALID"):
+            await exchange_restart(self.target, self.client_key, self.known_hosts, request)
+        self.assertEqual(len(self.requests), 1)

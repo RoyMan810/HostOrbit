@@ -23,6 +23,7 @@ from .database import AuditIntegrityError, DataAccess, Store, canonical, identif
 from .errors import Denied
 from .inventory import Inventory
 from .queue import JobQueue
+from .restart_requests import request_restart, restart_timeline
 from .runtime.protocol import ULID
 
 
@@ -169,6 +170,10 @@ class DraftPreflight(Input):
 
 class DraftApproval(DraftPreflight):
     reauth_id: Annotated[str, Field(pattern="^" + ULID + "$", max_length=26)]
+
+
+class DraftExecution(DraftPreflight):
+    approval_id: Annotated[str, Field(pattern="^" + ULID + "$", max_length=26)]
 
 
 def create_app(settings: Settings, *, auth: AuthService | None = None):
@@ -372,6 +377,20 @@ def create_app(settings: Settings, *, auth: AuthService | None = None):
             evidence.execute("BEGIN")
             return record_draft_approval(db, evidence, service, token(request), csrf(request), draft_id,
                                          if_match=request.headers.get("if-match"), **body.model_dump())
+
+    @app.post("/api/v1/change-plans/{draft_id}/execution-requests", status_code=202)
+    def enqueue_restart(draft_id: str, body: DraftExecution, request: Request, response: Response, actor=Depends(principal)):
+        with service.store.write() as db, service.store.connect(readonly=True) as evidence:
+            evidence.execute("BEGIN")
+            result = request_restart(db, evidence, service, token(request), csrf(request), draft_id,
+                                     if_match=request.headers.get("if-match"), **body.model_dump())
+        response.headers["Location"] = f"/api/v1/change-plans/{draft_id}/execution-timeline"
+        return result
+
+    @app.get("/api/v1/change-plans/{draft_id}/execution-timeline")
+    def get_restart_timeline(draft_id: str, request: Request, actor=Depends(principal)):
+        with service.store.read() as db:
+            return restart_timeline(db, service, token(request), draft_id)
 
     @app.get("/api/v1/jobs/{job_id}")
     def get_job(job_id: str, request: Request, response: Response, actor=Depends(principal)):
