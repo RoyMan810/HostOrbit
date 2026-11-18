@@ -3,7 +3,7 @@ name: HostOrbit recovery after source VM loss
 on:
   push:
     branches: [main]
-    paths:
+    paths: &recovery_paths
       - .github/workflows/offhost-recovery.yml
       - tools/fetch_age.py
       - requirements-lab.txt
@@ -17,19 +17,7 @@ on:
       - tests/lab/offhost_recovery.py
       - tests/lab/sftp_publication.py
   pull_request:
-    paths:
-      - .github/workflows/offhost-recovery.yml
-      - tools/fetch_age.py
-      - requirements-lab.txt
-      - stage0/**
-      - tests/lab/delayed_container.py
-      - tests/lab/docker_late_effect.py
-      - tests/lab/fencing_vm.py
-      - tests/lab/ssh-profile.sh
-      - tests/lab/ssh_restart_fixture.py
-      - tests/lab/ssh_systemd_docker.py
-      - tests/lab/offhost_recovery.py
-      - tests/lab/sftp_publication.py
+    paths: *recovery_paths
   workflow_dispatch:
 
 permissions:

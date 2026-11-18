@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ApiError, request } from './api'
+import { hasApiStatus, request } from './api'
 import type { Copy, Language } from './copy'
 
 interface TimelineItem { seq: number; at: number; status: keyof Copy['probeStatus']; reason: string | null }
@@ -25,7 +25,7 @@ export function JobTimeline({ jobId, t, lang, expired, describedBy }: {
       if (!abort.signal.aborted) setItems(result.items)
     } catch (err) {
       if (abort.signal.aborted) return
-      if (err instanceof ApiError && err.status === 401) expired()
+      if (hasApiStatus(err, 401)) expired()
       else setError(err)
     } finally {
       if (!abort.signal.aborted) { requestAbort.current = null; setLoading(false) }
@@ -35,7 +35,7 @@ export function JobTimeline({ jobId, t, lang, expired, describedBy }: {
   return <div className="probe-timeline">
     <button onClick={() => void load()} disabled={loading} aria-describedby={describedBy}>{t.timelineLoad}</button>
     {loading && <p role="status">{t.loading}</p>}
-    {error != null && <p className="error" role="alert">{error instanceof ApiError && [403, 404].includes(error.status) ? t.probeUnavailable : t.requestError}</p>}
+    {error != null && <p className="error" role="alert">{hasApiStatus(error, 403, 404) ? t.probeUnavailable : t.requestError}</p>}
     {items && (items.length === 0 ? <p>{t.timelineEmpty}</p> : <ol>
       {items.map(item => <li key={item.seq}>
         <time dateTime={new Date(item.at * 1000).toISOString()}>{new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(item.at * 1000))}</time>

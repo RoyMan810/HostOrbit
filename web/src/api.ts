@@ -69,6 +69,10 @@ export class ApiError extends Error {
   }
 }
 
+export function hasApiStatus(error: unknown, ...statuses: number[]) {
+  return error instanceof ApiError && statuses.includes(error.status)
+}
+
 export async function request<T>(path: string, options: {
   signal?: AbortSignal
   body?: object

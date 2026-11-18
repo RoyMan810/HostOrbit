@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ApiError, isUlid, request } from './api'
+import { ApiError, hasApiStatus, isUlid, request } from './api'
 import type { DockerContainer, Observation, Resource } from './api'
 import type { Copy } from './copy'
 import { restartHash } from './restart-timeline'
@@ -55,9 +55,9 @@ export function RestartPlan({ resource, container, sample, csrf, t, expired }: {
       await action(abort.signal)
     } catch (cause) {
       if (abort.signal.aborted) return
-      if (cause instanceof ApiError && cause.status === 401) return expired()
-      setError(cause instanceof ApiError && cause.status === 429 ? t.rateLimited :
-        cause instanceof ApiError && cause.status === 409 ? t.restartPreviewStale : t.restartPlanError)
+      if (hasApiStatus(cause, 401)) return expired()
+      setError(hasApiStatus(cause, 429) ? t.rateLimited :
+        hasApiStatus(cause, 409) ? t.restartPreviewStale : t.restartPlanError)
     } finally {
       pending.current = null
       if (!abort.signal.aborted) setBusy(false)

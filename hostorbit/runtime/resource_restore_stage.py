@@ -1,16 +1,14 @@
 """Offline staging of verified named-volume data into a private directory."""
 
-import hashlib
 import os
 from pathlib import Path
 import stat
 
 from ..errors import Denied
-from .archive_stream import AGE_PATH, parse_manifest
+from .archive_stream import AGE_PATH
 from .protocol import text
-from .rescue import ciphertext_stream, decrypt, offline_profile, wipe
-from .rescue_payload import unpack
-from .resource_archive import _MANIFEST_PATH, _MAX_MANIFEST_SIZE, _NAME, _check_ciphertext, _claims, _manifest
+from .rescue import offline_profile
+from .resource_archive import _NAME, verified_archive
 from .resource_restore_attestation import verify_attestation
 from .storage import directory_sync, new_private_file
 
@@ -90,34 +88,9 @@ def stage_restore_source(ciphertext, provenance, archive_key, identity, *, desti
         raise Denied("RESTORE_ATTESTATION_SEPARATE_OWNER_KEY_REQUIRED")
     procedure = verify_attestation(attestation, evidence, owner_key, application_schema=application_schema,
                                    procedure_sha256=procedure_sha256, now=now)
-    claims = _claims(provenance, archive_key)
-    if claims["application_schema"] != application_schema:
-        raise Denied("RESOURCE_ARCHIVE_INCOMPATIBLE")
-
-    plaintext = None
-    try:
-        with ciphertext_stream(ciphertext) as source:
-            _check_ciphertext(source, claims)
-            plaintext = decrypt(source, identity, age_path=age_path, tool_owner=tool_owner)
-            _check_ciphertext(source, claims)
-        members = unpack(plaintext)
-        raw = members.pop(_MANIFEST_PATH, None)
-        if (raw is None or len(raw) > _MAX_MANIFEST_SIZE
-                or hashlib.sha256(raw).hexdigest() != claims["manifest_sha256"]):
-            raise Denied("RESOURCE_MANIFEST_CHANGED")
-        manifest = parse_manifest(bytes(raw))
-        expected, total = _manifest(manifest, now)
-        if manifest["application_schema"] != application_schema:
-            raise Denied("RESOURCE_ARCHIVE_INCOMPATIBLE")
-        if members.keys() != expected.keys() or any(
-            len(members[name]) != size or hashlib.sha256(members[name]).hexdigest() != digest
-            for name, (size, digest) in expected.items()
-        ):
-            raise Denied("RESOURCE_PAYLOAD_CHANGED")
+    with verified_archive(ciphertext, provenance, archive_key, identity, application_schema=application_schema,
+                          now=now, age_path=age_path, tool_owner=tool_owner) as (manifest, members, total, digest):
         _stage(destination, manifest, members)
         return {"status": "RESTORE_STAGED", "restore_eligibility": "NOT_EVALUATED", "procedure": procedure,
-                "archive": {"captured_utc": manifest["captured_utc"], "ciphertext_sha256": claims["ciphertext_sha256"],
+                "archive": {"captured_utc": manifest["captured_utc"], "ciphertext_sha256": digest,
                             "entries": len(manifest["entries"]), "bytes": total}}
-    finally:
-        if plaintext is not None:
-            wipe(plaintext)

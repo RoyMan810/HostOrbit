@@ -251,16 +251,21 @@ def _approval_backup_seq(draft_db, row, actor, result):
     return decision["seq"]
 
 
-def record_draft_approval(draft_db, source_db, auth, token, csrf, draft_id, *,
-                          if_match, probe_id, request_key, reauth_id):
-    """Consume a reauth grant and append rehearsal approval in one write transaction."""
-    row, draft, actor = _checked_draft(draft_db, auth, token, draft_id, if_match, csrf=csrf, mutating=True)
+def _approval_prerequisites(draft_db, source_db, auth, token, row, draft, actor, probe_id, request_key):
     if actor["role"] != Role.OWNER:
         raise Denied("CHANGE_PLAN_APPROVAL_OWNER_REQUIRED", 403)
     result = _check_probe(draft_db, source_db, auth, token, row, draft, probe_id, request_key)
     if result["backup_gate"] != "BACKUP_NOT_REQUIRED":
         raise Denied("BACKUP_GATE_DENIED", 409)
-    decision_seq = _approval_backup_seq(draft_db, row, actor, result)
+    return result, _approval_backup_seq(draft_db, row, actor, result)
+
+
+def record_draft_approval(draft_db, source_db, auth, token, csrf, draft_id, *,
+                          if_match, probe_id, request_key, reauth_id):
+    """Consume a reauth grant and append rehearsal approval in one write transaction."""
+    row, draft, actor = _checked_draft(draft_db, auth, token, draft_id, if_match, csrf=csrf, mutating=True)
+    result, decision_seq = _approval_prerequisites(draft_db, source_db, auth, token, row, draft, actor,
+                                                   probe_id, request_key)
     if draft_db.execute("""SELECT 1 FROM audit WHERE target_id=? AND correlation_id=?
                           AND event='change_plan.approval_recorded' AND outcome='SUCCEEDED'
                           AND json_extract(details, '$.plan_hash')=? LIMIT 1""",
@@ -280,12 +285,8 @@ def check_draft_approval(draft_db, source_db, auth, token, draft_id, *,
                          if_match, probe_id, request_key, approval_id):
     """Recheck a recorded approval on the rehearsal copy without changing state."""
     row, draft, actor = _checked_draft(draft_db, auth, token, draft_id, if_match)
-    if actor["role"] != Role.OWNER:
-        raise Denied("CHANGE_PLAN_APPROVAL_OWNER_REQUIRED", 403)
-    result = _check_probe(draft_db, source_db, auth, token, row, draft, probe_id, request_key)
-    if result["backup_gate"] != "BACKUP_NOT_REQUIRED":
-        raise Denied("BACKUP_GATE_DENIED", 409)
-    decision_seq = _approval_backup_seq(draft_db, row, actor, result)
+    result, decision_seq = _approval_prerequisites(draft_db, source_db, auth, token, row, draft, actor,
+                                                   probe_id, request_key)
     details = {**_backup_details(result), "approval_id": approval_id, "backup_audit_seq": decision_seq}
     entry = draft_db.execute("""SELECT seq FROM audit
         WHERE target_id=? AND correlation_id=? AND actor_id=? AND event='change_plan.approval_recorded'
