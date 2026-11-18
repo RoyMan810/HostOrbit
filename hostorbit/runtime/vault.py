@@ -43,6 +43,14 @@ class Vault:
         return self._import_ssh(secret_id, version, key, owner_id=owner_id, consumer_uid=worker_uid,
                                 target=target, purpose="host.probe", policy_revision=policy_revision)
 
+    def import_restart_ssh(self, secret_id, version, key, *, owner_id, worker_uid, target, policy_revision=1):
+        return self._import_ssh(secret_id, version, key, owner_id=owner_id, consumer_uid=worker_uid,
+                                target=target, purpose="docker.restart", policy_revision=policy_revision)
+
+    def use_restart_ssh(self, reference, *, worker_uid, target, policy_revision):
+        return self._use_ssh(reference, consumer_uid=worker_uid, target=target,
+                             purpose="docker.restart", policy_revision=policy_revision)
+
     def import_backup_ssh(self, secret_id, version, key, *, owner_id, broker_uid, target, policy_revision=1):
         """Separate Broker-only SFTP purpose, not a managed VPS probe identity."""
         return self._import_ssh(secret_id, version, key, owner_id=owner_id, consumer_uid=broker_uid,

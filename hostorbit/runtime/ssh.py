@@ -8,7 +8,7 @@ import time
 import asyncssh
 
 from ..errors import Denied
-from .protocol import decode, docker_summary, fields, integer, software_summary, text
+from .protocol import canonical, decode, docker_summary, fields, integer, restart_payload, software_summary, text
 from .storage import new_private_file, protected_bytes
 
 
@@ -45,9 +45,9 @@ async def bounded_read(stream, limit=2048):
             raise Denied("SSH_UNSUPPORTED_OUTPUT")
 
 
-async def exchange(target, key, known_hosts):
-    connection = await asyncssh.connect(
-        target.value["ip"], port=target.value["port"], username="hostorbit-svc",
+async def connect(target, key, known_hosts, username):
+    return await asyncssh.connect(
+        target.value["ip"], port=target.value["port"], username=username,
         client_keys=[key], agent_path=None, config=None,
         known_hosts=str(known_hosts), host_key_alias=f"ho-{target.id}",
         x509_trusted_certs=None, x509_trusted_cert_paths=[],
@@ -55,6 +55,10 @@ async def exchange(target, key, known_hosts):
         gss_auth=False, gss_kex=False, host_based_auth=False, server_host_key_algs=["ssh-ed25519"],
         agent_forwarding=False, connect_timeout=4, login_timeout=5,
     )
+
+
+async def exchange(target, key, known_hosts):
+    connection = await connect(target, key, known_hosts, "hostorbit-svc")
     try:
         for version, command, request in PROBES:
             process = await connection.create_process(command, input=request, encoding=None, request_pty=False)
@@ -100,6 +104,35 @@ def probe(target, private_key, known_hosts):
     except asyncssh.Error:
         raise Denied("SSH_CONNECTION_FAILED") from None
     return parse_probe(output, version, now=int(time.time()))
+
+
+async def exchange_restart(target, key, known_hosts, request):
+    connection = await connect(target, key, known_hosts, "hostorbit-restart")
+    try:
+        process = await connection.create_process("hostorbit.v1.docker-restart", input=canonical(request) + b"\n",
+                                                  encoding=None, request_pty=False)
+        output, error, _ = await asyncio.gather(
+            bounded_read(process.stdout, 512), bounded_read(process.stderr, 512), process.wait_closed())
+        if error:
+            raise Denied("SSH_RESTART_REPLY_INVALID")
+        value = fields(decode(output.rstrip(b"\n"), canonical_required=False), ("outcome", "code"))
+        valid = {"SUCCEEDED": 0, "DENIED": 65, "UNKNOWN_OUTCOME": 70}
+        if not isinstance(value["outcome"], str) or valid.get(value["outcome"]) != process.exit_status:
+            raise Denied("SSH_RESTART_REPLY_INVALID")
+        text(value["code"], r"[A-Z][A-Z0-9_]{1,63}")
+        if value["outcome"] == "SUCCEEDED" and value["code"] not in ("DOCKER_RESTART_VERIFIED", "RESTART_ALREADY_VERIFIED"):
+            raise Denied("SSH_RESTART_REPLY_INVALID")
+        return value
+    finally:
+        connection.abort()
+
+
+def restart(target, private_key, known_hosts, request):
+    restart_payload(request)
+    try:
+        return asyncio.run(asyncio.wait_for(exchange_restart(target, validate_private_key(private_key), known_hosts, request), 32))
+    except (asyncssh.Error, OSError, TimeoutError):
+        raise Denied("SSH_RESTART_UNCONFIRMED") from None
 
 
 def parse_probe(output, version, *, now):

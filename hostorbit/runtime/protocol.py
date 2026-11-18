@@ -12,6 +12,20 @@ from ..errors import Denied
 MAX_FRAME = 16384
 ULID = r"[0-7][0-9A-HJKMNP-TV-Z]{25}"
 SHA256 = r"[0-9a-f]{64}"
+BOOT_ID = r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}"
+DOCKER_STARTED_AT = r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,9})?Z"
+
+
+def restart_payload(value):
+    fields(value, ("operation_id", "container_id", "boot_id", "started_at"))
+    for key, pattern in (("operation_id", ULID), ("container_id", SHA256),
+                         ("boot_id", BOOT_ID), ("started_at", DOCKER_STARTED_AT)):
+        text(value[key], pattern)
+    try:
+        datetime.fromisoformat(value["started_at"])
+    except ValueError:
+        raise Denied("RPC_INVALID_REQUEST") from None
+    return value
 
 
 def canonical(value):
@@ -166,7 +180,7 @@ def docker_summary(value, *, include_ports=None, include_mounts=None, include_ne
             started_at = item["started_at"]
             if (item["state"] != "RUNNING" or not isinstance(started_at, str)
                     or started_at.startswith("0001-01-01T00:00:00")
-                    or not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,9})?Z", started_at)):
+                    or not re.fullmatch(DOCKER_STARTED_AT, started_at)):
                 raise Denied("PROBE_DOCKER_INVALID")
             try:
                 datetime.fromisoformat(started_at)

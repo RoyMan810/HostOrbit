@@ -6,7 +6,7 @@ import time
 from ..errors import Denied
 from .authority import verify_permit
 from .protocol import ULID, canonical, checksum, decode, fields, text
-from .ssh import probe, provision_known_hosts, verify_known_hosts
+from .ssh import probe, provision_known_hosts, restart, verify_known_hosts
 from .storage import Journal
 
 
@@ -17,10 +17,11 @@ CREATE TABLE receipts(job_id TEXT PRIMARY KEY, nonce TEXT NOT NULL UNIQUE, state
 
 
 class Broker:
-    def __init__(self, directory, policy, vault, gate, verify_key, *, worker_uid, execute=probe, clock=time.time, writers=None):
+    def __init__(self, directory, policy, vault, gate, verify_key, *, worker_uid, execute=probe, execute_restart=restart, clock=time.time, writers=None):
         self.directory, self.policy = Path(directory), policy
         self.vault, self.gate, self.verify_key = vault, gate, verify_key
         self.worker_uid, self.execute, self.clock = worker_uid, execute, clock
+        self.execute_restart = execute_restart
         self.journal = Journal(self.directory / "receipts.sqlite3", writers=writers)
         verify_known_hosts(self.directory / "known_hosts", policy)
 
@@ -61,10 +62,17 @@ class Broker:
         fields(request, ("permit", "secret_ref"))
         claims = verify_permit(request["permit"], self.verify_key, now=int(self.clock()))
         target = self.policy.target(claims["target"], claims["capability"], claims["scope_digest"])
-        if claims["capability"] != "host.probe" or claims["mutating"] or request["secret_ref"] != target.value["secret_ref"]:
+        capability = claims["capability"]
+        if capability == "host.probe" and not claims["mutating"]:
+            secret, resolve_key = target.value["secret_ref"], self.vault.use_ssh
+        elif capability == "docker.restart" and claims["mutating"]:
+            secret, resolve_key = target.value["restart_secret_ref"], self.vault.use_restart_ssh
+        else:
             raise Denied("BROKER_SCOPE_DENIED")
-        # Key bytes stay in this Broker process and the fixed SSH child; never in an RPC response.
-        key = self.vault.use_ssh(request["secret_ref"], worker_uid=peer.uid, target=target.id, policy_revision=target.revision)
+        if request["secret_ref"] != secret:
+            raise Denied("BROKER_SCOPE_DENIED")
+        # Key bytes stay in this Broker process and never enter RPC responses.
+        key = resolve_key(secret, worker_uid=peer.uid, target=target.id, policy_revision=target.revision)
         with self.journal.write() as db:
             if db.execute("SELECT 1 FROM receipts WHERE job_id=? OR nonce=?", (claims["job_id"], claims["nonce"])).fetchone():
                 raise Denied("PERMIT_REPLAY")
@@ -72,6 +80,13 @@ class Broker:
         self.gate.call("permit.consume", request["permit"])
         with self.journal.write() as db:
             db.execute("UPDATE receipts SET state='DISPATCHING' WHERE job_id=?", (claims["job_id"],))
+        if capability == "docker.restart":
+            try:
+                result = self.execute_restart(target, key, self.directory / "known_hosts", claims["restart"])
+            except Denied as error:
+                return self._complete(request["permit"], "UNKNOWN_OUTCOME", error.code, None)
+            outcome = "FAILED" if result["outcome"] == "DENIED" else result["outcome"]
+            return self._complete(request["permit"], outcome, result["code"], None)
         try:
             observation = self.execute(target, key, self.directory / "known_hosts")
             return self._complete(request["permit"], "SUCCEEDED", "PROBE_VERIFIED", observation)

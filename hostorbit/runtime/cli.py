@@ -70,7 +70,7 @@ def run(config, command, *, once=False, listener=None, import_args=None):
     expected = {"supervisor": 0, "initialize-supervisor": 0, "api": config["app_uid"], "worker": config["worker_uid"],
                 "broker": config["broker_uid"], "initialize-broker": config["broker_uid"], "import-key": config["broker_uid"],
                 "pin-vault": config["broker_uid"], "seal-controller": config["broker_uid"],
-                "import-backup-key": config["broker_uid"], "publish-controller": config["broker_uid"],
+                "import-backup-key": config["broker_uid"], "import-restart-key": config["broker_uid"], "publish-controller": config["broker_uid"],
                 "recovery-import-key": config["broker_uid"], "recovery-revoke-key": config["broker_uid"],
                 "recovery-key-facts": config["broker_uid"],
                 "register-observations": 0, "initialize-time-health": 0, "time-health": 0,
@@ -155,8 +155,10 @@ def run(config, command, *, once=False, listener=None, import_args=None):
         return
     if command == "worker":
         worker = Worker(JobQueue(Store(config["database"], access=access, writers=writers)), Client(config["gate_socket"], server_uids={0}),
-                        Client(config["broker_socket"], server_uids={0, config["broker_uid"]}),
-                        secret_refs={t.id: t.value["secret_ref"] for t in policy.targets.values()})
+                        Client(config["broker_socket"], server_uids={0, config["broker_uid"]}, timeout=40),
+                        secret_refs={t.id: t.value["secret_ref"] for t in policy.targets.values()},
+                        restart_refs={t.id: t.value["restart_secret_ref"] for t in policy.targets.values()
+                                      if "docker.restart" in t.value["capabilities"]})
         with worker_shutdown() as stop:
             return worker.run(once=once, stop=stop)
     managed_credential = "CREDENTIALS_DIRECTORY" in os.environ
@@ -196,11 +198,19 @@ def run(config, command, *, once=False, listener=None, import_args=None):
         from .pins import pin_vault
         print(json.dumps(pin_vault(vault, config["broker_directory"], writers, import_args.snapshot_id)))
         return
-    if command in {"import-key", "import-backup-key"}:
+    if command in {"import-key", "import-backup-key", "import-restart-key"}:
         key = protected_bytes(import_args.key_file, owner=config["broker_uid"], maximum=8192, private=True)
         if command == "import-key":
             reference = vault.import_ssh(import_args.secret_id, import_args.version, key, owner_id=import_args.owner_id,
                                          worker_uid=config["worker_uid"], target=import_args.target, policy_revision=import_args.policy_revision)
+        elif command == "import-restart-key":
+            target = policy.targets.get(import_args.target)
+            if (target is None or target.value.get("restart_secret_ref") != f"{import_args.secret_id}:v{import_args.version}"
+                    or target.revision != import_args.policy_revision):
+                raise Denied("CAPABILITY_DISABLED")
+            reference = vault.import_restart_ssh(import_args.secret_id, import_args.version, key, owner_id=import_args.owner_id,
+                                                 worker_uid=config["worker_uid"], target=import_args.target,
+                                                 policy_revision=import_args.policy_revision)
         else:
             reference = vault.import_backup_ssh(import_args.secret_id, import_args.version, key, owner_id=import_args.owner_id,
                                                 broker_uid=config["broker_uid"], target=import_args.target, policy_revision=import_args.policy_revision)
@@ -231,6 +241,8 @@ def main(argv=None):
     key.add_argument("--target", required=True)
     key.add_argument("--version", type=int, default=1)
     key.add_argument("--policy-revision", type=int, default=1)
+    commands.add_parser("import-restart-key", parents=[key], add_help=False,
+                                      help="Provision a dedicated Docker restart credential")
     recovered = commands.add_parser("recovery-import-key", help="Broker-local control provisioning in READ_ONLY_RECOVERY only")
     for name in ("key-file", "secret-id", "owner-id", "target"):
         recovered.add_argument("--" + name, required=True)

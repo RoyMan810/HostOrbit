@@ -1,0 +1,26 @@
+#!/usr/bin/python3 -I
+"""OpenSSH forced command for the dedicated isolated Docker restart account."""
+
+import os
+import signal
+import subprocess
+import sys
+
+
+def main():
+    if len(sys.argv) != 1 or os.environ.get("SSH_ORIGINAL_COMMAND") != "hostorbit.v1.docker-restart":
+        return 65
+    signal.alarm(5)
+    request = sys.stdin.buffer.read(513)
+    signal.alarm(0)
+    if not request or len(request) > 512:
+        return 65
+    try:
+        return subprocess.run(["/usr/bin/sudo", "-n", "--", "/usr/local/libexec/hostorbit/docker-restart"],
+                              input=request, timeout=24, env={"PATH": "/usr/bin:/bin", "LC_ALL": "C"}).returncode
+    except (OSError, subprocess.SubprocessError):
+        return 70
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -6,7 +6,7 @@ Self-hosted система управления Linux-серверами по [�
 
 **Цель текущей сборки — стенд AC-28.** Stage0 и Stage1 Foundation приняты. Осталось проверить сквозной перезапуск тестового Docker-контейнера на отдельной Ubuntu VPS. [Критерии](docs/spec/HostOrbit_Requirements_Registry_v2.4.json) · [действующие проверки Stage1](evidence/revalidation/stage1-current/README.md).
 
-Доступна подписанная **development**-установка на Ubuntu 24.04 и новее, amd64; native-установка проверена на 24.04 и 26.04. Единственный включённый remote adapter — read-only `host.probe`. Production mutations, A/B updates, live migration и независимая DR-приёмка остаются открытыми.
+Доступна подписанная **development**-установка на Ubuntu 24.04 и новее, amd64; native-установка проверена на 24.04 и 26.04. Для наблюдения используется read-only `host.probe`. Стендовый `docker.restart` требует отдельного ключа и явной защищённой конфигурации. Production mutations, A/B updates, live migration и независимая DR-приёмка остаются открытыми.
 
 ## Задачи до production
 
@@ -91,7 +91,8 @@ Self-hosted система управления Linux-серверами по [�
 - [x] Репетиция подтверждения Owner с одноразовой повторной аутентификацией, привязкой к точной ревизии и решению Backup Gate в Audit/Outbox. Повторная проверка отклоняет заменённые ревизии и наблюдения.
 - [x] Наблюдение SSH v8 фиксирует точный Docker `StartedAt`. Preflight отклоняет контейнер, перезапущенный после создания черновика.
 - [x] Локальный исполнитель проверяет эффект перезапуска и блокирует повтор при неопределённом результате.
-- [ ] Допуск к исполнению через TimeHealth и host authority, вызов типизированного исполнителя через очередь и SSH, Timeline/Audit и сквозная приёмка AC-28.
+- [x] Запрос исполнения точной ревизии, допуск Authority с TimeHealth, отдельный SSH-ключ перезапуска и результат в Timeline и Audit/Outbox.
+- [ ] Сквозная приёмка AC‑28 на отдельной Ubuntu VPS, включая независимое подтверждение публикации ControllerBackup.
 
 Границы реализации и процедура репетиции описаны в [документации Stage2](docs/stage2-inventory.md).
 

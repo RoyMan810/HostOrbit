@@ -1,3 +1,14 @@
+from unittest.mock import Mock
+
+from hostorbit.errors import Denied
+from hostorbit.restart_requests import RestartWorker
+from hostorbit.runtime.authority import Authority
+from hostorbit.runtime.broker import Broker
+from hostorbit.runtime.ipc import Peer
+from hostorbit.runtime.policy import Policy
+from hostorbit.runtime.storage import new_private_file
+from hostorbit.runtime.vault import Vault
+from tests_runtime.fixtures import ACTOR, BROKER_UID, SECRET, TARGET, WORKER_UID, policy, private_key, trusted_time
 from hostorbit.database import identifier
 from hostorbit.queue import JobQueue
 from test_auth_api import Fixture, PASSWORD, SCOPE
@@ -81,6 +92,82 @@ class ChangePlanAPITests(Fixture):
         with self.store.read() as db:
             self.assertEqual(db.execute("SELECT DISTINCT action FROM jobs").fetchall()[0][0], "host.probe")
             self.assertEqual(db.execute("SELECT count(*) FROM jobs").fetchone()[0], 2)
+
+    def test_approved_restart_runs_through_authority_broker_and_timeline_once(self):
+        restart_secret = identifier()
+        p = Policy([{**policy().targets[TARGET].value, "id": SCOPE,
+                     "capabilities": ["host.probe", "docker.restart"], "restart_secret_ref": restart_secret + ":v1"}])
+        with self.store.write() as db:
+            db.execute("UPDATE resources SET scope_digest=? WHERE id=?", (p.targets[SCOPE].scope_digest, SCOPE))
+        directory = self.store.path.parent
+        gate = Authority.initialize(directory / "gate", p, clock=lambda: self.now,
+                                    time_health=trusted_time(directory / "time", lambda: self.now))
+        self.addCleanup(gate.close)
+        credential = directory / "restart-key"
+        new_private_file(credential, b"x" * 32)
+        vault = Vault.initialize(directory / "vault", credential)
+        vault.import_ssh(SECRET, 1, private_key(), owner_id=ACTOR, worker_uid=WORKER_UID, target=SCOPE)
+        vault.import_restart_ssh(restart_secret, 1, private_key(), owner_id=ACTOR, worker_uid=WORKER_UID, target=SCOPE)
+        with self.assertRaisesRegex(Denied, "SECRET_SCOPE_DENIED"):
+            vault.use_restart_ssh(SECRET + ":v1", worker_uid=WORKER_UID, target=SCOPE, policy_revision=1)
+        Broker.initialize(directory / "broker", p)
+        broker_gate = Mock(call=lambda name, args: gate.dispatch("broker", Peer(1, BROKER_UID, BROKER_UID), name, args))
+        execute = Mock(return_value={"outcome": "SUCCEEDED", "code": "DOCKER_RESTART_VERIFIED"})
+        broker = Broker(directory / "broker", p, vault, broker_gate, bytes(gate.key.verify_key), worker_uid=WORKER_UID,
+                        clock=lambda: self.now, execute_restart=execute)
+        worker_peer = Peer(1, WORKER_UID, WORKER_UID)
+        worker = RestartWorker(self.store,
+                               Mock(call=lambda name, args: gate.dispatch("worker", worker_peer, name, args)),
+                               Mock(call=lambda name, args: broker.dispatch("worker", worker_peer, name, args)),
+                               lambda: self.now, {SCOPE: restart_secret + ":v1"})
+
+        def queue_restart():
+            draft = self.draft()
+            route = draft.headers["location"]
+            headers = self.headers(**{"If-Match": draft.headers["etag"], "Idempotency-Key": REQUEST_KEY})
+            self.now += 1
+            preflight = self.client.post(route + "/preflight", json={}, headers=headers)
+            self.assertEqual(preflight.status_code, 202, preflight.text)
+            job = preflight.json()["id"]
+            self.complete_probe(job)
+            evidence = {"probe_id": job, "request_key": REQUEST_KEY}
+            response = self.client.post(route + "/backup-decision", json=evidence, headers=headers)
+            self.assertEqual(response.status_code, 200, response.text)
+            grant = self.client.post("/api/v1/auth/reauth", headers=self.headers(),
+                                     json={"password": PASSWORD, "plan_hash": draft.json()["plan_hash"]})
+            approval = self.client.post(route + "/approval", json={**evidence, "reauth_id": grant.json()["id"]}, headers=headers)
+            self.assertEqual(approval.status_code, 200, approval.text)
+            body = {**evidence, "approval_id": approval.json()["approval_id"]}
+            planned = self.client.post(route + "/execution-requests", json=body, headers=headers)
+            self.assertEqual(planned.status_code, 202, planned.text)
+            duplicate = self.client.post(route + "/execution-requests", json=body, headers=headers)
+            self.assertEqual(duplicate.json(), planned.json())
+            return planned
+
+        def states(request):
+            response = self.client.get(request.headers["location"])
+            self.assertEqual(response.status_code, 200, response.text)
+            return [item["status"] for item in response.json()["items"]]
+
+        request = queue_restart()
+        self.assertEqual(states(request), ["QUEUED"])
+        self.assertTrue(worker.run_one())
+        self.assertFalse(worker.run_one())
+        self.assertEqual(states(request), ["QUEUED", "INTENT_PREPARED", "DISPATCHING", "SUCCEEDED"])
+        self.assertEqual(execute.call_args.args[3]["started_at"], STARTED_AT)
+        execute.assert_called_once()
+
+        execute.side_effect = Denied("SSH_RESTART_UNCONFIRMED")
+        lost = queue_restart()
+        self.assertTrue(worker.run_one())
+        worker.recover()
+        self.assertFalse(worker.run_one())
+        self.assertEqual(states(lost)[-1], "UNKNOWN_OUTCOME")
+        blocked = queue_restart()
+        self.assertTrue(worker.run_one())
+        self.assertEqual(states(blocked), ["QUEUED", "CANCELLED_SAFE"])
+        self.assertEqual(execute.call_count, 2)
+        self.store.verify_audit()
 
     def test_preflight_rejects_a_restart_after_saving_the_draft(self):
         draft = self.draft()

@@ -17,7 +17,7 @@ class Capability:
 
 
 # New adapters enter this registry only after their preconditions/effect bounds are implemented.
-CAPABILITIES = {"host.probe": Capability(False, "vps:probe")}
+CAPABILITIES = {"host.probe": Capability(False, "vps:probe"), "docker.restart": Capability(True, "vps:restart")}
 
 
 @dataclass(frozen=True)
@@ -26,7 +26,9 @@ class Target:
 
     @classmethod
     def parse(cls, value):
-        fields(value, ("id", "ip", "port", "allowed_cidrs", "host_key", "secret_ref", "policy_revision", "dependencies", "capabilities"))
+        base = ("id", "ip", "port", "allowed_cidrs", "host_key", "secret_ref", "policy_revision", "dependencies", "capabilities")
+        extended = isinstance(value, dict) and "restart_secret_ref" in value
+        fields(value, base + (("restart_secret_ref",) if extended else ()))
         text(value["id"], ULID)
         text(value["secret_ref"], ULID + r":v[1-9][0-9]{0,8}")
         integer(value["port"], 1, 65535)
@@ -54,6 +56,12 @@ class Target:
                 or any(not isinstance(v, str) or v not in CAPABILITIES for v in value["capabilities"])
                 or len(set(value["capabilities"])) != len(value["capabilities"])):
             raise Denied("CAPABILITY_DISABLED")
+        if ("docker.restart" in value["capabilities"]) != extended:
+            raise Denied("CAPABILITY_DISABLED")
+        if extended:
+            text(value["restart_secret_ref"], ULID + r":v[1-9][0-9]{0,8}")
+            if value["restart_secret_ref"].split(":")[0] == value["secret_ref"].split(":")[0]:
+                raise Denied("CAPABILITY_DISABLED")
         return cls(value)
 
     @property

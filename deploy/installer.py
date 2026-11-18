@@ -337,7 +337,7 @@ def install(args):
             if not path.is_symlink():
                 path.chmod(0o755 if path.is_dir() or path.stat().st_mode & 0o111 else 0o644)
         (APP / "venv").chmod(0o755)
-        command(python, "-c", "from hostorbit.runtime.policy import CAPABILITIES; from hostorbit.database import SCHEMA_VERSION; import sys; assert SCHEMA_VERSION == int(sys.argv[1]); assert set(CAPABILITIES)=={'host.probe'}", manifest["sqlite_schema"])
+        command(python, "-c", "from hostorbit.runtime.policy import CAPABILITIES; from hostorbit.database import SCHEMA_VERSION; import sys; assert SCHEMA_VERSION == int(sys.argv[1]); assert set(CAPABILITIES)=={'host.probe','docker.restart'}", manifest["sqlite_schema"])
         command("/usr/bin/systemd-sysusers", bundle / "deploy/sysusers.d/hostorbit.conf")
         cfg = {"v": 1, "database": str(DATA / "app/controller.sqlite3"), "public_origin": args.origin,
                "trusted_proxies": ["127.0.0.1/32"], "api_port": 8000, "api_bind": "0.0.0.0",
