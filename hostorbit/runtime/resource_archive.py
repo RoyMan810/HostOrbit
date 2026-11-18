@@ -1,5 +1,6 @@
 """Offline integrity checks for one stopped Docker named-volume archive format."""
 
+from contextlib import contextmanager
 import base64
 import hashlib
 import time
@@ -107,11 +108,9 @@ def _check_ciphertext(stream, claims):
     stream.seek(0)
 
 
-def verify_archive(ciphertext, envelope, trusted_key, identity, *, application_schema, now=None,
-                   age_path=AGE_PATH, tool_owner=0):
-    """Verify bytes and schema without touching a target or authorizing restore."""
-    offline_profile()
-    now = int(time.time()) if now is None else now
+@contextmanager
+def verified_archive(ciphertext, envelope, trusted_key, identity, *, application_schema, now, age_path, tool_owner):
+    """Keep verified member views valid until the caller finishes using them."""
     claims = _claims(envelope, trusted_key)
     if claims["application_schema"] != application_schema:
         raise Denied("RESOURCE_ARCHIVE_INCOMPATIBLE")
@@ -135,13 +134,23 @@ def verify_archive(ciphertext, envelope, trusted_key, identity, *, application_s
             for name, (size, digest) in expected.items()
         ):
             raise Denied("RESOURCE_PAYLOAD_CHANGED")
+        yield manifest, members, total, claims["ciphertext_sha256"]
+    finally:
+        if plaintext is not None:
+            wipe(plaintext)
+
+
+def verify_archive(ciphertext, envelope, trusted_key, identity, *, application_schema, now=None,
+                   age_path=AGE_PATH, tool_owner=0):
+    """Verify bytes and schema without touching a target or authorizing restore."""
+    offline_profile()
+    now = int(time.time()) if now is None else now
+    with verified_archive(ciphertext, envelope, trusted_key, identity, application_schema=application_schema,
+                          now=now, age_path=age_path, tool_owner=tool_owner) as (manifest, _, total, digest):
         return {
             "status": "INTEGRITY_VERIFIED", "restore_eligibility": "NOT_EVALUATED",
             "resource_type": manifest["resource_type"], "application_schema": application_schema,
             "captured_utc": manifest["captured_utc"], "source_host": manifest["source_host"],
-            "source_volume": manifest["source_volume"], "ciphertext_sha256": claims["ciphertext_sha256"],
+            "source_volume": manifest["source_volume"], "ciphertext_sha256": digest,
             "entries": len(manifest["entries"]), "bytes": total,
         }
-    finally:
-        if plaintext is not None:
-            wipe(plaintext)

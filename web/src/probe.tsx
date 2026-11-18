@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ApiError, isUlid, request } from './api'
+import { ApiError, hasApiStatus, isUlid, request } from './api'
 import type { Resource, Session } from './api'
 import type { Copy, Language } from './copy'
 import { JobTimeline } from './job-timeline'
@@ -80,7 +80,7 @@ export function ProbeControl({ resource, session, t, lang, expired, reload }: {
       if (done) reload()
     } catch (error) {
       if (abort.signal.aborted) return
-      if (error instanceof ApiError && error.status === 401) expired()
+      if (hasApiStatus(error, 401)) expired()
       else {
         const rejected = error instanceof ApiError && error.status < 500 && ![408, 429].includes(error.status)
         // The Controller checks current access before replaying the original response.
@@ -109,9 +109,9 @@ export function ProbeControl({ resource, session, t, lang, expired, reload }: {
         if (done) reload()
       } catch (error) {
         if (abort.signal.aborted) return
-        if (error instanceof ApiError && error.status === 401) expired()
+        if (hasApiStatus(error, 401)) expired()
         else setRun({ ...run, phase: 'paused',
-          readDenied: error instanceof ApiError && [403, 404].includes(error.status) })
+          readDenied: hasApiStatus(error, 403, 404) })
       }
     }, 2000)
     return () => {

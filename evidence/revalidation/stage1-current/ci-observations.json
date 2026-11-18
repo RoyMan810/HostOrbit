@@ -1,56 +1,15 @@
 {
-  "source_commit": "455a7f23be288c512cf073aa944f51cf94f1d31f",
-  "workflow_run": "https://github.com/RoyMan810/HostOrbit/actions/runs/44259659254",
+  "source_commit": "689d279e0636d783e26ce9f5abf86df194a2beac",
+  "workflow_run": "https://github.com/RoyMan810/HostOrbit/actions/runs/44277451024",
   "overall_conclusion": "failure",
   "method": "GitHub Actions run and job conclusions and signature verification of the signed installation metadata artifact.",
   "jobs": [
     {
-      "id": 134649640234,
-      "name": "Broker peer credentials / Docker",
-      "status": "completed",
-      "conclusion": "success",
-      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/44259659254/job/134649640234",
-      "steps": [
-        {
-          "name": "Set up job",
-          "conclusion": "success"
-        },
-        {
-          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-          "conclusion": "success"
-        },
-        {
-          "name": "Run docker/setup-docker-action@3f1ab1ab0e29231562e4db4ca600c1a49653bac6",
-          "conclusion": "success"
-        },
-        {
-          "name": "Verify Worker, Backend and stranger access",
-          "conclusion": "success"
-        },
-        {
-          "name": "Verify scoped discovery against the pinned Docker daemon",
-          "conclusion": "success"
-        },
-        {
-          "name": "Post Run docker/setup-docker-action@3f1ab1ab0e29231562e4db4ca600c1a49653bac6",
-          "conclusion": "success"
-        },
-        {
-          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-          "conclusion": "success"
-        },
-        {
-          "name": "Complete job",
-          "conclusion": "success"
-        }
-      ]
-    },
-    {
-      "id": 134649640404,
+      "id": 134709086348,
       "name": "Stage 1 host TimeHealth / chrony",
       "status": "completed",
       "conclusion": "success",
-      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/44259659254/job/134649640404",
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/44277451024/job/134709086348",
       "steps": [
         {
           "name": "Set up job",
@@ -87,11 +46,105 @@
       ]
     },
     {
-      "id": 134649640443,
+      "id": 134709086785,
+      "name": "Stage 1 signed fresh installation / systemd and Compose",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/44277451024/job/134709086785",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run docker/setup-docker-action@3f1ab1ab0e29231562e4db4ca600c1a49653bac6",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install fixed builder dependencies and generate an ephemeral lab signer",
+          "conclusion": "success"
+        },
+        {
+          "name": "Build the signed wheel bundle without placing its private signer inside",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install and verify the actual host services and container namespaces",
+          "conclusion": "success"
+        },
+        {
+          "name": "Preserve public metadata for Stage1 revalidation",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run docker/setup-docker-action@3f1ab1ab0e29231562e4db4ca600c1a49653bac6",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "id": 134709086829,
+      "name": "Delegated restart effect / SSH, systemd and Docker",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/44277451024/job/134709086829",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run docker/setup-docker-action@3f1ab1ab0e29231562e4db4ca600c1a49653bac6",
+          "conclusion": "success"
+        },
+        {
+          "name": "Verify the restricted SSH account and observe Docker after the SSH client and cgroup die",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run docker/setup-docker-action@3f1ab1ab0e29231562e4db4ca600c1a49653bac6",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "id": 134709086846,
       "name": "Repository quality / Python 3.15",
       "status": "completed",
       "conclusion": "success",
-      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/44259659254/job/134649640443",
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/44277451024/job/134709086846",
       "steps": [
         {
           "name": "Set up job",
@@ -136,11 +189,11 @@
       ]
     },
     {
-      "id": 134649640457,
+      "id": 134709086864,
       "name": "Stage 1 process boundary / Linux UIDs and SSH",
       "status": "completed",
       "conclusion": "success",
-      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/44259659254/job/134649640457",
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/44277451024/job/134709086864",
       "steps": [
         {
           "name": "Set up job",
@@ -177,11 +230,52 @@
       ]
     },
     {
-      "id": 134649640533,
-      "name": "Delegated restart effect / SSH, systemd and Docker",
+      "id": 134709086871,
+      "name": "Stage 1 host TimeHealth / timesyncd",
       "status": "completed",
       "conclusion": "success",
-      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/44259659254/job/134649640533",
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/44277451024/job/134709086871",
+      "steps": [
+        {
+          "name": "Set up job",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "conclusion": "success"
+        },
+        {
+          "name": "Run actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
+          "conclusion": "success"
+        },
+        {
+          "name": "Install fixed application dependencies and the selected host time daemon",
+          "conclusion": "success"
+        },
+        {
+          "name": "Verify actual daemon telemetry, protected IPC and kernel clock-step recovery",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
+          "conclusion": "success"
+        },
+        {
+          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+          "conclusion": "success"
+        },
+        {
+          "name": "Complete job",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "id": 134709086877,
+      "name": "Broker peer credentials / Docker",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/44277451024/job/134709086877",
       "steps": [
         {
           "name": "Set up job",
@@ -196,7 +290,11 @@
           "conclusion": "success"
         },
         {
-          "name": "Verify the restricted SSH account and observe Docker after the SSH client and cgroup die",
+          "name": "Verify Worker, Backend and stranger access",
+          "conclusion": "success"
+        },
+        {
+          "name": "Verify scoped discovery against the pinned Docker daemon",
           "conclusion": "success"
         },
         {
@@ -214,11 +312,11 @@
       ]
     },
     {
-      "id": 134649640565,
+      "id": 134709086962,
       "name": "Stage 1 Auth, RBAC and Audit / Python 3.15",
       "status": "completed",
       "conclusion": "success",
-      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/44259659254/job/134649640565",
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/44277451024/job/134709086962",
       "steps": [
         {
           "name": "Set up job",
@@ -255,11 +353,11 @@
       ]
     },
     {
-      "id": 134649640595,
+      "id": 134709087071,
       "name": "Stage 0 prototypes / Python 3.15",
       "status": "completed",
       "conclusion": "failure",
-      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/44259659254/job/134649640595",
+      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/44277451024/job/134709087071",
       "steps": [
         {
           "name": "Set up job",
@@ -300,104 +398,6 @@
         {
           "name": "Post Run actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
           "conclusion": "skipped"
-        },
-        {
-          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-          "conclusion": "success"
-        },
-        {
-          "name": "Complete job",
-          "conclusion": "success"
-        }
-      ]
-    },
-    {
-      "id": 134649640620,
-      "name": "Stage 1 host TimeHealth / timesyncd",
-      "status": "completed",
-      "conclusion": "success",
-      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/44259659254/job/134649640620",
-      "steps": [
-        {
-          "name": "Set up job",
-          "conclusion": "success"
-        },
-        {
-          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-          "conclusion": "success"
-        },
-        {
-          "name": "Run actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
-          "conclusion": "success"
-        },
-        {
-          "name": "Install fixed application dependencies and the selected host time daemon",
-          "conclusion": "success"
-        },
-        {
-          "name": "Verify actual daemon telemetry, protected IPC and kernel clock-step recovery",
-          "conclusion": "success"
-        },
-        {
-          "name": "Post Run actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
-          "conclusion": "success"
-        },
-        {
-          "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-          "conclusion": "success"
-        },
-        {
-          "name": "Complete job",
-          "conclusion": "success"
-        }
-      ]
-    },
-    {
-      "id": 134649640662,
-      "name": "Stage 1 signed fresh installation / systemd and Compose",
-      "status": "completed",
-      "conclusion": "success",
-      "url": "https://github.com/RoyMan810/HostOrbit/actions/runs/44259659254/job/134649640662",
-      "steps": [
-        {
-          "name": "Set up job",
-          "conclusion": "success"
-        },
-        {
-          "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
-          "conclusion": "success"
-        },
-        {
-          "name": "Run actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
-          "conclusion": "success"
-        },
-        {
-          "name": "Run docker/setup-docker-action@3f1ab1ab0e29231562e4db4ca600c1a49653bac6",
-          "conclusion": "success"
-        },
-        {
-          "name": "Install fixed builder dependencies and generate an ephemeral lab signer",
-          "conclusion": "success"
-        },
-        {
-          "name": "Build the signed wheel bundle without placing its private signer inside",
-          "conclusion": "success"
-        },
-        {
-          "name": "Install and verify the actual host services and container namespaces",
-          "conclusion": "success"
-        },
-        {
-          "name": "Preserve public metadata for Stage1 revalidation",
-          "conclusion": "success"
-        },
-        {
-          "name": "Post Run docker/setup-docker-action@3f1ab1ab0e29231562e4db4ca600c1a49653bac6",
-          "conclusion": "success"
-        },
-        {
-          "name": "Post Run actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0",
-          "conclusion": "success"
         },
         {
           "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",

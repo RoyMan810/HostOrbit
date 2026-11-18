@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { createRoot } from 'react-dom/client'
-import { ApiError, observationState, request } from './api'
+import { hasApiStatus, observationState, request } from './api'
 import type { InventoryPage, Presence, Resource, Session, Status } from './api'
 import { copy } from './copy'
 import type { Copy, Language } from './copy'
@@ -30,7 +30,7 @@ function Mark() {
 }
 
 function message(error: unknown, t: Copy) {
-  return error instanceof ApiError && error.status === 429 ? t.rateLimited : t.requestError
+  return hasApiStatus(error, 429) ? t.rateLimited : t.requestError
 }
 
 function Login({ t, onLogin }: { t: Copy; onLogin: (session: Session) => void }) {
@@ -66,7 +66,7 @@ function Login({ t, onLogin }: { t: Copy; onLogin: (session: Session) => void })
         <label>{t.username}<input name="username" autoComplete="username" minLength={3} maxLength={64} required /></label>
         <label>{t.password}<input name="password" type="password" autoComplete="current-password" maxLength={128} required /></label>
         {error != null && <p role="alert" className="error">
-          {error instanceof ApiError && (error.status === 401 || error.status === 403) ? t.loginError : message(error, t)}
+          {hasApiStatus(error, 401, 403) ? t.loginError : message(error, t)}
         </p>}
         <button className="primary" type="submit" disabled={busy}>{busy ? t.loading : t.signIn}</button>
       </form>
@@ -199,7 +199,7 @@ function Inventory({ t, lang, expired, session }: { t: Copy; lang: Language; exp
       })
       .catch(err => {
         if (abort.signal.aborted) return
-        if (err instanceof ApiError && err.status === 401) expired()
+        if (hasApiStatus(err, 401)) expired()
         else { setError(err); setSelected(null) }
       })
     return () => abort.abort()
@@ -214,7 +214,7 @@ function Inventory({ t, lang, expired, session }: { t: Copy; lang: Language; exp
         .then(result => { if (!abort.signal.aborted) setDetail(result) })
         .catch(err => {
           if (abort.signal.aborted) return
-          if (err instanceof ApiError && err.status === 401) expired()
+          if (hasApiStatus(err, 401)) expired()
           else setDetailError(err)
         })
     }
@@ -257,7 +257,7 @@ function Inventory({ t, lang, expired, session }: { t: Copy; lang: Language; exp
       <section className="panel detail" aria-labelledby="detail-heading">
         <div className="panel-heading"><h2 id="detail-heading">{t.detail}</h2><span className="pill">{t.readOnly}</span></div>
         {detailError != null ? <p className="notice error" role="alert">
-          {detailError instanceof ApiError && [403, 404].includes(detailError.status) ? t.missing : message(detailError, t)}
+          {hasApiStatus(detailError, 403, 404) ? t.missing : message(detailError, t)}
         </p> : current ? <Detail resource={current} t={t} lang={lang} now={now}
           expired={expired} session={session}/> :
           <p className="notice" role="status">{selected && !error ? t.loading : t.select}</p>}
@@ -318,7 +318,7 @@ function App() {
     request<Session>('/auth/session', { signal: abort.signal })
       .then(value => { if (!abort.signal.aborted) setSession(value) })
       .catch(err => {
-        if (!abort.signal.aborted && !(err instanceof ApiError && err.status === 401)) setSessionError(err)
+        if (!abort.signal.aborted && !hasApiStatus(err, 401)) setSessionError(err)
       })
       .finally(() => { if (!abort.signal.aborted) setRestoring(false) })
     return () => abort.abort()
@@ -332,7 +332,7 @@ function App() {
       await request<void>('/auth/logout', { body: {}, csrf: session.csrf_token })
       expired()
     } catch (err) {
-      if (err instanceof ApiError && err.status === 401) expired()
+      if (hasApiStatus(err, 401)) expired()
       else setSessionError(err)
     } finally {
       setEnding(false)

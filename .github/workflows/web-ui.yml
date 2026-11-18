@@ -2,18 +2,14 @@ name: HostOrbit WebUI
 
 on:
   pull_request:
-    paths:
+    paths: &web_paths
       - 'web/**'
       - 'hostorbit/**'
       - 'requirements-*.txt'
       - '.github/workflows/web-ui.yml'
   push:
     branches: [main]
-    paths:
-      - 'web/**'
-      - 'hostorbit/**'
-      - 'requirements-*.txt'
-      - '.github/workflows/web-ui.yml'
+    paths: *web_paths
 
 permissions:
   contents: read

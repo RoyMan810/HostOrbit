@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ApiError, isUlid, request } from './api'
+import { hasApiStatus, isUlid, request } from './api'
 import type { Copy, Language } from './copy'
 import { JobTimeline } from './job-timeline'
 import { restartHash } from './restart-timeline'
@@ -132,8 +132,8 @@ function IntegrityCheck({ t, expired }: { t: Copy; expired: () => void }) {
       })
       .catch(err => {
         if (abort.signal.aborted) return
-        if (err instanceof ApiError && err.status === 401) expired()
-        else setStatus(err instanceof ApiError && err.status === 403 ? 'denied' : 'unavailable')
+        if (hasApiStatus(err, 401)) expired()
+        else setStatus(hasApiStatus(err, 403) ? 'denied' : 'unavailable')
       })
     return () => abort.abort()
   }, [status, expired])
@@ -174,7 +174,7 @@ export function Audit({ t, lang, expired }: { t: Copy; lang: Language; expired: 
       .then(result => { if (!abort.signal.aborted) setItems(result.items) })
       .catch(err => {
         if (abort.signal.aborted) return
-        if (err instanceof ApiError && err.status === 401) expired()
+        if (hasApiStatus(err, 401)) expired()
         else setError(err)
       })
     return () => abort.abort()
@@ -189,7 +189,7 @@ export function Audit({ t, lang, expired }: { t: Copy; lang: Language; expired: 
       {items != null && <IntegrityCheck t={t} expired={expired}/>}
       {categories && <AuditExport key={`${after}:${revision}`} categories={categories} t={t}/>}
       {error != null ? <p className="notice error" role="alert">
-        {error instanceof ApiError && error.status === 403 ? t.auditDenied : t.requestError}
+        {hasApiStatus(error, 403) ? t.auditDenied : t.requestError}
       </p> : items == null ? <p className="notice" role="status">{t.loading}</p> : items.length === 0 ?
         <p className="notice">{t.auditEmpty}</p> : <ol className="audit-list">
           {entries.map(({ seq, event, planRevision }) => {

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ApiError, isUlid, request } from './api'
+import { hasApiStatus, isUlid, request } from './api'
 import type { Copy, Language } from './copy'
 
 export type RestartRoute = { planId: string; revision: number; operationId: string }
@@ -40,8 +40,8 @@ export function RestartTimeline({ route, t, lang, expired }: {
         if (pending.has(rows.at(-1)?.status ?? '')) timer = window.setTimeout(load, 2000)
       } catch (cause) {
         if (abort.signal.aborted) return
-        if (cause instanceof ApiError && cause.status === 401) return expired()
-        if (cause instanceof ApiError && [403, 404].includes(cause.status)) {
+        if (hasApiStatus(cause, 401)) return expired()
+        if (hasApiStatus(cause, 403, 404)) {
           setEntries(null)
           setError('denied')
         } else {
