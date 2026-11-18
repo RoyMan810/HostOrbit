@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test } from '@playwright/test'
-import type { Page } from '@playwright/test'
+import { copy } from '../src/copy'
+import type { Locator, Page } from '@playwright/test'
 
 const fresh = '01JCYQZ4T9V8MNVYEH3D2M7Q1A'
 const stale = '01JCYQZ4T9V8MNVYEH3D2M7Q1B'
@@ -659,89 +660,120 @@ test('displays the Controller denial for an operator with read access only', asy
   await expect(page.getByRole('button', { name: 'Retry the same request' })).toHaveCount(0)
 })
 
-test('reviews and queues an approved v8 restart in the real Controller exactly once', async ({ page }) => {
-  // This scenario shares the fixture Owner with the other browser contexts.
-  expect((await page.request.post('/__fixture__/reset-api-budget')).status()).toBe(204)
-  await signIn(page)
-  await page.getByRole('button', { name: new RegExp(never) }).click()
-  const baselineReply = acceptedProbe(page)
-  await page.getByRole('button', { name: 'Run SSH check' }).click()
-  const baseline = await (await baselineReply).json()
-  const complete = (id: string) => page.request.post('/__fixture__/jobs/' + id + '/finish', {
-    params: { outcome: 'SUCCEEDED', restart: 'true' },
+for (const locale of ['en', 'ru'] as const) {
+  test.describe(`Owner restart with the keyboard (${locale})`, () => {
+    test.use({ locale })
+    test('reviews and queues an approved v8 restart exactly once', async ({ page }) => {
+      // This scenario shares the fixture Owner with the other browser contexts.
+      expect((await page.request.post('/__fixture__/reset-api-budget')).status()).toBe(204)
+      const t = copy[locale]
+      async function tabTo(target: Locator) {
+        await expect(target).toBeVisible()
+        for (let i = 0; i < 80; i++) {
+          if (await target.evaluate(node => document.activeElement === node)) return
+          await page.keyboard.press('Tab')
+        }
+        await expect(target).toBeFocused()
+      }
+      async function activate(target: Locator, key = 'Enter') {
+        await tabTo(target)
+        await page.keyboard.press(key)
+      }
+      async function login(name: string) {
+        await tabTo(page.getByLabel(t.username))
+        await page.keyboard.type(name)
+        await tabTo(page.getByLabel(t.password, { exact: true }))
+        await page.keyboard.type(password)
+        await activate(page.getByRole('button', { name: t.signIn }))
+      }
+
+      await page.goto('/')
+      await expect(page.locator('html')).toHaveAttribute('lang', locale)
+      await login('fixture-owner')
+      await expect(page.getByRole('heading', { name: t.inventory })).toBeVisible()
+      await activate(page.getByRole('button', { name: new RegExp(locale === 'en' ? never : stale) }))
+      const baselineReply = acceptedProbe(page)
+      await activate(page.getByRole('button', { name: t.probeStart }))
+      const baseline = await (await baselineReply).json()
+      const complete = (id: string) => page.request.post('/__fixture__/jobs/' + id + '/finish', {
+        params: { outcome: 'SUCCEEDED', restart: 'true' },
+      })
+      expect((await complete(baseline.id)).status()).toBe(204)
+      await expect(page.getByText(t.probeStatus.SUCCEEDED, { exact: true })).toBeVisible()
+      await expect(page.getByText(t.dockerPortsEmpty, { exact: true })).toBeVisible()
+      await activate(page.getByRole('button', { name: `${t.restartPreviewFor} fixture / web` }))
+
+      const save = page.getByRole('button', { name: t.restartDraft })
+      await expect(save).toBeDisabled()
+      await activate(page.getByRole('checkbox', { name: t.restartStateless }), 'Space')
+      await activate(save)
+      await expect(page.getByText(`${t.restartRevision} 1`, { exact: false })).toBeVisible()
+      const preflightReply = page.waitForResponse(response =>
+        response.url().endsWith('/preflight') && response.status() === 202)
+      await activate(page.getByRole('button', { name: t.restartPreflight }))
+      const job = await (await preflightReply).json()
+      expect((await complete(job.id)).status()).toBe(204)
+      await activate(page.getByRole('button', { name: t.restartCheckResult }))
+      await expect(page.getByText(t.restartBackupPassed)).toBeVisible()
+      await tabTo(page.getByLabel(t.restartPassword))
+      await page.keyboard.type(password)
+      const execute = page.getByRole('button', { name: t.restartExecute })
+      await expect(execute).toHaveCount(0)
+      await activate(page.getByRole('button', { name: t.restartApprove }))
+      await expect(execute).toBeEnabled()
+      await expect(page.getByLabel(t.restartPassword)).toHaveCount(0)
+
+      let accepted = ''
+      await page.route('**/execution-requests', async route => {
+        const response = await route.fetch()
+        expect(response.status()).toBe(202)
+        accepted = (await response.json()).id
+        await route.abort('failed')
+      }, { times: 1 })
+      await activate(execute)
+      await expect(page.getByRole('alert')).toContainText(t.restartPlanError)
+      expect(accepted).toBeTruthy()
+      const retry = page.waitForResponse(response => response.url().endsWith('/execution-requests') && response.status() === 202)
+      await activate(execute)
+      expect((await (await retry).json()).id).toBe(accepted)
+      const timeline = page.getByRole('region', { name: t.restartTimeline })
+      await expect(timeline.getByRole('listitem')).toHaveCount(1)
+      await expect(timeline.getByRole('listitem')).toContainText(t.restartStates.QUEUED)
+
+      const link = new URL(page.url())
+      const [, planId] = link.hash.split('/')
+      const timelinePath = '/api/v1/change-plans/' + planId + '/execution-timeline'
+      expect(link.hash).toContain(accepted)
+      const { items } = await (await page.request.get(timelinePath)).json()
+      await page.reload()
+      await expect(timeline.getByRole('listitem')).toContainText(t.restartStates.QUEUED)
+      await activate(page.getByRole('link', { name: t.skip }))
+      await expect(page.getByRole('main')).toBeFocused()
+      expect(new URL(page.url()).hash).toBe(link.hash)
+      const lost = await page.request.post('/__fixture__/restarts/' + planId + '/unknown')
+      expect(lost.status()).toBe(204)
+      await expect(timeline.getByText(t.restartStates.UNKNOWN_OUTCOME)).toBeVisible()
+      await expect(timeline.getByText('SSH_RESTART_UNCONFIRMED', { exact: true })).toBeVisible()
+
+      await page.route('**/api/v1/audit?after=0', async route => {
+        const url = new URL(route.request().url())
+        url.searchParams.set('after', String(items[0].seq - 1))
+        await route.fulfill({ response: await route.fetch({ url: url.toString() }) })
+      })
+      await activate(page.getByRole('button', { name: t.audit }))
+      const result = page.getByRole('listitem').filter({ hasText: 'change_plan.restart_finished' })
+      await activate(result.getByRole('link', { name: t.restartTimeline }))
+      await expect(timeline.getByText('SSH_RESTART_UNCONFIRMED', { exact: true })).toBeVisible()
+      expect(new URL(page.url()).hash).toBe(link.hash)
+
+      await page.context().clearCookies()
+      await page.reload()
+      await login('fixture-auditor')
+      await expect(timeline.getByRole('alert')).toHaveText(t.restartTimelineDenied)
+      await expect(timeline.getByRole('listitem')).toHaveCount(0)
+    })
   })
-  expect((await complete(baseline.id)).status()).toBe(204)
-  await expect(page.getByText('Check completed', { exact: true })).toBeVisible()
-  await expect(page.getByText('No published host ports', { exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'Preview restart for fixture / web' }).click()
-
-  const save = page.getByRole('button', { name: 'Create restart plan' })
-  await expect(save).toBeDisabled()
-  await page.getByRole('checkbox', { name: 'This isolated test container' }).check()
-  await save.click()
-  await expect(page.getByText('Plan revision 1', { exact: false })).toBeVisible()
-  const preflightReply = page.waitForResponse(response =>
-    response.url().endsWith('/preflight') && response.status() === 202)
-  await page.getByRole('button', { name: 'Run preflight' }).click()
-  const job = await (await preflightReply).json()
-  expect((await complete(job.id)).status()).toBe(204)
-  await page.getByRole('button', { name: 'Refresh status' }).click()
-  await expect(page.getByText('Backup Gate confirmed that a resource backup is not required.')).toBeVisible()
-  await page.getByLabel('Owner password').fill(password)
-  const execute = page.getByRole('button', { name: 'Queue Docker restart' })
-  await expect(execute).toHaveCount(0)
-  await page.getByRole('button', { name: 'Confirm this revision' }).click()
-  await expect(execute).toBeEnabled()
-  await expect(page.getByLabel('Owner password')).toHaveCount(0)
-
-  let accepted = ''
-  await page.route('**/execution-requests', async route => {
-    const response = await route.fetch()
-    expect(response.status()).toBe(202)
-    accepted = (await response.json()).id
-    await route.abort('failed')
-  }, { times: 1 })
-  await execute.click()
-  await expect(page.getByRole('alert')).toContainText('The Controller could not confirm this step.')
-  expect(accepted).toBeTruthy()
-  const retry = page.waitForResponse(response => response.url().endsWith('/execution-requests') && response.status() === 202)
-  await execute.click()
-  expect((await (await retry).json()).id).toBe(accepted)
-  const timeline = page.getByRole('region', { name: 'Restart timeline' })
-  await expect(timeline.getByRole('listitem')).toHaveCount(1)
-  await expect(timeline.getByRole('listitem')).toContainText('Queued')
-
-  const link = new URL(page.url())
-  const [, planId] = link.hash.split('/')
-  const timelinePath = '/api/v1/change-plans/' + planId + '/execution-timeline'
-  expect(link.hash).toContain(accepted)
-  const { items } = await (await page.request.get(timelinePath)).json()
-  await page.reload()
-  await expect(timeline.getByRole('listitem')).toContainText('Queued')
-  const lost = await page.request.post('/__fixture__/restarts/' + planId + '/unknown')
-  expect(lost.status()).toBe(204)
-  await expect(timeline.getByText('Outcome unknown. Restart will not be retried.')).toBeVisible()
-  await expect(timeline.getByText('SSH_RESTART_UNCONFIRMED', { exact: true })).toBeVisible()
-
-  await page.route('**/api/v1/audit?after=0', async route => {
-    const url = new URL(route.request().url())
-    url.searchParams.set('after', String(items[0].seq - 1))
-    await route.fulfill({ response: await route.fetch({ url: url.toString() }) })
-  })
-  await page.getByRole('button', { name: 'Audit log' }).click()
-  const result = page.getByRole('listitem').filter({ hasText: 'change_plan.restart_finished' })
-  await result.getByRole('link', { name: 'Restart timeline' }).click()
-  await expect(timeline.getByText('SSH_RESTART_UNCONFIRMED', { exact: true })).toBeVisible()
-  expect(new URL(page.url()).hash).toBe(link.hash)
-
-  await page.context().clearCookies()
-  await page.reload()
-  await page.getByLabel('Username').fill('fixture-auditor')
-  await page.getByLabel('Password').fill(password)
-  await page.getByRole('button', { name: 'Sign in' }).click()
-  await expect(timeline.getByRole('alert')).toHaveText('This restart timeline is unavailable for your access scope.')
-  await expect(timeline.getByRole('listitem')).toHaveCount(0)
-})
+}
 
 test('a denied retry leaves the earlier acceptance uncertain and blocks a fresh key', async ({ page }) => {
   await signIn(page)

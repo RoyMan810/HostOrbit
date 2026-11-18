@@ -180,7 +180,7 @@ export function Audit({ t, lang, expired }: { t: Copy; lang: Language; expired: 
     return () => abort.abort()
   }, [after, revision, expired])
 
-  return <main id="main" className="workspace">
+  return <div className="workspace">
     <div className="heading">
       <div><p className="eyebrow">{t.workspace}</p><h1>{t.audit}</h1><p>{t.auditHint}</p></div>
       <button onClick={() => refresh(value => value + 1)} disabled={items == null && error == null}>{t.auditRefresh}</button>
@@ -228,5 +228,5 @@ export function Audit({ t, lang, expired }: { t: Copy; lang: Language; expired: 
         }}>{t.next}</button>
       </div>}
     </section>
-  </main>
+  </div>
 }
