@@ -54,7 +54,7 @@ export function RestartTimeline({ route, t, lang, expired }: {
   }, [planId, operationId, revision, expired, refresh])
 
   const format = new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'medium' })
-  return <main id="main" className="workspace">
+  return <div className="workspace">
     <section aria-label={t.restartTimeline} className="panel">
       <div className="panel-heading"><h1>{t.restartTimeline}</h1>
         <button type="button" onClick={() => setRefresh(value => value + 1)}>{t.restartCheckResult}</button>
@@ -69,5 +69,5 @@ export function RestartTimeline({ route, t, lang, expired }: {
         {item.reason && <> · <code>{item.reason}</code></>}
       </li>)}</ol>}
     </section>
-  </main>
+  </div>
 }

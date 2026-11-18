@@ -57,7 +57,7 @@ function Login({ t, onLogin }: { t: Copy; onLogin: (session: Session) => void })
     }
   }
 
-  return <main id="main" className="auth-layout">
+  return <div className="auth-layout">
     <section className="login panel" aria-labelledby="sign-in-heading">
       <div className="login-icon"><Mark/></div>
       <h1 id="sign-in-heading">{t.signIn}</h1>
@@ -71,7 +71,7 @@ function Login({ t, onLogin }: { t: Copy; onLogin: (session: Session) => void })
         <button className="primary" type="submit" disabled={busy}>{busy ? t.loading : t.signIn}</button>
       </form>
     </section>
-  </main>
+  </div>
 }
 
 function StatusBadge({ status, t }: { status: Status; t: Copy }) {
@@ -221,7 +221,7 @@ function Inventory({ t, lang, expired, session }: { t: Copy; lang: Language; exp
     return () => abort.abort()
   }, [selected, revision, expired])
 
-  return <main id="main" className="workspace">
+  return <div className="workspace">
     <div className="heading">
       <div><p className="eyebrow">{t.workspace}</p><h1>{t.inventory}</h1><p>{t.subtitle}</p></div>
       <button onClick={reload} disabled={!page && error == null}>
@@ -264,7 +264,7 @@ function Inventory({ t, lang, expired, session }: { t: Copy; lang: Language; exp
         <ProbeControl resource={current} session={session} t={t} lang={lang} expired={expired} reload={reload}/>
       </section>
     </div>
-  </main>
+  </div>
 }
 
 function App() {
@@ -340,7 +340,10 @@ function App() {
   }
 
   return <>
-    <a className="skip" href="#main">{t.skip}</a>
+    <a className="skip" href="#main" onClick={event => {
+      event.preventDefault()
+      document.getElementById('main')?.focus()
+    }}>{t.skip}</a>
     <header className="topbar">
       <div className="brand"><Mark/><span>HostOrbit</span></div>
       <div className="preferences">
@@ -360,24 +363,26 @@ function App() {
         </div>}
       </div>
     </header>
-    {restoring ? <main id="main" className="workspace" role="status">{t.loading}</main> :
-      session ? <>
-        {sessionError != null && <p className="session-error error" role="alert">{message(sessionError, t)}</p>}
-        <nav className="workspace-nav" aria-label={t.navigation}>
-          <button aria-current={!restart && view === 'inventory' ? 'page' : undefined} onClick={() => show('inventory')}>{t.inventory}</button>
-          <button aria-current={!restart && view === 'audit' ? 'page' : undefined} onClick={() => show('audit')}>{t.audit}</button>
-        </nav>
-        <div hidden={Boolean(restart) || view !== 'inventory'}>
-          <Inventory key={session.user.id} t={t} lang={lang} expired={expired} session={session}/>
-        </div>
-        {restart && <RestartTimeline key={restartHash(restart)} route={restart} t={t} lang={lang} expired={expired}/>}
-        {view === 'audit' && <div hidden={Boolean(restart)}>
-          <Audit key={session.user.id} t={t} lang={lang} expired={expired}/>
-        </div>}
-      </> : sessionError != null ? <main id="main" className="workspace">
-        <p role="alert" className="error">{message(sessionError, t)}</p>
-        <button onClick={() => setRetry(value => value + 1)}>{t.retry}</button>
-      </main> : <Login t={t} onLogin={setSession}/>}
+    <main id="main" tabIndex={-1}>
+      {restoring ? <div className="workspace" role="status">{t.loading}</div> :
+        session ? <>
+          {sessionError != null && <p className="session-error error" role="alert">{message(sessionError, t)}</p>}
+          <nav className="workspace-nav" aria-label={t.navigation}>
+            <button aria-current={!restart && view === 'inventory' ? 'page' : undefined} onClick={() => show('inventory')}>{t.inventory}</button>
+            <button aria-current={!restart && view === 'audit' ? 'page' : undefined} onClick={() => show('audit')}>{t.audit}</button>
+          </nav>
+          <div hidden={Boolean(restart) || view !== 'inventory'}>
+            <Inventory key={session.user.id} t={t} lang={lang} expired={expired} session={session}/>
+          </div>
+          {restart && <RestartTimeline key={restartHash(restart)} route={restart} t={t} lang={lang} expired={expired}/>}
+          {view === 'audit' && <div hidden={Boolean(restart)}>
+            <Audit key={session.user.id} t={t} lang={lang} expired={expired}/>
+          </div>}
+        </> : sessionError != null ? <div className="workspace">
+          <p role="alert" className="error">{message(sessionError, t)}</p>
+          <button onClick={() => setRetry(value => value + 1)}>{t.retry}</button>
+        </div> : <Login t={t} onLogin={setSession}/>}
+    </main>
   </>
 }
 
