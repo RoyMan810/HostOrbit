@@ -8,6 +8,7 @@ import type { Copy, Language } from './copy'
 import { ProbeControl } from './probe'
 import { RestartPreview } from './restart-preview'
 import { Audit } from './audit'
+import { readRestartHash, restartHash, RestartTimeline } from './restart-timeline'
 import './style.css'
 
 type Theme = 'system' | 'light' | 'dark'
@@ -282,8 +283,28 @@ function App() {
   const [retry, setRetry] = useState(0)
   const [ending, setEnding] = useState(false)
   const [view, setView] = useState<'inventory' | 'audit'>('inventory')
+  const [restart, setRestart] = useState(() => readRestartHash(window.location.hash))
   const t = copy[lang]
-  const expired = useCallback(() => { setSession(null); setSessionError(null); setView('inventory') }, [])
+
+  function show(section: 'inventory' | 'audit') {
+    if (readRestartHash(window.location.hash)) window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    setRestart(null)
+    setView(section)
+  }
+
+  useEffect(() => {
+    const update = () => setRestart(readRestartHash(window.location.hash))
+    window.addEventListener('hashchange', update)
+    return () => window.removeEventListener('hashchange', update)
+  }, [])
+
+  const expired = useCallback(() => {
+    if (readRestartHash(window.location.hash)) window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    setRestart(null)
+    setSession(null)
+    setSessionError(null)
+    setView('inventory')
+  }, [])
 
   useEffect(() => {
     document.documentElement.lang = lang
@@ -343,13 +364,16 @@ function App() {
       session ? <>
         {sessionError != null && <p className="session-error error" role="alert">{message(sessionError, t)}</p>}
         <nav className="workspace-nav" aria-label={t.navigation}>
-          <button aria-current={view === 'inventory' ? 'page' : undefined} onClick={() => setView('inventory')}>{t.inventory}</button>
-          <button aria-current={view === 'audit' ? 'page' : undefined} onClick={() => setView('audit')}>{t.audit}</button>
+          <button aria-current={!restart && view === 'inventory' ? 'page' : undefined} onClick={() => show('inventory')}>{t.inventory}</button>
+          <button aria-current={!restart && view === 'audit' ? 'page' : undefined} onClick={() => show('audit')}>{t.audit}</button>
         </nav>
-        <div hidden={view !== 'inventory'}>
+        <div hidden={Boolean(restart) || view !== 'inventory'}>
           <Inventory key={session.user.id} t={t} lang={lang} expired={expired} session={session}/>
         </div>
-        {view === 'audit' && <Audit key={session.user.id} t={t} lang={lang} expired={expired}/>}
+        {restart && <RestartTimeline key={restartHash(restart)} route={restart} t={t} lang={lang} expired={expired}/>}
+        {view === 'audit' && <div hidden={Boolean(restart)}>
+          <Audit key={session.user.id} t={t} lang={lang} expired={expired}/>
+        </div>}
       </> : sessionError != null ? <main id="main" className="workspace">
         <p role="alert" className="error">{message(sessionError, t)}</p>
         <button onClick={() => setRetry(value => value + 1)}>{t.retry}</button>

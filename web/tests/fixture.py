@@ -1,3 +1,4 @@
+import json
 """Loopback-only, disposable HTTPS Controller for browser tests."""
 
 from pathlib import Path
@@ -97,6 +98,19 @@ def fixture(directory):
             queue.finish(claim, outcome, "PROBE_VERIFIED", result=result)
         else:
             queue.finish(claim, outcome, "SSH_CONNECTION_LOST")
+
+    @app.post("/__fixture__/restarts/{draft_id}/unknown", status_code=204)
+    def report_unknown_restart(draft_id: str):
+        with store.write() as db:
+            row = db.execute("""SELECT * FROM audit WHERE correlation_id=?
+                AND event='change_plan.restart_requested' ORDER BY seq DESC LIMIT 1""", (draft_id,)).fetchone()
+            if row is None:
+                raise HTTPException(404)
+            operation = json.loads(row["details"])
+            Store.event(db, at=int(time.time()), actor=row["actor_id"], target=row["target_id"],
+                        correlation=draft_id, kind="change_plan.restart_finished", outcome="UNKNOWN_OUTCOME",
+                        details={"operation_id": operation["operation_id"], "revision": operation["revision"],
+                                 "reason": "SSH_RESTART_UNCONFIRMED"})
 
     app.mount("/", StaticFiles(directory=Path(__file__).resolve().parents[1] / "dist", html=True))
     return app

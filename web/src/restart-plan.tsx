@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ApiError, isUlid, request } from './api'
 import type { DockerContainer, Observation, Resource } from './api'
 import type { Copy } from './copy'
+import { restartHash } from './restart-timeline'
 
 type Draft = {
   id: string
@@ -19,7 +20,6 @@ type Draft = {
   }
 }
 type SavedDraft = { id: string; revision: number; hash: string; tag: string; key: string; savedAt: number }
-type TimelineEntry = { seq: number; revision: number; operation_id: string; status: string; reason: string | null }
 
 export function RestartPlan({ resource, container, sample, csrf, t, expired }: {
   resource: Resource
@@ -36,7 +36,6 @@ export function RestartPlan({ resource, container, sample, csrf, t, expired }: {
   const [password, setPassword] = useState('')
   const [approval, setApproval] = useState<string | null>(null)
   const [operation, setOperation] = useState<string | null>(null)
-  const [timeline, setTimeline] = useState<TimelineEntry[]>([])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const pending = useRef<AbortController | null>(null)
@@ -84,11 +83,6 @@ export function RestartPlan({ resource, container, sample, csrf, t, expired }: {
       throw new ApiError(409)
     }
     if (!signal.aborted) setDraft({ id: value.id, revision: value.revision, hash: value.plan_hash, tag, key: crypto.randomUUID(), savedAt: performance.now() })
-  }
-
-  async function refreshTimeline(id: string, signal: AbortSignal) {
-    const value = await request<{ items: TimelineEntry[] }>(plan + '/execution-timeline', { signal })
-    if (!signal.aborted) setTimeline(value.items.filter(item => item.operation_id === id && item.revision === draft?.revision))
   }
 
   return <div className="restart-plan">
@@ -141,25 +135,18 @@ export function RestartPlan({ resource, container, sample, csrf, t, expired }: {
         disabled={busy} onChange={event => setPassword(event.target.value)}/></label>
       <button disabled={!password || busy}>{t.restartApprove}</button>
     </form>}
-    {evidence && approval && !operation && <button type="button" disabled={busy} onClick={() => void run(async signal => {
+    {draft && evidence && approval && !operation && <button type="button" disabled={busy} onClick={() => void run(async signal => {
       const result = await request<{ id: string }>(plan + '/execution-requests', {
         ...options, signal, body: { ...evidence, approval_id: approval },
       })
       if (!isUlid(result.id)) throw new Error()
       if (signal.aborted) return
       setOperation(result.id)
-      await refreshTimeline(result.id, signal)
+      window.location.hash = restartHash({ planId: draft.id, revision: draft.revision, operationId: result.id })
     })}>{t.restartExecute}</button>}
-    {operation && <section aria-label={t.restartTimeline}>
-      <h4>{t.restartTimeline}</h4>
-      <ol aria-live="polite">{timeline.map(item => <li key={item.seq}>
-        {t.restartStates[item.status as keyof Copy['restartStates']] ?? item.status}
-        {item.reason && <> · <code>{item.reason}</code></>}
-      </li>)}</ol>
-      <button type="button" disabled={busy} onClick={() => void run(signal => refreshTimeline(operation, signal))}>
-        {t.restartCheckResult}
-      </button>
-    </section>}
+    {operation && draft && <a href={restartHash({ planId: draft.id, revision: draft.revision, operationId: operation })}>
+      {t.restartTimeline}
+    </a>}
     {error && <p role="alert" className="error">{error}</p>}
   </div>
 }

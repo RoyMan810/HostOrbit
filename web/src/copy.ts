@@ -107,6 +107,7 @@ export const copy = {
     restartApprove: 'Confirm this revision',
     restartExecute: 'Queue Docker restart',
     restartTimeline: 'Restart timeline',
+    restartTimelineDenied: 'This restart timeline is unavailable for your access scope.',
     restartPlanError: 'The Controller could not confirm this step.',
     restartStates: { QUEUED: 'Queued', INTENT_PREPARED: 'Prepared', DISPATCHING: 'Dispatching', SUCCEEDED: 'Restart verified', FAILED: 'Failed', CANCELLED_SAFE: 'Cancelled before dispatch', UNKNOWN_OUTCOME: 'Outcome unknown. Restart will not be retried.' },
     dockerStatus: {
@@ -256,6 +257,7 @@ export const copy = {
     restartApprove: 'Подтвердить ревизию',
     restartExecute: 'Поставить перезапуск в очередь',
     restartTimeline: 'Хронология перезапуска',
+    restartTimelineDenied: 'Хронология перезапуска недоступна с вашими правами.',
     restartPlanError: 'Controller не подтвердил выполнение этого шага.',
     restartStates: { QUEUED: 'В очереди', INTENT_PREPARED: 'Подготовлен', DISPATCHING: 'Отправляется', SUCCEEDED: 'Перезапуск подтверждён', FAILED: 'Ошибка', CANCELLED_SAFE: 'Отменён до отправки', UNKNOWN_OUTCOME: 'Исход неизвестен. Автоматического повтора не будет.' },
     dockerStatus: {

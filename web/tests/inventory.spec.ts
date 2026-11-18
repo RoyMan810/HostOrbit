@@ -706,7 +706,38 @@ test('reviews and queues an approved v8 restart in the real Controller exactly o
   expect((await (await retry).json()).id).toBe(accepted)
   const timeline = page.getByRole('region', { name: 'Restart timeline' })
   await expect(timeline.getByRole('listitem')).toHaveCount(1)
-  await expect(timeline.getByRole('listitem')).toHaveText('Queued')
+  await expect(timeline.getByRole('listitem')).toContainText('Queued')
+
+  const link = new URL(page.url())
+  const [, planId] = link.hash.split('/')
+  const timelinePath = '/api/v1/change-plans/' + planId + '/execution-timeline'
+  expect(link.hash).toContain(accepted)
+  const { items } = await (await page.request.get(timelinePath)).json()
+  await page.reload()
+  await expect(timeline.getByRole('listitem')).toContainText('Queued')
+  const lost = await page.request.post('/__fixture__/restarts/' + planId + '/unknown')
+  expect(lost.status()).toBe(204)
+  await expect(timeline.getByText('Outcome unknown. Restart will not be retried.')).toBeVisible()
+  await expect(timeline.getByText('SSH_RESTART_UNCONFIRMED', { exact: true })).toBeVisible()
+
+  await page.route('**/api/v1/audit?after=0', async route => {
+    const url = new URL(route.request().url())
+    url.searchParams.set('after', String(items[0].seq - 1))
+    await route.fulfill({ response: await route.fetch({ url: url.toString() }) })
+  })
+  await page.getByRole('button', { name: 'Audit log' }).click()
+  const result = page.getByRole('listitem').filter({ hasText: 'change_plan.restart_finished' })
+  await result.getByRole('link', { name: 'Restart timeline' }).click()
+  await expect(timeline.getByText('SSH_RESTART_UNCONFIRMED', { exact: true })).toBeVisible()
+  expect(new URL(page.url()).hash).toBe(link.hash)
+
+  await page.context().clearCookies()
+  await page.reload()
+  await page.getByLabel('Username').fill('fixture-auditor')
+  await page.getByLabel('Password').fill(password)
+  await page.getByRole('button', { name: 'Sign in' }).click()
+  await expect(timeline.getByRole('alert')).toHaveText('This restart timeline is unavailable for your access scope.')
+  await expect(timeline.getByRole('listitem')).toHaveCount(0)
 })
 
 test('a denied retry leaves the earlier acceptance uncertain and blocks a fresh key', async ({ page }) => {
