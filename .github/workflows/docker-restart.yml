@@ -1,0 +1,32 @@
+name: HostOrbit typed Docker restart
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/docker-restart.yml
+      - remote/**
+      - tests_runtime/lab/docker_restart.py
+      - tests_runtime/test_typed_docker_restart.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  docker-restart:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    env:
+      HOSTORBIT_LAB_PYTHON_IMAGE: docker.io/library/python@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-docker-action@3f1ab1ab0e29231562e4db4ca600c1a49653bac6 # v5.7.0
+        with:
+          version: v29.9.3
+          set-host: true
+      - name: Verify the effect and replay on the same pinned Docker daemon
+        run: |
+          sudo -n /usr/bin/env "DOCKER_HOST=$DOCKER_HOST" GITHUB_ACTIONS=true \
+            "RUNNER_ENVIRONMENT=$RUNNER_ENVIRONMENT" python3 tests_runtime/lab/docker_restart.py "$HOSTORBIT_LAB_PYTHON_IMAGE"

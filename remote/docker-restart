@@ -1,0 +1,154 @@
+#!/usr/bin/python3 -I
+"""Execute one explicitly authorized, local test-container restart."""
+from datetime import datetime
+import fcntl
+import hashlib
+import http.client
+import json
+import os
+from pathlib import Path
+import re
+import runpy
+import signal
+import stat
+import sys
+
+
+IDENTITY = r"[0-9a-f]{64}"
+OPERATION = r"[0-9A-HJKMNP-TV-Z]{26}"
+BOOT = r"[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}"
+TIMESTAMP = r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?Z"
+BOOT_ID = Path("/proc/sys/kernel/random/boot_id")
+POLICY = Path("/etc/hostorbit/docker-restart.json")
+JOURNAL = Path("/var/lib/hostorbit-docker-restart")
+
+
+class Refused(ValueError):
+    pass
+
+
+def timestamp(value):
+    if not isinstance(value, str) or not re.fullmatch(TIMESTAMP, value):
+        raise Refused("INVALID_STARTED_AT")
+    try:
+        return datetime.fromisoformat(value.removesuffix("Z"))
+    except ValueError:
+        raise Refused("INVALID_STARTED_AT") from None
+
+
+def parse(data, helper):
+    value = json.loads(data, object_pairs_hook=helper["unique_object"])
+    if (not isinstance(value, dict)
+            or value.keys() != {"operation_id", "container_id", "boot_id", "started_at"}):
+        raise Refused("INVALID_REQUEST")
+    for key, pattern in (("operation_id", OPERATION), ("container_id", IDENTITY), ("boot_id", BOOT)):
+        if not isinstance(value[key], str) or not re.fullmatch(pattern, value[key]):
+            raise Refused("INVALID_REQUEST")
+    timestamp(value["started_at"])
+    return value
+
+
+def restart_once(request, helper, *, socket_path, discovery, policy, journal, boot_id):
+    operation = request["operation_id"]
+    pending, verified = operation + ".pending", operation + ".verified"
+    digest = hashlib.sha256(json.dumps(request, sort_keys=True).encode()).hexdigest().encode()
+    directory = os.open(journal, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        entry = os.fstat(directory)
+        if entry.st_uid != 0 or stat.S_IMODE(entry.st_mode) != 0o700:
+            raise Refused("JOURNAL_UNPROTECTED")
+        try:
+            fcntl.flock(directory, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise Refused("RESTART_BUSY") from None
+        receipts = os.listdir(directory)
+        for name, outcome, code in (
+            (verified, "SUCCEEDED", "RESTART_ALREADY_VERIFIED"),
+            (pending, "UNKNOWN_OUTCOME", "RESTART_OUTCOME_UNVERIFIED"),
+        ):
+            if name in receipts:
+                with os.fdopen(os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory), "rb") as receipt:
+                    if not stat.S_ISREG(os.fstat(receipt.fileno()).st_mode) or receipt.read(65) != digest:
+                        raise Refused("RESTART_REQUEST_CONFLICT")
+                return outcome, code
+        if any(name.endswith(".pending") for name in receipts):
+            raise Refused("RESTART_INCIDENT_OPEN")
+        allowed = helper["read_docker_scope"](policy)
+        if (len(allowed) != 1 or allowed[0]["id"] != request["container_id"]
+                or allowed[0] not in helper["read_docker_scope"](discovery)):
+            raise Refused("CONTAINER_NOT_APPROVED")
+        socket_entry = socket_path.lstat()
+        if (not helper["protected_directory"](socket_path.parent.lstat())
+                or not stat.S_ISSOCK(socket_entry.st_mode) or socket_entry.st_uid != 0
+                or socket_entry.st_mode & 0o002):
+            raise Refused("DOCKER_SOCKET_UNPROTECTED")
+        target = allowed[0]
+        before = helper["inspect_container"](socket_path, target)
+        if (not before or before["State"].get("StartedAt") != request["started_at"]
+                or request["boot_id"] != boot_id.read_text().strip()):
+            raise Refused("STALE_BASELINE")
+        if (helper["mount_status"](before) != "NONE" or helper["network_status"](before) != "ISOLATED"
+                or helper["dependency_status"](socket_path, target["id"], before["HostConfig"]) != "ISOLATED"):
+            raise Refused("CONTAINER_NOT_ISOLATED")
+
+        # Persist the intent before touching Docker. A crash leaves all further
+        # restarts blocked until the pending operation has been reconciled.
+        receipt = os.open(pending, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600, dir_fd=directory)
+        try:
+            with os.fdopen(receipt, "wb") as file:
+                file.write(digest)
+                file.flush()
+                os.fsync(file.fileno())
+            os.fsync(directory)
+            connection = helper["DockerConnection"](socket_path)
+            connection.timeout = 12
+            try:
+                connection.request("POST", f"/v1.44/containers/{target['id']}/restart?t=2")
+                with connection.getresponse() as response:
+                    if response.status != 204:
+                        return "UNKNOWN_OUTCOME", "DOCKER_RESTART_UNCONFIRMED"
+            finally:
+                connection.close()
+            after = helper["inspect_container"](socket_path, target)
+            if (not after or boot_id.read_text().strip() != request["boot_id"]
+                    or timestamp(after["State"].get("StartedAt")) <= timestamp(request["started_at"])):
+                return "UNKNOWN_OUTCOME", "DOCKER_EFFECT_UNVERIFIED"
+            os.rename(pending, verified, src_dir_fd=directory, dst_dir_fd=directory)
+            os.fsync(directory)
+            return "SUCCEEDED", "DOCKER_RESTART_VERIFIED"
+        except (OSError, ValueError, RecursionError, http.client.HTTPException):
+            return "UNKNOWN_OUTCOME", "DOCKER_EFFECT_UNVERIFIED"
+    finally:
+        os.close(directory)
+
+
+def timed_out(_signum, _frame):
+    raise TimeoutError
+
+
+def main():
+    if os.getuid() != 0 or os.geteuid() != 0 or len(sys.argv) != 1:
+        return 65
+    helper = runpy.run_path(str(Path(__file__).resolve().with_name("typed-helper")))
+    signal.signal(signal.SIGALRM, timed_out)
+    signal.alarm(22)
+    try:
+        raw = sys.stdin.buffer.read(513)
+        if len(raw) > 512:
+            raise Refused("INVALID_REQUEST")
+        request = parse(raw, helper)
+        outcome, code = restart_once(request, helper, socket_path=helper["DOCKER_SOCKET"],
+                                     discovery=helper["DOCKER_SCOPE"], policy=POLICY,
+                                     journal=JOURNAL, boot_id=BOOT_ID)
+    except Refused as error:
+        outcome, code = "DENIED", str(error)
+    except (OSError, ValueError, RecursionError, http.client.HTTPException):
+        outcome, code = "DENIED", "RESTART_PRECHECK_FAILED"
+    finally:
+        signal.alarm(0)
+    print(json.dumps({"outcome": outcome, "code": code}, separators=(",", ":")))
+    return {"SUCCEEDED": 0, "DENIED": 65, "UNKNOWN_OUTCOME": 70}[outcome]
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
