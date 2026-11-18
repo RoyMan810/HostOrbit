@@ -36,7 +36,8 @@ jobs:
           sudo /usr/bin/docker pull "$HOSTORBIT_LAB_RESTORE_IMAGE"
       - name: Verify real Docker target, application data and occupied-target refusal
         run: |
-          sudo -n /usr/bin/env "PYTHONPATH=$PWD" PYTHONDONTWRITEBYTECODE=1 \
+          sudo -n /usr/bin/env "PYTHONPATH=$PWD:$PWD/tests_runtime" PYTHONDONTWRITEBYTECODE=1 \
             GITHUB_ACTIONS=true "RUNNER_ENVIRONMENT=$RUNNER_ENVIRONMENT" \
             "HOSTORBIT_TEST_AGE_DIR=$RUNNER_TEMP/age" "HOSTORBIT_LAB_RESTORE_IMAGE=$HOSTORBIT_LAB_RESTORE_IMAGE" \
-            "$(command -v python)" -m unittest discover -s tests_runtime -p test_resource_restore_attestation.py -k new_docker_volume -v
+            "$(command -v python)" -m unittest -v \
+            test_resource_restore_attestation.RestoreAttestationTests.test_restored_data_is_usable_in_a_new_docker_volume

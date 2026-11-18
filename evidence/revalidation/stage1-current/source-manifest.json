@@ -1,11 +1,11 @@
 {
   "scope": "Tracked Foundation application, deploy, remote and test paths plus historical report paths and CI/build inputs; each file matches the checked commit.",
-  "source_commit": "466593bb704722cf258eedbca0637dfd548fe471",
-  "source_tree": "5ead9715445bc7579cf1b724a2f3172e40412578",
+  "source_commit": "0990965fb2170299d33637ca7e1158bf87be798c",
+  "source_tree": "efca9cda83cc308468a51ae63d5192f10750086f",
   "files": [
     {
       "path": ".github/workflows/checks.yml",
-      "sha256": "9b3ec10e40145d5545e029b793e96f7df0246c55c8346e21fd095710730e2496"
+      "sha256": "340df3682a94f1bb47811d97d12bb0e542aa5b5019d065b52642fde779debe4f"
     },
     {
       "path": "deploy/Controller.Dockerfile",
@@ -313,7 +313,7 @@
     },
     {
       "path": "tests_runtime/lab/installation.py",
-      "sha256": "bfe591f13fc56f348218467662371efdc0cf58e7551fdb074541e6b71140af68"
+      "sha256": "fcb7602dda3927ca416f03601de78682b2af39d0dda0a9fdb98542c22e01f2d6"
     },
     {
       "path": "tests_runtime/lab/rescue.py",
