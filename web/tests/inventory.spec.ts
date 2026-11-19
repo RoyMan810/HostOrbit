@@ -821,6 +821,6 @@ test('owner enrolls a prepared VPS with its independent pin and selects it for a
   const probe = acceptedProbe(page)
   await page.getByRole('button', { name: 'Connect and check SSH' }).click()
   await expect(page.getByText('VPS connected. See the SSH check below.')).toBeVisible()
-  await expect(page.locator('.detail').getByText(id, { exact: true })).toBeVisible()
+  await expect(page.locator('.detail-id').getByText(id, { exact: true })).toBeVisible()
   expect((await (await probe).json()).resource_id).toBe(id)
 })
