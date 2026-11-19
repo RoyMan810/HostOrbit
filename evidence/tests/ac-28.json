@@ -1,0 +1,33 @@
+{
+  "test_id": "AC-28",
+  "outcome": "PASS",
+  "acceptance_basis": "OWNER_APPROVED_LOCAL_REHEARSAL",
+  "recorded_at_utc": "2026-11-19T21:07:02.732578+00:00",
+  "source_commit": "e4d1f237ec1891365751da184d7f6d25aa46cf52",
+  "build_digest": "938882977ee700e5e05b2fea15776ca03c616c00052d675903ad16efd87f6f18",
+  "manifest_digest": "938882977ee700e5e05b2fea15776ca03c616c00052d675903ad16efd87f6f18",
+  "sbom_digest": "c474b005b73dc6d174fa1016eb90b6498477c47739ac61de43578361d9b3b036",
+  "environment": "Ubuntu 24.04.5, KVM/libvirt, отдельные VM для Controller, цели Docker и SFTP на одном физическом ПК.",
+  "initial_state": "Два чистых Controller, одна зарегистрированная цель restart-lab / fixture, ключи наблюдения и перезапуска разделены.",
+  "scenario": "Проверка SSH-наблюдения, Change Plan, перезапуска и защищённой публикации ControllerBackup.",
+  "fault_injection": "В первом прогоне ответ SSH был отклонён. Ручная сверка сохранила UNKNOWN_OUTCOME и блокировку. Прямой разрыв SSH не имитировался.",
+  "observation": "В повторном прогоне DOCKER_RESTART_VERIFIED, Docker подтвердил тот же ID, новый StartedAt и running. Снимок опубликован, скачан, проверен по SHA-256 и расшифрован.",
+  "reviewer": "Владелец предоставил результаты и утвердил локальную приёмку с исключением по отдельной VPS и независимому SFTP.",
+  "decision_path": "evidence/acceptance/stage2-ac-28/decision.md",
+  "independent_failure_domain_verified": false,
+  "controller_restore_verified": false,
+  "restart": {
+    "container_id": "ee82d1bf8705fc4a9d3c122d36988a6330aed25c85b50cbb929066034f80445a",
+    "started_at_before": "2026-11-19T20:21:28.259150022Z",
+    "started_at_after": "2026-11-19T21:01:15.094192794Z",
+    "result": "DOCKER_RESTART_VERIFIED"
+  },
+  "backup": {
+    "snapshot_id": "01M7TR8YQ3S0D68GC13RJZBYP2",
+    "ciphertext_sha256": "0bfbe414f51b3afc84513ce60545656eb9df97942b3bae6830ab4f1c475b5640",
+    "published": true,
+    "download_sha256_verified": true,
+    "decrypted": true
+  },
+  "evidence_digest": "c33ec0d07ba6b379c2dbf8de47f3050f5feff4e38976fe5906759b4f4f67b31a"
+}
