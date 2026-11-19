@@ -1,0 +1,90 @@
+name: HostOrbit one-command install
+
+on:
+  pull_request:
+    paths: &install_paths
+      - 'install'
+      - 'deploy/**'
+      - 'hostorbit/**'
+      - 'web/**'
+      - 'tools/fetch_age.py'
+      - 'requirements-app.txt'
+      - 'pyproject.toml'
+      - '.github/workflows/bootstrap-install.yml'
+  push:
+    branches: [main]
+    paths: *install_paths
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    name: Fresh Ubuntu 24.04 / signed install and HTTPS
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Prepare the disposable Ubuntu VM
+        run: |
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          sudo chmod 0755 /opt
+          sudo systemctl stop docker.service docker.socket containerd.service || true
+          mapfile -t installed < <(dpkg-query -W -f='${binary:Package} ${db:Status-Status}\n' \
+            docker-ce docker-ce-cli docker-ce-rootless-extras docker-buildx-plugin docker-compose-plugin \
+            containerd.io docker.io docker-buildx docker-compose docker-compose-v2 containerd runc 2>/dev/null \
+            | awk '$2 == "installed" { print $1 }')
+          if (( ${#installed[@]} )); then
+            sudo apt-get purge -y "${installed[@]}"
+          fi
+          sudo rm -f /etc/apt/sources.list.d/docker.list /etc/apt/sources.list.d/docker.sources
+          test ! -e /usr/bin/docker
+      - name: Provision Docker, Python, signed Controller and HTTPS WebUI
+        run: sudo ./install
+      - name: Verify installed services and log in through HTTPS
+        run: |
+          for unit in hostorbit-compose.service hostorbit-broker.socket hostorbit-supervisor.socket hostorbit-web.service; do
+            sudo systemctl is-active --quiet "$unit"
+          done
+          sudo python3 - <<'PY'
+          import importlib.util
+          import json
+          from pathlib import Path
+          import secrets
+          import ssl
+          import subprocess
+          from urllib.request import Request, urlopen
+
+          fixture_path = Path("tests_runtime/lab/installation.py")
+          spec = importlib.util.spec_from_file_location("installation_fixture", fixture_path)
+          fixture = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(fixture)
+          fixture.PASSWORD = secrets.token_urlsafe(32)
+          fixture.owner_create()
+
+          origin = "https://127.0.0.1:18443"
+          context = ssl.create_default_context(cafile="/opt/hostorbit-bootstrap/web-ca.pem")
+          with urlopen(origin, context=context, timeout=10) as response:
+              assert b"/assets/" in response.read()
+          with urlopen(origin + "/healthz", context=context, timeout=10) as response:
+              assert json.load(response)["status"] == "alive"
+          login = Request(origin + "/api/v1/auth/login",
+                          data=json.dumps({"username": "roman", "password": fixture.PASSWORD}).encode(),
+                          headers={"Content-Type": "application/json", "Origin": origin})
+          with urlopen(login, context=context, timeout=10) as response:
+              assert json.load(response)["user"]["role"] == "Owner"
+              assert "Secure" in response.headers["Set-Cookie"]
+          revision = subprocess.check_output(["git", "-c", f"safe.directory={Path.cwd()}",
+                                              "rev-parse", "HEAD"], text=True).strip()
+          installed = json.loads(Path("/opt/hostorbit/installation.json").read_bytes())
+          assert installed["source_commit"] == revision
+          assert installed["remote_mutation_enabled"] is False
+          PY
+          test "$(ss -Hltn 'sport = :18443' | awk '{print $4}')" = 127.0.0.1:18443
+      - name: Inspect service journals after a failure
+        if: failure()
+        run: sudo journalctl --no-pager -n 60 -u hostorbit-compose -u hostorbit-web -u hostorbit-broker -u hostorbit-supervisor
