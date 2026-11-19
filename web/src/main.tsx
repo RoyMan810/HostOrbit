@@ -5,6 +5,7 @@ import { hasApiStatus, observationState, request } from './api'
 import type { InventoryPage, Presence, Resource, Session, Status } from './api'
 import { copy } from './copy'
 import type { Copy, Language } from './copy'
+import { Enrollment } from './enrollment'
 import { ProbeControl } from './probe'
 import { RestartPreview } from './restart-preview'
 import { Audit } from './audit'
@@ -169,7 +170,9 @@ function Inventory({ t, lang, expired, session }: { t: Copy; lang: Language; exp
   const [revision, refresh] = useState(0)
   const [page, setPage] = useState<InventoryPage | null>(null)
   const [error, setError] = useState<unknown>(null)
-  const [selected, setSelected] = useState<string | null>(null)
+  const [pageSelection, setSelected] = useState<string | null>(null)
+  const [enrolled, setEnrolled] = useState<string | null>(null)
+  const selected = enrolled ?? pageSelection
   const [detail, setDetail] = useState<Resource | null>(null)
   const [detailError, setDetailError] = useState<unknown>(null)
   const [now, setNow] = useState(Date.now)
@@ -228,6 +231,8 @@ function Inventory({ t, lang, expired, session }: { t: Copy; lang: Language; exp
         <span aria-hidden="true">↻</span> {t.refresh}
       </button>
     </div>
+    {session.user.role === 'Owner' && <Enrollment t={t} session={session} expired={expired}
+      onEnroll={id => { setEnrolled(id); reload() }}/>}
     <div className="columns">
       <section className="panel hosts" aria-labelledby="host-heading">
         <div className="panel-heading">
@@ -239,7 +244,7 @@ function Inventory({ t, lang, expired, session }: { t: Copy; lang: Language; exp
           page.items.length === 0 ? <p className="notice">{t.empty}</p> :
           <ul className="host-list">
             {page.items.map(item => <li key={item.id}>
-              <button className="host-row" aria-pressed={selected === item.id} onClick={() => setSelected(item.id)}>
+              <button className="host-row" aria-pressed={selected === item.id} onClick={() => { setEnrolled(null); setSelected(item.id) }}>
                 <span className="host-icon" aria-hidden="true">▤</span>
                 <span className="host-label"><code>{item.id}</code><StatusBadge status={observationState(item.observation, now).status} t={t}/></span>
                 <span className="chevron" aria-hidden="true">›</span>
@@ -247,9 +252,10 @@ function Inventory({ t, lang, expired, session }: { t: Copy; lang: Language; exp
             </li>)}
           </ul>}
         {(cursors.length > 1 || page?.next_after) && <div className="pager">
-          <button disabled={cursors.length < 2 || page == null} onClick={() => setCursors(values => values.slice(0, -1))}>{t.previous}</button>
+          <button disabled={cursors.length < 2 || page == null} onClick={() => { setEnrolled(null); setCursors(values => values.slice(0, -1)) }}>{t.previous}</button>
           <button disabled={!page?.next_after} onClick={() => {
             const next = page?.next_after
+            setEnrolled(null)
             if (next) setCursors(values => [...values, next])
           }}>{t.next}</button>
         </div>}
@@ -374,7 +380,7 @@ function App() {
           <div hidden={Boolean(restart) || view !== 'inventory'}>
             <Inventory key={session.user.id} t={t} lang={lang} expired={expired} session={session}/>
           </div>
-          {restart && <RestartTimeline key={restartHash(restart)} route={restart} t={t} lang={lang} expired={expired}/>}
+          {restart && <RestartTimeline key={restartHash(restart)} route={restart} session={session} t={t} lang={lang} expired={expired}/>}
           {view === 'audit' && <div hidden={Boolean(restart)}>
             <Audit key={session.user.id} t={t} lang={lang} expired={expired}/>
           </div>}

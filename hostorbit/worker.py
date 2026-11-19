@@ -55,7 +55,7 @@ class Worker:
             self.queue.advance(claim, "DISPATCHING")
             self.observe("DISPATCHING")
             sent = True
-            response = self.broker.call("use_for_scoped_ssh", {"permit": permit, "secret_ref": self.secret_refs[row["resource_id"]]})
+            response = self.broker.call("use_for_scoped_ssh", {"permit": permit, "policy_ref": self.secret_refs[row["resource_id"]]})
             self.queue.advance(claim, "EXECUTING")
             self.queue.advance(claim, "VERIFYING")
             self.observe("VERIFYING")

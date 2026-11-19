@@ -59,20 +59,29 @@ class Broker:
         return response
 
     def use(self, request, peer):
-        fields(request, ("permit", "secret_ref"))
+        by_policy = isinstance(request, dict) and "policy_ref" in request
+        ref_field = "policy_ref" if by_policy else "secret_ref"
+        fields(request, ("permit", ref_field))
         claims = verify_permit(request["permit"], self.verify_key, now=int(self.clock()))
         target = self.policy.target(claims["target"], claims["capability"], claims["scope_digest"])
         capability = claims["capability"]
         if capability == "host.probe" and not claims["mutating"]:
-            secret, resolve_key = target.value["secret_ref"], self.vault.use_ssh
+            anchor = target.value["secret_ref"]
         elif capability == "docker.restart" and claims["mutating"]:
-            secret, resolve_key = target.value["restart_secret_ref"], self.vault.use_restart_ssh
+            anchor = target.value["restart_secret_ref"]
         else:
             raise Denied("BROKER_SCOPE_DENIED")
-        if request["secret_ref"] != secret:
+        text(request[ref_field], ULID + r":v[1-9][0-9]{0,8}")
+        if by_policy and request[ref_field] != anchor:
             raise Denied("BROKER_SCOPE_DENIED")
         # Key bytes stay in this Broker process and never enter RPC responses.
-        key = resolve_key(secret, worker_uid=peer.uid, target=target.id, policy_revision=target.revision)
+        with self.vault.key_lock(anchor, shared=True):
+            key = self.vault.use_policy_key(anchor, consumer_uid=peer.uid, target=target.id, purpose=capability,
+                                            scope_digest=target.scope_digest, policy_revision=target.revision,
+                                            exact_ref=None if by_policy else request[ref_field])
+            return self._dispatch_key(request, claims, target, key)
+
+    def _dispatch_key(self, request, claims, target, key):
         with self.journal.write() as db:
             if db.execute("SELECT 1 FROM receipts WHERE job_id=? OR nonce=?", (claims["job_id"], claims["nonce"])).fetchone():
                 raise Denied("PERMIT_REPLAY")
@@ -80,7 +89,7 @@ class Broker:
         self.gate.call("permit.consume", request["permit"])
         with self.journal.write() as db:
             db.execute("UPDATE receipts SET state='DISPATCHING' WHERE job_id=?", (claims["job_id"],))
-        if capability == "docker.restart":
+        if claims["capability"] == "docker.restart":
             try:
                 result = self.execute_restart(target, key, self.directory / "known_hosts", claims["restart"])
             except Denied as error:

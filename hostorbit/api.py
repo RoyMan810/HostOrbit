@@ -24,7 +24,7 @@ from .database import AuditIntegrityError, DataAccess, Store, canonical, identif
 from .errors import Denied
 from .inventory import Inventory
 from .queue import JobQueue
-from .restart_requests import request_restart, restart_timeline
+from .restart_requests import request_reconciliation, request_restart, restart_timeline
 from .runtime.protocol import ULID
 
 
@@ -160,6 +160,11 @@ class Reauthentication(Input):
     plan_hash: Annotated[str, Field(pattern="^[0-9a-f]{64}$")]
 
 
+class EnrollResource(Input):
+    resource_id: Annotated[str, Field(pattern="^" + ULID + "$", max_length=26)]
+    fingerprint: Annotated[str, Field(pattern=r"^SHA256:[A-Za-z0-9+/]{43}$", max_length=50)]
+
+
 class DraftInput(Input):
     confirm_stateless_test: bool = False
 
@@ -177,7 +182,7 @@ class DraftExecution(DraftPreflight):
     approval_id: Annotated[str, Field(pattern="^" + ULID + "$", max_length=26)]
 
 
-def create_app(settings: Settings, *, auth: AuthService | None = None):
+def create_app(settings: Settings, *, auth: AuthService | None = None, enrollment_catalog=None):
     import os
     access = DataAccess(settings.database_owner_uid if settings.database_owner_uid is not None else os.geteuid(), settings.database_gid)
     service = auth or AuthService(Store(settings.database, access=access,
@@ -318,6 +323,13 @@ def create_app(settings: Settings, *, auth: AuthService | None = None):
         response.headers["Location"] = f'/api/v1/jobs/{result["id"]}'
         return result
 
+    @app.post("/api/v1/resources", status_code=201)
+    def enroll_resource(body: EnrollResource, request: Request, response: Response, actor=Depends(principal)):
+        result = queue.enroll(service, token(request), csrf(request), body.resource_id, body.fingerprint,
+                              enrollment_catalog or {}, request.state.correlation_id)
+        response.headers["Location"] = f'/api/v1/resources/{result["id"]}'
+        return result
+
     @app.get("/api/v1/resources")
     def list_resources(request: Request, response: Response,
                        after: Annotated[str, Field(pattern="^" + ULID + "$", max_length=26)] | None = None,
@@ -394,6 +406,11 @@ def create_app(settings: Settings, *, auth: AuthService | None = None):
                                      if_match=request.headers.get("if-match"), **body.model_dump())
         response.headers["Location"] = f"/api/v1/change-plans/{draft_id}/execution-timeline"
         return result
+
+    @app.post("/api/v1/change-plans/{draft_id}/execution-requests/{operation_id}/reconciliations/{attempt}", status_code=202)
+    def reconcile_restart(draft_id: str, operation_id: str, attempt: int, body: Input, request: Request, actor=Depends(principal)):
+        with service.store.write() as db:
+            return request_reconciliation(db, service, token(request), csrf(request), draft_id, operation_id, attempt)
 
     @app.get("/api/v1/change-plans/{draft_id}/execution-timeline")
     def get_restart_timeline(draft_id: str, request: Request, actor=Depends(principal)):

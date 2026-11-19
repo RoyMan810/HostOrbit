@@ -754,6 +754,11 @@ for (const locale of ['en', 'ru'] as const) {
       expect(lost.status()).toBe(204)
       await expect(timeline.getByText(t.restartStates.UNKNOWN_OUTCOME)).toBeVisible()
       await expect(timeline.getByText('SSH_RESTART_UNCONFIRMED', { exact: true })).toBeVisible()
+      const check = timeline.getByRole('button', { name: t.restartReconcile })
+      await activate(check)
+      await expect(timeline.getByText(t.restartStates.RECONCILIATION_REQUESTED)).toBeVisible()
+      await expect(check).toHaveCount(0)
+
 
       await page.route('**/api/v1/audit?after=0', async route => {
         const url = new URL(route.request().url())
@@ -804,4 +809,20 @@ test('a denied retry leaves the earlier acceptance uncertain and blocks a fresh 
   await expect(page.getByRole('button', { name: 'Run SSH check' })).toBeDisabled()
   const original = await page.request.get('/api/v1/jobs/' + acceptedId)
   expect((await original.json()).status).toBe('QUEUED')
+})
+
+test('owner enrolls a prepared VPS with its independent pin and selects it for an access check', async ({ page }) => {
+  const id = '01JCYQZ4T9V8MNVYEH3D2M7Q1D'
+  await signIn(page)
+  await page.getByText('Enroll a VPS', { exact: true }).click()
+  await page.getByLabel('Provisioned VPS ID').fill(id)
+  const pin = page.getByLabel('SSH fingerprint from the VPS console')
+  await pin.fill('SHA256:' + 'B'.repeat(43))
+  await page.getByRole('button', { name: 'Confirm fingerprint' }).click()
+  await expect(page.getByText('Fingerprint mismatch. Verify the key in the VPS console.')).toBeVisible()
+  await pin.fill('SHA256:' + 'A'.repeat(43))
+  await page.getByRole('button', { name: 'Confirm fingerprint' }).click()
+  await expect(page.getByText('VPS enrolled. Run an SSH observation below to check access.')).toBeVisible()
+  await expect(page.locator('.detail').getByText(id, { exact: true })).toBeVisible()
+  await expect(page.locator('.detail').getByText('Not checked', { exact: true })).toBeVisible()
 })

@@ -1,6 +1,5 @@
 """Root publication coordinator and a separate purpose-restricted SFTP helper."""
 
-import hashlib
 import os
 from pathlib import Path
 import resource
@@ -14,7 +13,7 @@ from ..database import DataAccess, Store
 from ..errors import Denied
 from .archive_stream import _exact, parse_manifest
 from .backup_target import BackupTarget
-from .controller_backup import verify_provenance
+from .controller_backup import verify_provenance, verify_provenance_claims
 from .coordinator import Coordinator
 from .protocol import SHA256, ULID, canonical, checksum, decode, fields, integer, text
 from .sftp_publication import completion, publication_timeout, publish
@@ -25,7 +24,24 @@ TARGET_PATH = Path("/etc/hostorbit/backup-target.json")
 MAX_ARCHIVE = 4 * 1024**3
 
 
-def receive_and_publish(config, snapshot_id, incoming):
+def _transfer(config, target, snapshot_id, ciphertext, claims, envelope, *, verify_only=False):
+    from .vault import Vault
+    credential = Path(os.environ["CREDENTIALS_DIRECTORY"]) / "broker-dek"
+    vault = Vault(config["vault_directory"], credential, systemd_credential=True)
+
+    def key():
+        current = BackupTarget.load(TARGET_PATH)
+        if current is None or current.digest != target.digest:
+            raise Denied("SFTP_TARGET_CHANGED")
+        return vault.use_policy_key(target.value["secret_ref"], consumer_uid=config["broker_uid"],
+                                    purpose="backup.sftp", scope_digest=target.digest,
+                                    target=target.value["id"], policy_revision=target.value["policy_revision"])
+
+    with vault.key_lock(target.value["secret_ref"], shared=True):
+        return publish(target, snapshot_id, ciphertext, claims, canonical(envelope), key, verify_only=verify_only)
+
+
+def receive_and_publish(config, snapshot_id, incoming, *, verify_only=False):
     """Broker UID only in runtime CLI; stdin contains signed encrypted data."""
     target = BackupTarget.load(TARGET_PATH)
     if target is None:
@@ -37,6 +53,12 @@ def receive_and_publish(config, snapshot_id, incoming):
         raise Denied("PUBLICATION_BINDING_INVALID")
     size = header["envelope"]["claims"]["ciphertext_size"]
     integer(size, 200, MAX_ARCHIVE)
+    if verify_only:
+        trusted = protected_bytes(config["public_verify_key"], owner=0, maximum=32)
+        claims = verify_provenance_claims(header["envelope"], trusted)
+        if claims["manifest"]["snapshot_id"] != snapshot_id or incoming.read(1):
+            raise Denied("PUBLICATION_BINDING_INVALID")
+        return _transfer(config, target, snapshot_id, None, claims, header["envelope"], verify_only=True)
     parent = Path(config["broker_directory"]) / "upload-staging"
     if not parent.exists():
         parent.mkdir(mode=0o700)
@@ -67,28 +89,20 @@ def receive_and_publish(config, snapshot_id, incoming):
         claims = verify_provenance(ciphertext, header["envelope"], trusted)
         if claims["manifest"]["snapshot_id"] != snapshot_id:
             raise Denied("PUBLICATION_BINDING_INVALID")
-        from .vault import Vault
-        credential = Path(os.environ["CREDENTIALS_DIRECTORY"]) / "broker-dek"
-        vault = Vault(config["vault_directory"], credential, systemd_credential=True)
-
-        def key():
-            current = BackupTarget.load(TARGET_PATH)
-            if current is None or current.digest != target.digest:
-                raise Denied("SFTP_TARGET_CHANGED")
-            return vault.use_backup_ssh(target.value["secret_ref"], broker_uid=config["broker_uid"],
-                                        target=target.value["id"], policy_revision=target.value["policy_revision"])
-
-        return publish(target, snapshot_id, ciphertext, claims, canonical(header["envelope"]), key)
+        return _transfer(config, target, snapshot_id, ciphertext, claims, header["envelope"])
     finally:
         # Local encrypted staging only. Never delete remote partial/final data.
         shutil.rmtree(directory)
         directory_sync(parent)
 
 
-def _feed(directory, snapshot_id, target, envelope, stream, owner):
+def _feed(directory, snapshot_id, target, envelope, stream, owner, *, verify_only=False):
     value = canonical({"v": 1, "snapshot_id": snapshot_id, "target_digest": target.digest, "envelope": envelope})
     integer(len(value), 1, 16384)
     stream.write(struct.pack("!I", len(value)) + value)
+    if verify_only:
+        stream.flush()
+        return
     path = directory / "controller.age"
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
     try:
@@ -105,7 +119,7 @@ def _feed(directory, snapshot_id, target, envelope, stream, owner):
     stream.flush()
 
 
-def run_with_systemd(config, directory, snapshot_id, target, envelope):
+def run_with_systemd(config, directory, snapshot_id, target, envelope, *, verify_only=False):
     if os.geteuid() != 0:
         raise Denied("LOCAL_ROOT_REQUIRED")
     unit = "hostorbit-publish-" + snapshot_id.lower()
@@ -122,13 +136,15 @@ def run_with_systemd(config, directory, snapshot_id, target, envelope):
             "--property=ReadWritePaths=" + config["broker_directory"] + " " + config["vault_directory"],
             "--property=Environment=PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1",
             "/opt/hostorbit/venv/bin/hostorbit-runtime", "--config", "/etc/hostorbit/runtime.json", "publish-controller", "--snapshot-id", snapshot_id]
+    if verify_only:
+        args.append("--verify-only")
     errors, result, diagnostics = [], bytearray(), bytearray()
     process = subprocess.Popen(args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                env={"PATH": "/usr/bin:/bin", "LC_ALL": "C"})
 
     def send():
         try:
-            _feed(directory, snapshot_id, target, envelope, process.stdin, 0)
+            _feed(directory, snapshot_id, target, envelope, process.stdin, 0, verify_only=verify_only)
         except BaseException as error:
             errors.append(error)
         finally:
@@ -209,6 +225,8 @@ class Publisher:
         expected_receipt = {**expected, "marker_sha256": checksum(expected),
                             "remote_path": target.value["directory"] + "/" + snapshot_id, "verified": True}
         with process_lock(self.coordinator.directory / "publication.lock"):
+            if not (directory / "controller.age").is_file():
+                raise Denied("PUBLICATION_LOCAL_CIPHERTEXT_UNAVAILABLE")
             request = directory / "publication-request.json"
             if request.exists():
                 if parse_manifest(protected_bytes(request, owner=self.owner, maximum=16384, exact_mode=0o600)) != expected:

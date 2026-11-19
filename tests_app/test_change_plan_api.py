@@ -1,5 +1,7 @@
 from unittest.mock import Mock
 
+import asyncssh
+
 from hostorbit.errors import Denied
 from hostorbit.restart_requests import RestartWorker
 from hostorbit.runtime.authority import Authority
@@ -108,6 +110,10 @@ class ChangePlanAPITests(Fixture):
         vault = Vault.initialize(directory / "vault", credential)
         vault.import_ssh(SECRET, 1, private_key(), owner_id=ACTOR, worker_uid=WORKER_UID, target=SCOPE)
         vault.import_restart_ssh(restart_secret, 1, private_key(), owner_id=ACTOR, worker_uid=WORKER_UID, target=SCOPE)
+        replacement = asyncssh.generate_private_key("ssh-ed25519").export_private_key("openssh")
+        restart_ref = restart_secret + ":v1"
+        vault.change_key(restart_ref, anchor=restart_ref, scope_digest=p.targets[SCOPE].scope_digest,
+                         purpose="docker.restart", target=SCOPE, consumer_uid=WORKER_UID, policy_revision=1, key=replacement)
         with self.assertRaisesRegex(Denied, "SECRET_SCOPE_DENIED"):
             vault.use_restart_ssh(SECRET + ":v1", worker_uid=WORKER_UID, target=SCOPE, policy_revision=1)
         Broker.initialize(directory / "broker", p)
@@ -160,19 +166,61 @@ class ChangePlanAPITests(Fixture):
         self.assertEqual(detail.json()["operation"], {
             "id": request.json()["id"], "status": "SUCCEEDED", "reason": "DOCKER_RESTART_VERIFIED"})
         self.assertEqual(detail.json()["backup_decision"]["gate"], "BACKUP_NOT_REQUIRED")
+        self.assertEqual(execute.call_args.args[1], replacement)
         self.assertEqual(execute.call_args.args[3]["started_at"], STARTED_AT)
         execute.assert_called_once()
 
+        def reconcile(request, attempt=1, client=None, headers=None):
+            path = request.headers["location"].removesuffix("/execution-timeline")
+            path += f"/execution-requests/{request.json()['id']}/reconciliations/{attempt}"
+            return (client or self.client).post(path, json={}, headers=headers if headers is not None else self.headers())
+
+        normal_call = worker.broker.call
+
+        def lose_reply(name, args):
+            value = normal_call(name, args)
+            if name == "use_for_scoped_ssh":
+                raise Denied("RPC_UNAVAILABLE")
+            return value
+
+        worker.broker.call = lose_reply
+        for saved, expected in (({"outcome": "SUCCEEDED", "code": "DOCKER_RESTART_VERIFIED"}, "RECONCILED_SUCCEEDED"),
+                                ({"outcome": "DENIED", "code": "STALE_BASELINE"}, "RECONCILED_FAILED")):
+            execute.return_value = saved
+            confirmed = queue_restart()
+            self.assertTrue(worker.run_one())
+            self.assertEqual(states(confirmed)[-1], "UNKNOWN_OUTCOME")
+            forbidden = reconcile(confirmed, headers={"Origin": self.headers()["Origin"]})
+            self.assertEqual(forbidden.status_code, 403)
+            first = reconcile(confirmed)
+            self.assertEqual(first.status_code, 202, first.text)
+            self.assertEqual(reconcile(confirmed).json(), first.json())
+            self.assertEqual(reconcile(confirmed, 2).status_code, 409)
+            before = execute.call_count
+            self.assertTrue(worker.run_one())
+            self.assertFalse(worker.run_one())
+            self.assertEqual(states(confirmed)[-3:], ["UNKNOWN_OUTCOME", "RECONCILIATION_REQUESTED", expected])
+            self.assertEqual(reconcile(confirmed).json()["status"], expected)
+            self.assertEqual(reconcile(confirmed, 2).status_code, 409)
+            self.assertEqual(execute.call_count, before)
+
+        worker.broker.call = normal_call
+        self.now += 900  # Start the next scenario after the Owner reauthentication limit window.
         execute.side_effect = Denied("SSH_RESTART_UNCONFIRMED")
         lost = queue_restart()
         self.assertTrue(worker.run_one())
         worker.recover()
         self.assertFalse(worker.run_one())
         self.assertEqual(states(lost)[-1], "UNKNOWN_OUTCOME")
+        for number in (1, 2, 3):
+            self.assertEqual(reconcile(lost, number).status_code, 202)
+            self.assertTrue(worker.run_one())
+            self.assertEqual(states(lost)[-1], "QUARANTINED")
+        self.assertEqual(reconcile(lost, 4).status_code, 409)
         blocked = queue_restart()
         self.assertTrue(worker.run_one())
         self.assertEqual(states(blocked), ["QUEUED", "CANCELLED_SAFE"])
-        self.assertEqual(execute.call_count, 2)
+        self.assertEqual(execute.call_count, 4)
         self.store.verify_audit()
 
     def test_preflight_rejects_a_restart_after_saving_the_draft(self):

@@ -40,4 +40,5 @@ jobs:
             GITHUB_ACTIONS=true "RUNNER_ENVIRONMENT=$RUNNER_ENVIRONMENT" \
             "HOSTORBIT_TEST_AGE_DIR=$RUNNER_TEMP/age" "HOSTORBIT_LAB_RESTORE_IMAGE=$HOSTORBIT_LAB_RESTORE_IMAGE" \
             "$(command -v python)" -m unittest -v \
-            test_resource_restore_attestation.RestoreAttestationTests.test_restored_data_is_usable_in_a_new_docker_volume
+            test_resource_restore_attestation.RestoreAttestationTests.test_restored_data_is_usable_in_a_new_docker_volume \
+            test_resource_capture.ResourceCaptureTests.test_docker_volume_cli

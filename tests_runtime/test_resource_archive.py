@@ -80,6 +80,21 @@ class ResourceArchiveTests(unittest.TestCase):
         self.assertNotIn(b"data/state", canonical(envelope))
         self.assertEqual({item.name for item in self.directory.iterdir()}, {"age", "volume.age"})
 
+    def test_retention_inventory_protects_signed_resources_without_external_receipt(self):
+        from hostorbit.runtime.retention import resource_inventory
+        from hostorbit.runtime.storage import new_private_file
+        path, envelope = self.archive()
+        new_private_file(self.directory / "volume.provenance.json", canonical(envelope))
+        anchor = self.directory / "archive.pub"
+        new_private_file(anchor, bytes(self.key.verify_key))
+        item = resource_inventory(self.directory, anchor, os.geteuid())
+        self.assertEqual(item["retention"], "PROTECTED")
+        self.assertEqual(item["external_publication"], "UNVERIFIED")
+        self.assertEqual(item["ciphertext_sha256"], envelope["claims"]["ciphertext_sha256"])
+        path.write_bytes(b"changed")
+        with self.assertRaisesRegex(Denied, "RESOURCE_CIPHERTEXT_CHANGED"):
+            resource_inventory(self.directory, anchor, os.geteuid())
+
     def test_checks_anchor_and_compatibility_before_using_the_identity(self):
         path, envelope = self.archive()
         with patch("hostorbit.runtime.resource_archive.decrypt", side_effect=AssertionError("must reject before decrypt")):

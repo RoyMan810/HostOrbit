@@ -19,7 +19,7 @@ from ..worker import Worker
 from .authority import Authority, verify_host_time
 from .ipc import Client, activated_socket, serve
 from .policy import Policy
-from .protocol import fields, integer, text, decode
+from .protocol import checksum, fields, integer, text, decode
 from .storage import new_private_file, process_lock, protected_bytes
 from .vault import Vault
 from .timehealth import TimeHealth
@@ -45,7 +45,7 @@ def configuration(path):
     fields(value, ("v", "database", "app_uid", "app_gid", "worker_uid", "worker_gid", "broker_uid", "broker_gid",
                    "broker_rpc_gid", "gate_rpc_gid", "public_origin", "trusted_proxies", "api_port", "targets",
                    "supervisor_directory", "broker_directory", "vault_directory", "vault_credential", "public_verify_key",
-                   "gate_socket", "broker_socket", *(name for name in ("api_bind", "writer_directory") if name in value)))
+                   "gate_socket", "broker_socket", *(name for name in ("api_bind", "writer_directory", "enrollment_catalog") if name in value)))
     if type(value["v"]) is not int or value["v"] != 1:
         raise Denied("RUNTIME_CONFIG_INVALID")
     for key in ("app_uid", "app_gid", "worker_uid", "worker_gid", "broker_uid", "broker_gid", "broker_rpc_gid", "gate_rpc_gid"):
@@ -69,11 +69,12 @@ def configuration(path):
 def run(config, command, *, once=False, listener=None, import_args=None):
     expected = {"supervisor": 0, "initialize-supervisor": 0, "api": config["app_uid"], "worker": config["worker_uid"],
                 "broker": config["broker_uid"], "initialize-broker": config["broker_uid"], "import-key": config["broker_uid"],
+                "rotate-key": config["broker_uid"], "revoke-key": config["broker_uid"],
                 "pin-vault": config["broker_uid"], "seal-controller": config["broker_uid"],
                 "import-backup-key": config["broker_uid"], "import-restart-key": config["broker_uid"], "publish-controller": config["broker_uid"],
                 "recovery-import-key": config["broker_uid"], "recovery-revoke-key": config["broker_uid"],
                 "recovery-key-facts": config["broker_uid"],
-                "register-observations": 0, "initialize-time-health": 0, "time-health": 0,
+                "enrollment-catalog": 0, "register-observations": 0, "initialize-time-health": 0, "time-health": 0,
                 "initialize-credential": 0, "initialize-writers": 0}[command]
     if os.geteuid() != expected:
         raise Denied("LOCAL_SERVICE_IDENTITY_INVALID")
@@ -100,9 +101,12 @@ def run(config, command, *, once=False, listener=None, import_args=None):
             pass
         settings = Settings(Path(config["database"]), config["public_origin"], tuple(config["trusted_proxies"]), access.owner_uid,
                             access.shared_gid, Path(config["writer_directory"]) if writers else None)
-        uvicorn.run(create_app(settings), host=config.get("api_bind", "127.0.0.1"), port=config["api_port"], proxy_headers=False, access_log=False)
+        uvicorn.run(create_app(settings, enrollment_catalog=config.get("enrollment_catalog")), host=config.get("api_bind", "127.0.0.1"), port=config["api_port"], proxy_headers=False, access_log=False)
         return
     policy = Policy.load(config["targets"], owner=0)
+    if command == "enrollment-catalog":
+        print(json.dumps(policy.enrollment_catalog()))
+        return
     if command == "initialize-time-health":
         with Authority(config["supervisor_directory"], policy).journal.connect():
             pass
@@ -186,7 +190,7 @@ def run(config, command, *, once=False, listener=None, import_args=None):
         return
     if command == "publish-controller":
         from .publication import receive_and_publish
-        print(json.dumps(receive_and_publish(config, import_args.snapshot_id, sys.stdin.buffer)))
+        print(json.dumps(receive_and_publish(config, import_args.snapshot_id, sys.stdin.buffer, verify_only=import_args.verify_only)))
         return
     if command == "seal-controller":
         from .archive_stream import seal
@@ -197,6 +201,31 @@ def run(config, command, *, once=False, listener=None, import_args=None):
             raise Denied("WRITER_CONFIGURATION_REQUIRED")
         from .pins import pin_vault
         print(json.dumps(pin_vault(vault, config["broker_directory"], writers, import_args.snapshot_id)))
+        return
+    if command in {"rotate-key", "revoke-key"}:
+        if writers is None:
+            raise Denied("WRITER_CONFIGURATION_REQUIRED")
+        purpose = import_args.purpose
+        if purpose == "backup.sftp":
+            from .backup_target import BackupTarget
+            from .publication import TARGET_PATH
+            destination = BackupTarget.load(TARGET_PATH)
+            scope = destination.value if destination else {}
+            consumer = config["broker_uid"]
+        else:
+            target = policy.targets.get(import_args.target)
+            scope = target.value if target and purpose in target.value["capabilities"] else {}
+            consumer = config["worker_uid"]
+        ref_field = "restart_secret_ref" if purpose == "docker.restart" else "secret_ref"
+        if (scope.get("id") != import_args.target
+                or scope.get("policy_revision") != import_args.policy_revision):
+            raise Denied("SECRET_SCOPE_DENIED")
+        key = (protected_bytes(import_args.key_file, owner=config["broker_uid"], maximum=8192, private=True)
+               if command == "rotate-key" else None)
+        replacement = vault.change_key(import_args.reference, anchor=scope[ref_field], scope_digest=checksum(scope),
+                                       purpose=purpose, target=import_args.target,
+                                       consumer_uid=consumer, policy_revision=import_args.policy_revision, key=key)
+        print(replacement or "REVOKED")
         return
     if command in {"import-key", "import-backup-key", "import-restart-key"}:
         key = protected_bytes(import_args.key_file, owner=config["broker_uid"], maximum=8192, private=True)
@@ -230,7 +259,7 @@ def main(argv=None):
     parser.add_argument("--config", type=Path, required=True)
     commands = parser.add_subparsers(dest="command", required=True)
     for name in ("initialize-supervisor", "initialize-broker", "initialize-credential", "initialize-writers", "initialize-time-health", "time-health",
-                 "register-observations", "supervisor", "broker", "api"):
+                 "register-observations", "enrollment-catalog", "supervisor", "broker", "api"):
         commands.add_parser(name)
     worker = commands.add_parser("worker")
     worker.add_argument("--once", action="store_true")
@@ -243,6 +272,14 @@ def main(argv=None):
     key.add_argument("--policy-revision", type=int, default=1)
     commands.add_parser("import-restart-key", parents=[key], add_help=False,
                                       help="Provision a dedicated Docker restart credential")
+    for name in ("rotate-key", "revoke-key"):
+        lifecycle = commands.add_parser(name, help="Retire the exact credential selected by the protected target policy")
+        lifecycle.add_argument("--purpose", choices=("host.probe", "docker.restart", "backup.sftp"), required=True)
+        lifecycle.add_argument("--target", required=True)
+        lifecycle.add_argument("--reference", required=True)
+        lifecycle.add_argument("--policy-revision", type=int, required=True)
+        if name == "rotate-key":
+            lifecycle.add_argument("--key-file", type=Path, required=True)
     recovered = commands.add_parser("recovery-import-key", help="Broker-local control provisioning in READ_ONLY_RECOVERY only")
     for name in ("key-file", "secret-id", "owner-id", "target"):
         recovered.add_argument("--" + name, required=True)
@@ -260,6 +297,7 @@ def main(argv=None):
     backup_key.add_argument("--policy-revision", type=int, default=1)
     publication = commands.add_parser("publish-controller", help="Broker-only fixed SFTP publication; signed encrypted stdin only")
     publication.add_argument("--snapshot-id", required=True)
+    publication.add_argument("--verify-only", action="store_true", help="Read back existing files without uploading")
     pin = commands.add_parser("pin-vault", help="Private local pin under an active Root snapshot barrier; never an off-host backup")
     pin.add_argument("--snapshot-id", required=True)
     seal = commands.add_parser("seal-controller", help="Broker-only one-way age stream; ciphertext stdout only")

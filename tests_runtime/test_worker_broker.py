@@ -85,6 +85,29 @@ class RuntimeTests(unittest.TestCase):
         self.assertNotIn(private_key().decode(), raw)
         self.assertNotIn("PRIVATE KEY", json.dumps(result))
 
+    def test_rotated_probe_dispatches_new_key_and_revocation_stops_worker(self):
+        import asyncssh
+        anchor = SECRET + ":v1"
+        scope = dict(anchor=anchor, scope_digest=self.policy.targets[TARGET].scope_digest, purpose="host.probe",
+                     target=TARGET, policy_revision=1, consumer_uid=WORKER_UID)
+        new_key = asyncssh.generate_private_key("ssh-ed25519").export_private_key("openssh")
+        successor = self.vault.change_key(anchor, key=new_key, **scope)
+        def execute(target, key, known_hosts):
+            self.assertEqual(key, new_key)
+            with self.assertRaisesRegex(Denied, "PROCESS_ALREADY_RUNNING"):
+                self.vault.change_key(successor, **scope)
+            self.executions.append(target.id)
+            return observation()
+        self.broker.execute = execute
+        queued = self.enqueue()
+        self.worker.run(once=True)
+        self.assertEqual(self.job(queued["id"])["status"], "SUCCEEDED")
+        self.vault.change_key(successor, **scope)
+        revoked = self.enqueue("fixture-request-0002")
+        self.worker.run(once=True)
+        self.assertEqual(self.job(revoked["id"])["reason"], "SECRET_NOT_ACTIVE")
+        self.assertEqual(self.executions, [TARGET])
+
     def test_v2_software_is_persisted_only_when_the_signed_result_is_valid(self):
         summary = {"docker": "PRESENT", "nginx": "NOT_DETECTED"}
         self.broker.execute = lambda *_: {**observation(), "software": summary}

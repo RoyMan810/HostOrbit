@@ -3,12 +3,14 @@
 import json
 
 from .auth import Role
-from .change_drafts import _baseline, _checked_draft, _latest, _probe_key, _require, _stored, check_draft_approval
+from .change_drafts import _baseline, _checked_draft, _latest, _probe_key, _require, _session, _stored, check_draft_approval
 from .database import Store
 from .errors import Denied
 
 REQUESTED = "change_plan.restart_requested"
 AC28_EVENTS = (REQUESTED, "change_plan.restart_prepared", "change_plan.restart_finished")
+RECONCILIATION_EVENTS = ("change_plan.restart_reconciliation_requested", "change_plan.restart_reconciled")
+RESOLVED = ("RECONCILED_SUCCEEDED", "RECONCILED_FAILED")
 MAX_AGE = 300
 
 
@@ -51,8 +53,11 @@ def request_restart(db, source, auth, token, csrf, draft_id, *, if_match, probe_
 def validate_request(db, event, now):
     """Recheck authoritative DB state in the dispatch transaction."""
     operation = json.loads(event["details"])
-    if db.execute("""SELECT 1 FROM audit WHERE target_id=? AND event=? AND outcome='UNKNOWN_OUTCOME' LIMIT 1""",
-                  (event["target_id"], AC28_EVENTS[2])).fetchone():
+    if db.execute("""SELECT 1 FROM audit u WHERE u.event=? AND u.outcome='UNKNOWN_OUTCOME'
+        AND NOT EXISTS (SELECT 1 FROM audit r WHERE r.event=? AND r.outcome IN (?,?)
+            AND r.target_id=u.target_id AND r.correlation_id=u.correlation_id
+            AND json_extract(r.details,'$.operation_id')=json_extract(u.details,'$.operation_id')) LIMIT 1""",
+                  (AC28_EVENTS[2], RECONCILIATION_EVENTS[1], *RESOLVED)).fetchone():
         raise Denied("RESTART_INCIDENT_OPEN", 409)
     row = _latest(db, event["correlation_id"])
     draft = _stored(row)
@@ -87,16 +92,42 @@ def validate_request(db, event, now):
     return operation
 
 
+def request_reconciliation(db, auth, token, csrf, draft_id, operation_id, attempt):
+    actor = _session(db, auth, token, csrf=csrf, mutating=True)
+    target = _latest(db, draft_id)["resource_id"]
+    _require(db, actor, target, restart=True)
+    if actor["role"] != Role.OWNER:
+        raise Denied("CHANGE_PLAN_APPROVAL_OWNER_REQUIRED", 403)
+    binding = (target, draft_id, operation_id)
+    incident = db.execute("""SELECT details FROM audit WHERE target_id=? AND correlation_id=?
+        AND json_extract(details,'$.operation_id')=? AND event=? AND outcome='UNKNOWN_OUTCOME'""",
+                          (*binding, AC28_EVENTS[2])).fetchone()
+    if incident is None:
+        raise Denied("RESTART_INCIDENT_NOT_FOUND", 404)
+    rows = db.execute("""SELECT outcome, json_extract(details,'$.attempt') AS attempt FROM audit
+        WHERE target_id=? AND correlation_id=? AND json_extract(details,'$.operation_id')=?
+        AND event IN (?,?) ORDER BY seq DESC""", (*binding, *RECONCILIATION_EVENTS)).fetchall()
+    previous = next((row for row in rows if row["attempt"] == attempt), None)
+    if previous is not None:
+        return {"attempt": attempt, "status": previous["outcome"]}
+    if not 1 <= attempt <= 3 or attempt != (rows[0]["attempt"] + 1 if rows else 1) or (rows and rows[0]["outcome"] != "QUARANTINED"):
+        raise Denied("RESTART_RECONCILIATION_UNAVAILABLE", 409)
+    Store.event(db, at=int(auth.clock()), actor=actor["id"], target=target, correlation=draft_id,
+                kind=RECONCILIATION_EVENTS[0], outcome="RECONCILIATION_REQUESTED",
+                details={"operation_id": operation_id, "revision": json.loads(incident["details"])["revision"], "attempt": attempt})
+    return {"attempt": attempt, "status": "RECONCILIATION_REQUESTED"}
+
+
 def restart_timeline(db, auth, token, draft_id):
     actor = auth._session(db, token)
     row = _latest(db, draft_id)
     _require(db, actor, row["resource_id"], restart=False)
     events = db.execute("""SELECT seq,at,event,outcome,details FROM audit WHERE target_id=? AND correlation_id=?
-                          AND event IN (?,?,?) ORDER BY seq DESC LIMIT 100""",
-                        (row["resource_id"], draft_id, *AC28_EVENTS)).fetchall()
+                          AND event IN (?,?,?,?,?) ORDER BY seq DESC LIMIT 100""",
+                        (row["resource_id"], draft_id, *AC28_EVENTS, *RECONCILIATION_EVENTS)).fetchall()
     return {"items": [{"seq": event["seq"], "at": event["at"], "event": event["event"],
                        "status": event["outcome"], "operation_id": (details := json.loads(event["details"]))["operation_id"],
-                       "revision": details["revision"], "reason": details.get("reason")}
+                       "revision": details["revision"], "reason": details.get("reason"), "attempt": details.get("attempt")}
                       for event in reversed(events)]}
 
 
@@ -125,6 +156,51 @@ class RestartWorker:
             if row is not None:
                 self.event(db, row, json.loads(row["details"]), AC28_EVENTS[2], "UNKNOWN_OUTCOME", "WORKER_RESTART")
 
+    @staticmethod
+    def pending_reconciliation(db):
+        return db.execute("""SELECT a.* FROM audit a WHERE a.event=? AND NOT EXISTS
+            (SELECT 1 FROM audit r WHERE r.event=? AND r.correlation_id=a.correlation_id
+             AND json_extract(r.details,'$.request_seq')=a.seq) ORDER BY a.seq LIMIT 1""", RECONCILIATION_EVENTS).fetchone()
+
+    def reconcile_one(self, row):
+        from .runtime.protocol import SHA256, checksum, fields, text
+
+        details = json.loads(row["details"])
+        job_id = details["operation_id"]
+        outcome, digest = "QUARANTINED", None
+        try:
+            # These RPCs only read the durable local journals. Neither can send SSH or issue a permit.
+            saved = self.broker.call("receipt.get", {"job_id": job_id})
+            fields(saved, ("outcome", "code", "observation", "authority_receipt"))
+            receipt = self.gate.call("attempt.status", {"job_id": job_id})
+            fields(receipt, ("job_id", "nonce", "state", "result_digest", "result_code"))
+            result = {key: saved[key] for key in ("outcome", "code", "observation")}
+            text(receipt["nonce"], SHA256)
+            if (receipt != saved["authority_receipt"] or receipt["job_id"] != job_id
+                    or receipt["state"] != saved["outcome"] or receipt["result_code"] != saved["code"]
+                    or receipt["result_digest"] != checksum(result) or saved["observation"] is not None):
+                raise Denied("BROKER_RECEIPT_INVALID")
+            digest = receipt["result_digest"]
+            reason = text(saved["code"], r"[A-Z][A-Z0-9_]{1,63}")
+            if receipt["state"] == "SUCCEEDED" and reason in ("DOCKER_RESTART_VERIFIED", "RESTART_ALREADY_VERIFIED"):
+                outcome = "RECONCILED_SUCCEEDED"
+            elif receipt["state"] == "FAILED" and reason in ("STALE_BASELINE", "CONTAINER_NOT_APPROVED", "CONTAINER_NOT_ISOLATED"):
+                outcome = "RECONCILED_FAILED"
+        except Denied as error:
+            reason = error.code
+        with self.store.write(kind="control") as db:
+            try:
+                actor = db.execute("SELECT * FROM users WHERE id=? AND disabled=0", (row["actor_id"],)).fetchone()
+                if actor is None or actor["role"] != Role.OWNER:
+                    raise Denied("CHANGE_PLAN_APPROVAL_OWNER_REQUIRED")
+                _require(db, actor, row["target_id"], restart=True)
+            except Denied as error:
+                outcome, reason = "QUARANTINED", error.code
+            Store.event(db, at=int(self.clock()), actor=row["actor_id"], target=row["target_id"], correlation=row["correlation_id"],
+                        kind=RECONCILIATION_EVENTS[1], outcome=outcome,
+                        details={**details, "request_seq": row["seq"], "reason": reason, "receipt_digest": digest})
+        return True
+
     def run_one(self):
         from .runtime.protocol import checksum, fields, restart_payload, text
 
@@ -132,21 +208,25 @@ class RestartWorker:
             with self.store.write(kind="dispatch") as db:
                 if db.execute("PRAGMA user_version").fetchone()[0] != 3:
                     return False
-                row = self.waiting(db, REQUESTED, AC28_EVENTS[1:])
-                if row is None:
-                    return False
-                operation = json.loads(row["details"])
-                try:
-                    operation = validate_request(db, row, int(self.clock()))
-                    secret_ref = self.secret_refs.get(row["target_id"])
-                    if secret_ref is None:
-                        raise Denied("CAPABILITY_DISABLED")
-                    payload = restart_payload({key: operation[key] for key in
-                                               ("operation_id", "container_id", "boot_id", "started_at")})
-                except Denied as error:
-                    self.event(db, row, operation, AC28_EVENTS[2], "CANCELLED_SAFE", error.code)
-                    return True
-                self.event(db, row, operation, AC28_EVENTS[1], "INTENT_PREPARED")
+                reconciliation = self.pending_reconciliation(db)
+                if reconciliation is None:
+                    row = self.waiting(db, REQUESTED, AC28_EVENTS[1:])
+                    if row is None:
+                        return False
+                    operation = json.loads(row["details"])
+                    try:
+                        operation = validate_request(db, row, int(self.clock()))
+                        secret_ref = self.secret_refs.get(row["target_id"])
+                        if secret_ref is None:
+                            raise Denied("CAPABILITY_DISABLED")
+                        payload = restart_payload({key: operation[key] for key in
+                                                   ("operation_id", "container_id", "boot_id", "started_at")})
+                    except Denied as error:
+                        self.event(db, row, operation, AC28_EVENTS[2], "CANCELLED_SAFE", error.code)
+                        return True
+                    self.event(db, row, operation, AC28_EVENTS[1], "INTENT_PREPARED")
+            if reconciliation is not None:
+                return self.reconcile_one(reconciliation)
         except Denied as error:
             if error.code in ("WRITER_ADMISSION_CLOSED", "WRITER_BARRIER_TIMEOUT"):
                 return False
@@ -169,7 +249,7 @@ class RestartWorker:
                 # Broker independently consumes the time-bound permit once.
                 self.event(db, row, operation, AC28_EVENTS[1], "DISPATCHING")
             sent = True
-            response = self.broker.call("use_for_scoped_ssh", {"permit": permit, "secret_ref": secret_ref})
+            response = self.broker.call("use_for_scoped_ssh", {"permit": permit, "policy_ref": secret_ref})
             fields(response, ("outcome", "code", "observation", "authority_receipt"))
             receipt = self.gate.call("attempt.status", {"job_id": operation["operation_id"]})
             result = {key: response[key] for key in ("outcome", "code", "observation")}

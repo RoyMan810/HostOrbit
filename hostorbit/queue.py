@@ -6,7 +6,7 @@ import re
 import secrets
 import time
 
-from .auth import AuthService, etag
+from .auth import AuthService, Role, etag
 from .database import Store, identifier
 from .errors import Denied
 from .runtime.protocol import SHA256, ULID, canonical, checksum, integer, text
@@ -44,12 +44,31 @@ class JobQueue:
         integer(policy_revision, 1, 2**31 - 1)
         with self.store.write() as db:
             self._schema(db)
-            if db.execute("SELECT 1 FROM resources WHERE id=?", (identity,)).fetchone():
-                raise Denied("RESOURCE_ALREADY_REGISTERED", 409)
-            now = int(self.clock())
-            db.execute("INSERT INTO resources VALUES(?,?,?,1,1,?,?)", (identity, scope_digest, policy_revision, now, now))
-            self.store.event(db, at=now, actor="local-owner-cli", kind="resource.observation_registered", target=identity,
-                             outcome="SUCCEEDED", correlation=identifier(), details={"policy_revision": policy_revision, "scope_digest": scope_digest})
+            self._register(db, identity, scope_digest, policy_revision, "local-owner-cli", identifier())
+
+    def _register(self, db, identity, scope_digest, policy_revision, actor, correlation):
+        if db.execute("SELECT 1 FROM resources WHERE id=?", (identity,)).fetchone():
+            raise Denied("RESOURCE_ALREADY_REGISTERED", 409)
+        now = int(self.clock())
+        db.execute("INSERT INTO resources VALUES(?,?,?,1,1,?,?)", (identity, scope_digest, policy_revision, now, now))
+        self.store.event(db, at=now, actor=actor, kind="resource.observation_registered", target=identity,
+                         outcome="SUCCEEDED", correlation=correlation, details={"policy_revision": policy_revision, "scope_digest": scope_digest})
+
+    def enroll(self, auth, token, csrf, identity, fingerprint, catalog, correlation):
+        with self.store.write() as db:
+            self._schema(db)
+            actor = auth._session(db, token, csrf=csrf, mutating=True)
+            if actor["role"] != Role.OWNER:
+                raise Denied("FORBIDDEN")
+            target = catalog.get(identity)
+            if target is None:
+                raise Denied("ENROLLMENT_TARGET_UNAVAILABLE", 404)
+            if secrets.compare_digest(target["fingerprint"], fingerprint):
+                self._register(db, identity, target["scope_digest"], target["policy_revision"], actor["id"], correlation)
+                return {"id": identity, "policy_revision": target["policy_revision"]}
+            self.store.event(db, at=int(self.clock()), actor=actor["id"], kind="resource.fingerprint_mismatch",
+                             target=identity, outcome="DENIED", correlation=correlation)
+        raise Denied("HOST_FINGERPRINT_MISMATCH", 412)
 
     @staticmethod
     def _actor(db, actor_id, resource, permission="vps:probe"):

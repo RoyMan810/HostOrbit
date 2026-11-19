@@ -297,6 +297,8 @@ def install(args):
         if not (stage / AGE_FILE).is_file():
             raise ArtifactError("PINNED_AGE_TOOL_REQUIRED")
         recovery = None
+        if args.web_enrollment and not args.targets:
+            raise ArtifactError("WEB_ENROLLMENT_REQUIRES_TARGETS")
         if args.recovery_state:
             if args.targets:
                 raise ArtifactError("RECOVERY_POLICY_CANNOT_BE_REPLACED")
@@ -381,7 +383,10 @@ def install(args):
                     "--property=Group=ho-broker", "--property=SupplementaryGroups=ho-gate-rpc",
                     "--property=UMask=0077", "--property=LoadCredentialEncrypted=broker-dek:" + cfg["vault_credential"],
                     runtime, "--config", CONFIG / "runtime.json", "initialize-broker")
-            command(runtime, "--config", CONFIG / "runtime.json", "register-observations")
+            if args.web_enrollment:
+                cfg["enrollment_catalog"] = json.loads(command(runtime, "--config", CONFIG / "runtime.json", "enrollment-catalog"))
+            else:
+                command(runtime, "--config", CONFIG / "runtime.json", "register-observations")
         compose = compose_document(cfg, image, args.port)
         write(CONFIG / "compose.json", canonical(compose))
         prefix = ("compose", "--project-name", "hostorbit", "--project-directory", str(APP), "--file", str(CONFIG / "compose.json"))
@@ -442,6 +447,7 @@ def main(argv=None):
     new.add_argument("--development", action="store_true", help="Explicitly accept a signed development channel")
     new.add_argument("--origin", required=True)
     new.add_argument("--port", type=int, default=18080)
+    new.add_argument("--web-enrollment", action="store_true", help="Require Owner fingerprint confirmation for --targets")
     new.add_argument("--targets", type=Path, help="Optional locally approved protected target policy; otherwise empty")
     new.add_argument("--recovery-state", type=Path, help="Completed local Rescue ledger; install only in READ_ONLY_RECOVERY")
     new.add_argument("--docker-host", default="unix:///var/run/docker.sock")

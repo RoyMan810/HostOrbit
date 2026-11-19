@@ -69,8 +69,8 @@ code { font-family: ui-monospace, "Cascadia Code", monospace; overflow-wrap: any
 .login-icon { color: var(--accent); background: var(--soft); width: 48px; height: 48px; display: grid; place-items: center; border-radius: 14px; margin-bottom: 20px; }
 .login h1 { font-size: 28px; letter-spacing: -.03em; margin-bottom: 8px; }
 .login form { display: grid; gap: 16px; margin-top: 22px; }
-.login label { display: grid; gap: 7px; font-size: 14px; font-weight: 650; }
-.login input {
+.login label, .enrollment label { display: grid; gap: 7px; font-size: 14px; font-weight: 650; }
+.login input, .enrollment input {
   width: 100%; min-height: 44px; background: var(--surface); color: var(--text);
   border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px;
 }
@@ -80,7 +80,10 @@ code { font-family: ui-monospace, "Cascadia Code", monospace; overflow-wrap: any
 .workspace-nav { max-width: 1320px; margin: 16px auto 0; padding: 0 clamp(16px, 5vw, 64px); display: flex; flex-wrap: wrap; gap: 8px; }
 .workspace-nav [aria-current="page"] { background: var(--soft); border-color: var(--accent); }
 .audit-export { padding: 14px 20px; border-bottom: 1px solid var(--line); }
-.audit-export summary { cursor: pointer; font-weight: 650; }
+.enrollment { padding: 14px 20px; margin-bottom: 16px; }
+.enrollment form { display: grid; gap: 12px; max-width: 34rem; margin-top: 14px; }
+.enrollment button { justify-self: start; }
+.audit-export summary, .enrollment summary { cursor: pointer; font-weight: 650; }
 .audit-export label { display: grid; gap: 6px; margin-top: 12px; width: fit-content; max-width: 100%; }
 .audit-export select { max-width: 100%; }
 .audit-export p { margin-top: 8px; font-size: 13px; }

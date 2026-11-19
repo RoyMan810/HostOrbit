@@ -75,7 +75,7 @@ async def _put(client, remote, source, size, expected_digest, check):
     await _readback(client, remote, size, expected_digest, check)
 
 
-async def publish_session(client, target, snapshot_id, ciphertext, claims, provenance, check):
+async def publish_session(client, target, snapshot_id, ciphertext, claims, provenance, check, *, verify_only=False):
     """Protocol also exercised with fault-injecting contract tests."""
     check()
     await _directory(client, target.value["directory"])
@@ -97,7 +97,8 @@ async def publish_session(client, target, snapshot_id, ciphertext, claims, prove
     try:
         await client.lstat(final)
     except asyncssh.SFTPNoSuchFile:
-        pass
+        if verify_only:
+            raise Denied("SFTP_FINAL_INCOMPLETE") from None
     else:
         # Lost final ACK/retry: verify exactly the same object, never replace it.
         await verify_final()
@@ -123,7 +124,7 @@ async def publish_session(client, target, snapshot_id, ciphertext, claims, prove
             "remote_path": final, "verified": True}
 
 
-async def _connect_and_publish(target, snapshot_id, ciphertext, claims, provenance, credential):
+async def _connect_and_publish(target, snapshot_id, ciphertext, claims, provenance, credential, *, verify_only=False):
     def check():
         # Re-authenticate protected Vault metadata/AAD at each safe checkpoint.
         # Revocation cannot cryptographically undo an already authenticated SSH
@@ -141,7 +142,7 @@ async def _connect_and_publish(target, snapshot_id, ciphertext, claims, provenan
     )
     try:
         async with connection.start_sftp_client(env={}, send_env=[]) as client:
-            return await publish_session(client, target, snapshot_id, ciphertext, claims, provenance, check)
+            return await publish_session(client, target, snapshot_id, ciphertext, claims, provenance, check, verify_only=verify_only)
     finally:
         connection.close()
         try:
@@ -150,9 +151,9 @@ async def _connect_and_publish(target, snapshot_id, ciphertext, claims, provenan
             connection.abort()
 
 
-def publish(target, snapshot_id, ciphertext, claims, provenance, credential):
+def publish(target, snapshot_id, ciphertext, claims, provenance, credential, *, verify_only=False):
     async def bounded():
-        return await asyncio.wait_for(_connect_and_publish(target, snapshot_id, ciphertext, claims, provenance, credential),
+        return await asyncio.wait_for(_connect_and_publish(target, snapshot_id, ciphertext, claims, provenance, credential, verify_only=verify_only),
                                       publication_timeout(claims["ciphertext_size"]))
     try:
         return asyncio.run(bounded())

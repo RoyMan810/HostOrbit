@@ -47,6 +47,19 @@ Unit/fault tests проверяют точный Owner digest при подме�
 
 Signed-installation CI запускает код из установленного wheel, настоящий pinned age/keygen и systemd-creds на временной GitHub-hosted Ubuntu VM. Проверяются native import/new credential/Vault decryption/new signer, Auth, отказ business writes, replay и watchdog. Положительная процедура использует явно обозначенную **CI profile fixture**; production preflight обязан отклонить уже установленный Controller. Этот прогон **не удостоверяет** реальную offline workstation, новую независимую физическую машину, полный service restore или manual restore attestation. AC статусы и общий Stage1/MVP gate не повышаются автоматически.
 
+## Создание архива Docker-тома
+
+На исходном хосте остановите потребителей тома и на время копирования исключите запуск контейнеров, запись с хоста и пересоздание тома. Поддерживается локальный драйвер без опций, каталог Docker `/var/lib/docker` и сокет `/run/docker.sock` владельца root с правами `0600`. Сверьте имя и `CreatedAt` с импортированным ресурсом. Подготовьте приватный родительский каталог root с правами `0700` и отдельный 32-байтовый seed Ed25519 с правами `0400` или `0600`.
+
+```bash
+sudo /path/to/hostorbit/bin/python -m hostorbit.runtime.resource_capture \
+  --volume "$VOLUME" --created-at "$CREATED_AT" --source-host "$HOST_ULID" \
+  --application-schema "$APP_SCHEMA" --recipient "$AGE_RECIPIENT" \
+  --signing-key /root/archive.seed --destination /root/backups/capture-001
+```
+
+Команда создаёт новый каталог с `volume.age` и `volume.provenance.json`. Для проверки сохраните открытый ключ подписи отдельно. Содержимое тома обрабатывается в памяти. Поддерживаются архивы до 512 МиБ с учётом упаковки и шифрования и до 8192 записей.
+
 ## Проверка архива ресурса Stage2
 
 `hostorbit-rescue verify-resource-archive` проверяет один формат архива остановленного тестового Docker named volume на той же изолированной workstation. Укажите `--ciphertext`, `--provenance`, отдельно сохранённый открытый 32-байтовый ключ Ed25519 `--trusted-key` и ожидаемую версию приложения `--application-schema`. Секретный ключ age вводится скрыто через локальный терминал.
