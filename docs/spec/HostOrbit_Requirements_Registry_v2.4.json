@@ -1632,7 +1632,7 @@
       ],
       "owner": "SSH/OS Manager",
       "stage": "Stage2",
-      "status": "NOT_RUN"
+      "status": "PASS"
     },
     {
       "assertion": "Оператор видит статус и результат в Timeline и может перейти к approval. Запрос подтверждения без защищённой Web-сессии отклоняется. Если включён Telegram, уведомление содержит безопасную ссылку и не подтверждает approval.",
