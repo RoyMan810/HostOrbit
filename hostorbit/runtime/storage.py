@@ -89,7 +89,7 @@ def new_private_file(path, data):
 
 
 @contextmanager
-def process_lock(path, *, shared_gid=None):
+def process_lock(path, *, shared_gid=None, shared=False):
     fd = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o660 if shared_gid else 0o600)
     try:
         info = os.fstat(fd)
@@ -100,7 +100,7 @@ def process_lock(path, *, shared_gid=None):
         if shared_gid is not None:
             os.fchmod(fd, 0o660)
         try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            fcntl.flock(fd, (fcntl.LOCK_SH if shared else fcntl.LOCK_EX) | fcntl.LOCK_NB)
         except BlockingIOError:
             raise Denied("PROCESS_ALREADY_RUNNING", 409) from None
         yield

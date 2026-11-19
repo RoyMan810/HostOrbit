@@ -59,3 +59,25 @@ AsyncSSH принимает Ed25519 key непосредственно в пам
 [Development-установщик](stage1-installation.md) уже проверен на чистой Ubuntu 24.04: подписанный bundle, настоящие systemd services, Compose namespaces, локальный Owner, HTTPS proxy и restart. Он требует подготовленные Docker/Python и не меняет DNS, system Nginx или чужие контейнеры. [Репетиция схемы 1 → 2](stage1-migrations.md) проверяет отдельную копию; применение к рабочей БД остаётся закрытым до полного maintenance/backup/TimeHealth workflow.
 
 Локально запускаются `python -m unittest discover -s tests_app` и `python -m unittest discover -s tests_runtime`. Контракты in-process не подменяют kernel boundary. Отдельный disposable GitHub-hosted VM job запускает реальные API/Worker/Broker под разными UID, root authority и SSH server в отдельном network namespace. Он проверяет DAC/SO_PEERCRED, совместную запись SQLite, replay и подмену подписи, raw-output canary, host-key mismatch, второй Worker и потерю первого Worker при работающем Broker. Стенд использует один kernel и не удостоверяет независимый физический DR.
+
+## Ротация и отзыв SSH-ключа на Controller
+
+Остановите выдачу новых заданий для выбранной цели или дождитесь завершения текущего SSH-сеанса. Для плановой ротации заранее установите открытый ключ нового Ed25519 на принимающем узле с прежними ограничениями. На Controller подготовьте закрытый ключ в файле владельца Broker с правами 0600. Выполните команду от UID Broker с тем же systemd-профилем `LoadCredentialEncrypted=broker-dek`, что и при импорте ключа.
+
+```sh
+hostorbit-runtime --config /etc/hostorbit/runtime.json rotate-key \
+  --purpose host.probe --target "$TARGET_ID" --policy-revision "$REVISION" \
+  --reference "$CURRENT_REF" --key-file "$KEY_FILE"
+```
+
+Команда печатает новую точную ссылку вида `<secret-id>:v2`. Удалите временный файл закрытого ключа. Проверьте доступ новым ключом, затем удалите старый открытый ключ на принимающем узле. Для перезапуска контейнеров укажите `docker.restart`, для публикации резервной копии — `backup.sftp`. Каждая операция сохраняет назначение, владельца, цель, UID потребителя и ревизию политики.
+
+В root-owned политике оставьте исходную ссылку. Она задаёт начало цепочки версий. Worker и SFTP-публикатор используют текущую версию по цепочке подтверждённых ротаций для той же политики. Явный запрос отозванной версии отклоняется. Отдельный импорт более новой версии не переключает текущий ключ. Для следующей операции передайте точную ссылку, напечатанную предыдущей ротацией.
+
+```sh
+hostorbit-runtime --config /etc/hostorbit/runtime.json revoke-key \
+  --purpose host.probe --target "$TARGET_ID" --policy-revision "$REVISION" \
+  --reference "$CURRENT_REF"
+```
+
+Успешный отзыв блокирует всю цепочку для последующих подключений. Для отзыва доступа за пределами Controller удалите соответствующий открытый ключ на принимающем узле. При `PROCESS_ALREADY_RUNNING` дождитесь завершения сеанса или конкурирующей операции и проверьте текущую версию перед повтором. При закрытом допуске записи команда отклоняется. В журнале Broker `vault.sqlite3`, таблица `secret_lifecycle`, сохраняются ссылки старой и новой версий, назначение, цель, Owner, ревизия и digest политики, UID Broker и время. При отзыве поле `replacement` равно NULL.

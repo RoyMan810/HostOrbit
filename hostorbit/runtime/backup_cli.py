@@ -22,9 +22,19 @@ def main(argv=None):
     verify.add_argument("--ciphertext", type=Path, required=True)
     verify.add_argument("--provenance", type=Path, required=True)
     verify.add_argument("--trusted-key", type=Path, required=True)
+    inventory = commands.add_parser("retention-inventory", help="List Controller snapshots and optional signed local volume archives")
+    inventory.add_argument("--resource-directory", type=Path, action="append", help="One signed volume capture directory (repeatable)")
+    inventory.add_argument("--resource-trusted-key", type=Path)
+    for name in ("retention-review", "retire-local"):
+        command = commands.add_parser(name, help="Review or release one registered local Controller ciphertext")
+        command.add_argument("--snapshot-id", required=True)
+        command.add_argument("--keep-id", required=True)
+        command.add_argument("--evidence", type=Path, required=True)
+        if name == "retire-local":
+            command.add_argument("--approval", type=Path, required=True)
     args = parser.parse_args(argv)
     try:
-        if args.command in {"create", "publish"}:
+        if args.command != "verify":
             import os
             if os.geteuid() != 0:
                 raise Denied("LOCAL_ROOT_REQUIRED")
@@ -32,9 +42,23 @@ def main(argv=None):
             config = configuration(Path("/etc/hostorbit/runtime.json"))
             if args.command == "create":
                 result = ControllerBackup(config).create(args.recipient)
-            else:
+            elif args.command == "publish":
                 from .publication import Publisher
                 result = Publisher(config).publish(args.snapshot_id)
+            else:
+                from .retention import Retention, resource_inventory
+                retention = Retention(config)
+                if args.command == "retention-inventory":
+                    if bool(args.resource_directory) != bool(args.resource_trusted_key):
+                        raise Denied("RESOURCE_ARCHIVE_ANCHOR_REQUIRED")
+                    result = {"controller": retention.inventory()}
+                    if args.resource_directory:
+                        result["resource"] = [resource_inventory(directory, args.resource_trusted_key, 0)
+                                              for directory in args.resource_directory]
+                elif args.command == "retention-review":
+                    result = retention.review(args.snapshot_id, args.keep_id, args.evidence)
+                else:
+                    result = retention.retire(args.snapshot_id, args.keep_id, args.evidence, args.approval)
         else:
             with args.provenance.open("rb") as stream:
                 envelope = parse_manifest(stream.read(16385))

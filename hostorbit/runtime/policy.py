@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 import base64
+import hashlib
 import ipaddress
 import re
 
@@ -91,6 +92,16 @@ class Policy:
         if type(value["v"]) is not int or value["v"] != 1 or not isinstance(value["targets"], list):
             raise Denied("TARGET_POLICY_INVALID")
         return cls(value["targets"])
+
+    def enrollment_catalog(self):
+        catalog = {}
+        for target in self.targets.values():
+            if "host.probe" in target.value["capabilities"]:
+                key = base64.b64decode(target.value["host_key"].split()[1], validate=True)
+                digest = base64.b64encode(hashlib.sha256(key).digest()).decode().rstrip("=")
+                catalog[target.id] = {"fingerprint": "SHA256:" + digest, "scope_digest": target.scope_digest,
+                                      "policy_revision": target.revision}
+        return catalog
 
     @property
     def digest(self):

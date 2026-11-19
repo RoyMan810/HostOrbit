@@ -65,7 +65,9 @@ def fixture(directory):
             ]}
         queue.finish(claim, "SUCCEEDED", "PROBE_VERIFIED", result=result)
 
-    app = create_app(Settings(store.path, ORIGIN, trusted_proxies=("127.0.0.1/32",)), auth=auth)
+    enrollment = {"01JCYQZ4T9V8MNVYEH3D2M7Q1D": {"fingerprint": "SHA256:" + "A" * 43,
+                                                   "scope_digest": "e" * 64, "policy_revision": 7}}
+    app = create_app(Settings(store.path, ORIGIN, trusted_proxies=("127.0.0.1/32",)), auth=auth, enrollment_catalog=enrollment)
 
     @app.post("/__fixture__/resources/{resource_id}/disable", status_code=204)
     def disable_resource(resource_id: str):

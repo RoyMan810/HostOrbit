@@ -15,6 +15,7 @@ from starlette.concurrency import run_in_threadpool
 
 from . import __version__
 from .admission import Admission
+from .audit_plan import audit_plan_revision
 from .auth import ABSOLUTE_SECONDS, COOKIE, AuthService, Role
 from .change_drafts import (get_draft, record_draft_approval, record_draft_backup_decision,
                             request_draft_probe, save_draft)
@@ -23,7 +24,7 @@ from .database import AuditIntegrityError, DataAccess, Store, canonical, identif
 from .errors import Denied
 from .inventory import Inventory
 from .queue import JobQueue
-from .restart_requests import request_restart, restart_timeline
+from .restart_requests import request_reconciliation, request_restart, restart_timeline
 from .runtime.protocol import ULID
 
 
@@ -159,6 +160,11 @@ class Reauthentication(Input):
     plan_hash: Annotated[str, Field(pattern="^[0-9a-f]{64}$")]
 
 
+class EnrollResource(Input):
+    resource_id: Annotated[str, Field(pattern="^" + ULID + "$", max_length=26)]
+    fingerprint: Annotated[str, Field(pattern=r"^SHA256:[A-Za-z0-9+/]{43}$", max_length=50)]
+
+
 class DraftInput(Input):
     confirm_stateless_test: bool = False
 
@@ -176,7 +182,7 @@ class DraftExecution(DraftPreflight):
     approval_id: Annotated[str, Field(pattern="^" + ULID + "$", max_length=26)]
 
 
-def create_app(settings: Settings, *, auth: AuthService | None = None):
+def create_app(settings: Settings, *, auth: AuthService | None = None, enrollment_catalog=None):
     import os
     access = DataAccess(settings.database_owner_uid if settings.database_owner_uid is not None else os.geteuid(), settings.database_gid)
     service = auth or AuthService(Store(settings.database, access=access,
@@ -292,6 +298,13 @@ def create_app(settings: Settings, *, auth: AuthService | None = None):
     def audit(request: Request, after: Annotated[int, Field(ge=0, lt=2**63)] = 0, actor=Depends(audit_access)):
         return {"items": service.audit_events(token(request), after)}
 
+    @app.get("/api/v1/audit/change-plans/{draft_id}/revisions/{revision}")
+    def audit_change_plan(draft_id: Annotated[str, Field(pattern="^" + ULID + "$")],
+                          revision: Annotated[int, Field(ge=1, lt=2**31)],
+                          request: Request, actor=Depends(principal)):
+        with service.store.read() as db:
+            return audit_plan_revision(db, service, token(request), draft_id, revision)
+
     @app.get("/api/v1/audit/integrity")
     def audit_integrity(actor=Depends(audit_access)):
         if not audit_scan.acquire(blocking=False):
@@ -308,6 +321,13 @@ def create_app(settings: Settings, *, auth: AuthService | None = None):
     def observe_resource(resource_id: str, body: Input, request: Request, response: Response, actor=Depends(principal)):
         result = queue.enqueue_probe(service, token(request), csrf(request), resource_id, request.headers.get("idempotency-key"))
         response.headers["Location"] = f'/api/v1/jobs/{result["id"]}'
+        return result
+
+    @app.post("/api/v1/resources", status_code=201)
+    def enroll_resource(body: EnrollResource, request: Request, response: Response, actor=Depends(principal)):
+        result = queue.enroll(service, token(request), csrf(request), body.resource_id, body.fingerprint,
+                              enrollment_catalog or {}, request.state.correlation_id)
+        response.headers["Location"] = f'/api/v1/resources/{result["id"]}'
         return result
 
     @app.get("/api/v1/resources")
@@ -386,6 +406,11 @@ def create_app(settings: Settings, *, auth: AuthService | None = None):
                                      if_match=request.headers.get("if-match"), **body.model_dump())
         response.headers["Location"] = f"/api/v1/change-plans/{draft_id}/execution-timeline"
         return result
+
+    @app.post("/api/v1/change-plans/{draft_id}/execution-requests/{operation_id}/reconciliations/{attempt}", status_code=202)
+    def reconcile_restart(draft_id: str, operation_id: str, attempt: int, body: Input, request: Request, actor=Depends(principal)):
+        with service.store.write() as db:
+            return request_reconciliation(db, service, token(request), csrf(request), draft_id, operation_id, attempt)
 
     @app.get("/api/v1/change-plans/{draft_id}/execution-timeline")
     def get_restart_timeline(draft_id: str, request: Request, actor=Depends(principal)):

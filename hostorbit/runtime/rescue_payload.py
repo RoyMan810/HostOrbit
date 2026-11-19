@@ -108,7 +108,7 @@ def _match(members, prefix, records):
 def verify(members, claims, trusted_key):
     from .authority import _SCHEMA as gate_schema
     from .broker import _SCHEMA as receipts_schema
-    from .vault import _SCHEMA as vault_schema
+    from .vault import _LEGACY_SCHEMA, _SCHEMA as vault_schema
 
     def runtime_schema(script):
         db = sqlite3.connect(":memory:")
@@ -150,7 +150,9 @@ def verify(members, claims, trusted_key):
     expected |= _match(members, "vault/", pin["files"])
     vault_names = {"vault.sqlite3", "receipts.sqlite3"}
     references = []
-    with database(members["vault/vault.sqlite3"], 1, schema=runtime_schema(vault_schema)) as db:
+    with database(members["vault/vault.sqlite3"], 1) as db:
+        if schema_rows(db) not in (runtime_schema(vault_schema), runtime_schema(_LEGACY_SCHEMA)):
+            raise Denied("RESCUE_SCHEMA_DRIFT")
         for row in db.execute("SELECT * FROM secrets ORDER BY ref"):
             metadata = _metadata(row)
             digest = text(row["object_digest"], SHA256)

@@ -23,7 +23,7 @@ from hostorbit.runtime.storage import new_private_file
 from test_sftp_publication import Remote, destination
 
 
-class MigrationBackupTests(unittest.TestCase):
+class PublicationFixture:
     def setUp(self):
         root = Path(self.enterContext(tempfile.TemporaryDirectory()))
         writers = Admission.initialize(root / "writers", owner=os.geteuid())
@@ -56,19 +56,27 @@ class MigrationBackupTests(unittest.TestCase):
             envelope = sign_provenance(self.manifest, "age1" + "q" * 58, ciphertext, authority.key)
             new_private_file(self.capture / "provenance.json", canonical(envelope))
 
-        self.snapshot, _ = self.coordinator.snapshot(lambda: True, capture)
-        for phase in ("SEALED", "SIGNED"):
-            self.coordinator._transition(self.snapshot, phase)
+        self.capture_fixture = capture
+        self.signing_key = authority.key
+        self.snapshot = self.new_snapshot()
         self.journal = authority.journal
 
         self.remote = Remote()
 
-        def runner(config, directory, snapshot_id, target, envelope):
+        def runner(config, directory, snapshot_id, target, envelope, *, verify_only=False):
             return asyncio.run(publish_session(self.remote, target, snapshot_id, directory / "controller.age",
-                                               envelope["claims"], canonical(envelope), lambda: None))
+                                               envelope["claims"], canonical(envelope), lambda: None, verify_only=verify_only))
 
         self.publisher = Publisher(self.config, target_path=self.target, owner=os.geteuid(), runner=runner)
 
+    def new_snapshot(self):
+        snapshot, _ = self.coordinator.snapshot(lambda: True, self.capture_fixture)
+        for phase in ("SEALED", "SIGNED"):
+            self.coordinator._transition(snapshot, phase)
+        return snapshot
+
+
+class MigrationBackupTests(PublicationFixture, unittest.TestCase):
     def check(self, **options):
         return check_publication(self.config, self.snapshot, target_path=self.target, owner=os.geteuid(), **options)
 

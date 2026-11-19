@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { hasApiStatus, isUlid, request } from './api'
 import type { Copy, Language } from './copy'
+import { AuditPlan } from './audit-plan'
 import { JobTimeline } from './job-timeline'
 import { restartHash } from './restart-timeline'
 
@@ -8,7 +9,7 @@ type AuditEvent = {
   seq: number
   event: {
     at: number; actor_id: string; event: string; target_id: string; outcome: string; correlation_id: string
-    details?: { revision?: unknown; operation_id?: unknown }
+    details?: { revision?: unknown; operation_id?: unknown; plan_hash?: unknown }
   }
 }
 
@@ -22,6 +23,23 @@ function restartLink(event: AuditEvent['event']) {
       !isUlid(operationId) || typeof revision !== 'number' || !Number.isSafeInteger(revision) ||
       revision < 1 || revision > 2_147_483_647) return null
   return restartHash({ planId: event.correlation_id, operationId, revision })
+}
+
+function auditPlanRef(event: AuditEvent['event']) {
+  const { revision, plan_hash: hash, operation_id: operation } = event.details ?? {}
+  if (!isUlid(event.correlation_id) || !isUlid(event.target_id) || typeof revision !== 'number' ||
+      !Number.isSafeInteger(revision) || revision < 1 || revision > 2_147_483_647) return null
+  const identity = { id: event.correlation_id, resource: event.target_id, revision }
+  if (restartEvents.has(event.event)) {
+    if (!isUlid(operation)) return null
+    if (event.event !== 'change_plan.restart_requested') return { ...identity, operation }
+    if (typeof hash === 'string' && /^[0-9a-f]{64}$/.test(hash)) return { ...identity, operation, hash }
+    return null
+  }
+  if (['change_plan.draft_saved', 'change_plan.backup_evaluated', 'change_plan.approval_recorded'].includes(event.event)
+      && (event.outcome === 'SUCCEEDED' || (event.event === 'change_plan.backup_evaluated' && event.outcome === 'DENIED'))
+      && typeof hash === 'string' && /^[0-9a-f]{64}$/.test(hash)) return { ...identity, hash }
+  return null
 }
 
 const jobEvents = new Set(['job.accepted', 'job.transition', 'job.finished'])
@@ -199,6 +217,7 @@ export function Audit({ t, lang, expired }: { t: Copy; lang: Language; expired: 
             const previous = related.filter(entry => entry.seq < seq).at(-1)
             const next = related.find(entry => entry.seq > seq)
             const restart = restartLink(event)
+            const source = auditPlanRef(event)
             return <li key={seq}>
               <strong>{event.event}</strong> <span id={`audit-event-${seq}`} tabIndex={planRevision === null ? undefined : -1}>#{seq} · {event.outcome}</span>
               <dl className="audit-facts">
@@ -214,6 +233,7 @@ export function Audit({ t, lang, expired }: { t: Copy; lang: Language; expired: 
                   <a href={`#audit-event-${entry.seq}`}>{t.auditPlanRevision} {entry.planRevision} · #{entry.seq}</a>
                 </li>)}</ul>
               </div>}
+              {source && <AuditPlan key={`${after}:${revision}:${seq}`} source={source} t={t} expired={expired}/>}
               {restart && <a href={restart}>{t.restartTimeline}</a>}
               {jobEvents.has(event.event) && isUlid(event.correlation_id) &&
                 <JobTimeline jobId={event.correlation_id} t={t} lang={lang} expired={expired}

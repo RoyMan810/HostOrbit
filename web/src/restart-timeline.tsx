@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { hasApiStatus, isUlid, request } from './api'
+import type { Session } from './api'
 import type { Copy, Language } from './copy'
 
 export type RestartRoute = { planId: string; revision: number; operationId: string }
@@ -16,11 +17,11 @@ export function readRestartHash(hash: string): RestartRoute | null {
     ? { planId, revision, operationId } : null
 }
 
-type Entry = { seq: number; at: number; revision: number; operation_id: string; status: string; reason: string | null }
-const pending = new Set(['QUEUED', 'INTENT_PREPARED', 'DISPATCHING'])
+type Entry = { seq: number; at: number; revision: number; operation_id: string; status: string; reason: string | null; attempt?: number }
+const pending = new Set(['QUEUED', 'INTENT_PREPARED', 'DISPATCHING', 'RECONCILIATION_REQUESTED'])
 
-export function RestartTimeline({ route, t, lang, expired }: {
-  route: RestartRoute; t: Copy; lang: Language; expired: () => void
+export function RestartTimeline({ route, t, lang, expired, session }: {
+  session: Session; route: RestartRoute; t: Copy; lang: Language; expired: () => void
 }) {
   const { planId, operationId, revision } = route
   const [entries, setEntries] = useState<Entry[] | null>(null)
@@ -53,6 +54,21 @@ export function RestartTimeline({ route, t, lang, expired }: {
     return () => { abort.abort(); window.clearTimeout(timer) }
   }, [planId, operationId, revision, expired, refresh])
 
+  const last = entries?.at(-1)
+  const attempt = (last?.attempt ?? 0) + 1
+  const [sending, setSending] = useState(false)
+  async function reconcile() {
+    setSending(true)
+    try {
+      await request(`/change-plans/${planId}/execution-requests/${operationId}/reconciliations/${attempt}`, { body: {}, csrf: session.csrf_token })
+      setRefresh(value => value + 1)
+    } catch (cause) {
+      if (hasApiStatus(cause, 401)) expired()
+      else setError(hasApiStatus(cause, 403, 404) ? 'denied' : 'failed')
+    } finally {
+      setSending(false)
+    }
+  }
   const format = new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'medium' })
   return <div className="workspace">
     <section aria-label={t.restartTimeline} className="panel">
@@ -60,6 +76,8 @@ export function RestartTimeline({ route, t, lang, expired }: {
         <button type="button" onClick={() => setRefresh(value => value + 1)}>{t.restartCheckResult}</button>
       </div>
       {entries && <p className="notice">{t.restartRevision} {revision}</p>}
+      {session.user.role === 'Owner' && attempt <= 3 && (last?.status === 'UNKNOWN_OUTCOME' || last?.status === 'QUARANTINED') &&
+        <button type="button" disabled={sending} onClick={reconcile}>{t.restartReconcile}</button>}
       {error && <p className="notice error" role="alert">{error === 'denied' ? t.restartTimelineDenied : t.requestError}</p>}
       {entries === null && !error && <p className="notice" role="status">{t.loading}</p>}
       {entries?.length === 0 && <p className="notice" role="status">{t.timelineEmpty}</p>}
