@@ -262,8 +262,10 @@ def prepare_web(temporary):
     ca_key.unlink()
     (TOOLS / "Caddyfile").write_text(f"""{{
     admin off
-    persist_config off
     auto_https disable_redirects
+    servers {{
+        protocols h1 h2
+    }}
 }}
 {ORIGIN} {{
     bind 127.0.0.1
@@ -299,6 +301,7 @@ After=hostorbit-compose.service
 [Service]
 DynamicUser=yes
 StateDirectory=hostorbit-web
+StateDirectoryMode=0700
 Environment=XDG_DATA_HOME=/var/lib/hostorbit-web
 Environment=XDG_CONFIG_HOME=/var/lib/hostorbit-web
 LoadCredential=web.key:{TOOLS}/web.key
