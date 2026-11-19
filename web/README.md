@@ -26,7 +26,13 @@ React-интерфейс Stage2 показывает зарегистриров�
 
 ## Сборка и запуск
 
-Соберите frontend на Node.js 26 из зафиксированного исходного кода.
+Для установки скачайте архив `hostorbit-webui-<commit>` из успешного прогона [HostOrbit WebUI](https://github.com/RoyMan810/HostOrbit/actions/workflows/web-ui.yml) на `main`. GitHub выдаёт ZIP после входа в аккаунт. Выбирайте прогон той же ревизии, что и установленный Controller. В распакованном ZIP сверьте `source-commit.txt` с `source_commit` подписанного манифеста Controller и выполните:
+
+```sh
+sha256sum -c SHA256SUMS && mkdir -p dist && tar -xzf webui.tar.gz -C dist
+```
+
+В архиве готовая статика. Node.js для её установки не нужен. Для ревизии, у которой архив отсутствует или истёк срок хранения, соберите frontend на Node.js 26 из зафиксированного исходного кода.
 
 ```sh
 cd web
