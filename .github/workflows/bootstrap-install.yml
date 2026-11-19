@@ -35,7 +35,7 @@ jobs:
           sudo chmod 0755 /opt
           sudo systemctl stop docker.service docker.socket containerd.service || true
           mapfile -t installed < <(dpkg-query -W -f='${binary:Package} ${db:Status-Status}\n' \
-            docker-ce docker-ce-cli docker-ce-rootless-extras docker-buildx-plugin docker-compose-plugin \
+            docker-ce docker-ce-cli docker-ce-rootless-extras docker-buildx-plugin docker-compose-plugin moby-engine moby-cli moby-containerd moby-buildx moby-compose \
             containerd.io docker.io docker-buildx docker-compose docker-compose-v2 containerd runc 2>/dev/null \
             | awk '$2 == "installed" { print $1 }')
           if (( ${#installed[@]} )); then

@@ -4,6 +4,17 @@ HostOrbit — панель для управления Linux-серверами 
 
 **Stage0, Stage1 и Stage2 приняты.** Владелец принял AC-28 по итогам локального прогона. Controller, управляемая Ubuntu VM и SFTP работали на одном физическом ПК. [Протокол приёмки](evidence/acceptance/stage2-ac-28/decision.md) Доступна подписанная сборка для разработки под Ubuntu 24.04 и новее (amd64). Приёмка для эксплуатации ещё предстоит.
 
+## Быстрый запуск
+
+На чистой Ubuntu Server 24.04 или 26.04 amd64:
+
+```sh
+git clone https://github.com/RoyMan810/HostOrbit.git
+sudo ./HostOrbit/install
+```
+
+Установщик соберёт development-версию и покажет URL, команду SSH-туннеля и путь к сертификату для браузера. [Установка и подключение первой VPS](docs/stage1-installation.md#установка-одной-командой)
+
 ## Выполнено
 
 - **Основа контроллера.** Подписанная установка, локальное создание владельца (Owner), вход, разграничение доступа и журнал аудита. [Проверки Stage1](evidence/revalidation/stage1-current/README.md)

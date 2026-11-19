@@ -40,13 +40,13 @@ WEB_PORT = 18443
 ORIGIN = f"https://127.0.0.1:{WEB_PORT}"
 
 
-def run(*args, cwd=None, capture=False, env=None, identity=None, check=True):
+def run(*args, cwd=None, capture=False, output=None, env=None, identity=None, check=True):
     options = {}
     if identity:
         cwd = cwd or env["HOME"]
         options.update(user=identity.pw_uid, group=identity.pw_gid, extra_groups=[], umask=0o022)
     return subprocess.run(args, cwd=cwd, env={**SYSTEM_ENV, **(env or {})}, text=True,
-                          stdout=subprocess.PIPE if capture else None, check=check, **options)
+                          stdout=subprocess.PIPE if capture else output, check=check, **options)
 
 
 def capture(*args, **kwargs):
@@ -238,8 +238,8 @@ def prepare_web(temporary):
     run("dpkg-deb", "--extract", package, extracted)
     shutil.copyfile(extracted / "usr/bin/caddy", TOOLS / "caddy")
     (TOOLS / "caddy").chmod(0o755)
-    for path in ("web-ca.pem", "web.pem"):
-        (TOOLS / path).touch(mode=0o644, exist_ok=False)
+    for filename in ("web-ca.pem", "web.pem"):
+        (TOOLS / filename).touch(mode=0o644, exist_ok=False)
     key = TOOLS / "web.key"
     key.touch(mode=0o600, exist_ok=False)
     ca_key = temporary / "web-ca.key"
@@ -325,9 +325,11 @@ WantedBy=multi-user.target
 
 def install(owner, targets, suite):
     root = Path(__file__).resolve().parents[1]
+    checkout_owner = pwd.getpwuid(root.stat().st_uid)
+    checkout = {"cwd": root, "identity": checkout_owner, "env": {"HOME": checkout_owner.pw_dir}}
     git = ("git", "-c", f"safe.directory={root}", "-C", root)
-    revision = capture(*git, "rev-parse", "HEAD")
-    if capture(*git, "status", "--porcelain", "--untracked-files=no"):
+    revision = capture(*git, "rev-parse", "HEAD", **checkout)
+    if capture(*git, "status", "--porcelain", "--untracked-files=no", **checkout):
         raise ValueError("Запустите установку из чистого зафиксированного checkout.")
     with tempfile.TemporaryDirectory(prefix="hostorbit-bootstrap-", dir="/var/tmp") as location:
         temporary = Path(location)
@@ -352,14 +354,15 @@ def install(owner, targets, suite):
         env = {"HOME": str(work), "PIP_CONFIG_FILE": "/dev/null", "PIP_INDEX_URL": "https://pypi.org/simple",
                "PIP_DISABLE_PIP_VERSION_CHECK": "1", "PIP_NO_CACHE_DIR": "1"}
         checkout_bundle = temporary / "source.bundle"
-        run(*git, "bundle", "create", checkout_bundle, "HEAD")
+        with checkout_bundle.open("wb") as stream:
+            run(*git, "bundle", "create", "-", "HEAD", output=stream, **checkout)
         checkout_bundle.chmod(0o644)
         source = work / "source"
         materialize_checkout(checkout_bundle, source, revision, identity=identity, env=env)
         trusted_archive = private / "installer.tar"
         with trusted_archive.open("wb") as stream:
-            subprocess.run([*git, "archive", revision, "deploy/artifact.py", "deploy/installer.py"],
-                           check=True, env=SYSTEM_ENV, stdout=stream)
+            run(*git, "archive", "--format=tar", revision, "deploy/artifact.py", "deploy/installer.py",
+                output=stream, **checkout)
         with tarfile.open(trusted_archive) as archive:
             archive.extractall(private, filter="data")
         TOOLS.mkdir(mode=0o755)
