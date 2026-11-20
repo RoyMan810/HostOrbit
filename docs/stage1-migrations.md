@@ -75,6 +75,21 @@ sudo /opt/hostorbit/venv/bin/python -m deploy.prepare_migration ./release-1.2.0 
 
 `MIGRATION_INPUTS_VERIFIED` возвращает план и его SHA-256. План привязан к манифесту выпуска, источнику SQLite, квитанции бэкапа и поколению Supervisor. Результат относится к моменту проверки. При запуске рабочей миграции все условия потребуется сверить повторно под допуском. `live_apply` остаётся `BLOCKED`, а `backup_gate` — `DENIED` до проверки восстановления и независимого размещения копии.
 
+## Подпись владельца под результатом восстановления
+
+После проверки конкретного снимка на изолированном Controller сохраняются фактические результаты восстановления. Владелец сверяет их и подписывает отдельным ключом Ed25519. Закрытый seed остаётся на машине владельца. JSON для подписания содержит `v: 1`, `type: "hostorbit.controller-migration-restore"`, `source_instance`, `snapshot_id`, `marker_sha256`, `schema`, `tested_at` (UTC Unix seconds) и объект `checks`. Каждая проверка должна быть пройдена: `restored_in_isolation`, `sqlite_audit_verified`, `owner_login_verified`, `independent_storage_verified`.
+
+```sh
+umask 077
+python -m deploy.controller_restore_attestation \
+  --claims restore-claims.json --evidence restore-report.txt \
+  --signing-key /secure/owner-restore.seed > restore-attestation.json
+```
+
+Передайте в `deploy.prepare_migration` параметры `--restore-attestation`, `--restore-evidence` и `--owner-verify-key`. Файлы подписи и свидетельства хранятся у root с правами `0600`. Публичный ключ владельца доверяется отдельно от ключей Controller и выпуска. Проверка привязывает подпись к снимку, квитанции, схеме и данным отчёта. При проверке используется подписанное время Supervisor. Принимаются свидетельства возрастом до 30 минут.
+
+`OWNER_RESTORE_ATTESTATION_VERIFIED` подтверждает подпись владельца и совпадение данных. Изоляцию и независимость площадки подтверждает владелец фактическим прогоном. Идентификатор подписанного свидетельства входит в SHA-256 плана. Рабочая миграция остаётся заблокированной до реализации применения под допуском Supervisor.
+
 ## Граница текущего блока
 
 Команды live apply пока нет. Успешная репетиция не выдаёт maintenance permit, не подтверждает Vault/DEK portability, `RESTORE_ATTESTED` или DR readiness. Для применения к рабочей БД требуется связать утверждённый update plan и подписанный совместимый release с независимым host authority, согласованной off-host ControllerBackup ≤30 минут, проверенной restore-процедурой и host TimeHealth. [Host TimeHealth](stage1-time-health.md) уже проверяется независимым supervisor; его привязка к live migration остаётся частью следующего updater workflow. Эти предусловия не заменяются boolean-флагами или `--force`.

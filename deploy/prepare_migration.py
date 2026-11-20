@@ -10,6 +10,7 @@ import sys
 import time
 
 from deploy.artifact import ArtifactError, trusted_key
+from deploy.controller_restore_attestation import MAX_EVIDENCE, verify_restore
 from deploy.update_release import verify_candidate
 from hostorbit.database import DataAccess, Store
 from hostorbit.errors import Denied
@@ -48,7 +49,7 @@ def verify_current_source(config, schema, review_digest):
 
 
 def prepare_migration(config, release, key, gate, *, installed, bootstrap, schema, vault_format,
-                      minimum_release, review, snapshot_id, downloaded_copy, owner=0):
+                      minimum_release, review, snapshot_id, downloaded_copy, restore=None, owner=0):
     if os.geteuid() != owner:
         raise Denied("LOCAL_ROOT_REQUIRED")
     candidate = verify_candidate(release, key, installed=installed, bootstrap=bootstrap,
@@ -77,10 +78,15 @@ def prepare_migration(config, release, key, gate, *, installed, bootstrap, schem
         "backup_marker_sha256": backup["marker_sha256"], "gate_epoch": health["gate_epoch"],
         "time_generation": health["generation"],
     }
+    attestation = None
+    if restore is not None:
+        attestation = verify_restore(**restore, backup=backup, now=health["observed_at_utc"],
+                                     controller_key=verify_key, release_key=key)
+        plan["restore_attestation_sha256"] = attestation["attestation_sha256"]
     return {"status": "MIGRATION_INPUTS_VERIFIED", "plan": plan, "plan_sha256": checksum(plan),
             "backup_maximum_age_seconds": backup["maximum_age_seconds"], "backup_gate": backup["backup_gate"],
             "restore_verified": backup["restore_verified"], "failure_domain_verified": backup["failure_domain_verified"],
-            "live_apply": "BLOCKED"}
+            "owner_restore_attestation": attestation, "live_apply": "BLOCKED"}
 
 
 def main(argv=None):
@@ -95,16 +101,29 @@ def main(argv=None):
     parser.add_argument("--review", type=Path, required=True)
     parser.add_argument("--snapshot-id", required=True)
     parser.add_argument("--downloaded-copy", type=Path, required=True)
+    parser.add_argument("--restore-attestation", type=Path)
+    parser.add_argument("--restore-evidence", type=Path)
+    parser.add_argument("--owner-verify-key", type=Path)
     args = parser.parse_args(argv)
+    restore_paths = (args.restore_attestation, args.restore_evidence, args.owner_verify_key)
+    if any(restore_paths) and not all(restore_paths):
+        parser.error("restore attestation, evidence and Owner key must be supplied together")
     try:
         if os.geteuid() != 0:
             raise Denied("LOCAL_ROOT_REQUIRED")
         config = configuration(Path("/etc/hostorbit/runtime.json"))
+        restore = None
+        if all(restore_paths):
+            restore = {
+                "record": protected_bytes(args.restore_attestation, owner=0, private=True),
+                "evidence": protected_bytes(args.restore_evidence, owner=0, private=True, maximum=MAX_EVIDENCE),
+                "owner_key": trusted_key(args.owner_verify_key),
+            }
         report = prepare_migration(
             config, args.release, trusted_key(args.trust_key), Client(config["gate_socket"], server_uids={0}),
             installed=args.installed, bootstrap=args.bootstrap, schema=args.schema, vault_format=args.vault_format,
             minimum_release=args.minimum_release, review=args.review, snapshot_id=args.snapshot_id,
-            downloaded_copy=args.downloaded_copy,
+            downloaded_copy=args.downloaded_copy, restore=restore,
         )
     except (ArtifactError, Denied, OSError, ValueError, RuntimeError, sqlite3.Error, KeyError, TypeError) as error:
         if isinstance(error, ArtifactError):
