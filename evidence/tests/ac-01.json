@@ -1,0 +1,27 @@
+{
+  "test_id": "AC-01",
+  "outcome": "PASS",
+  "assertion": "Чистая установка не предоставляет Owner первому веб-посетителю; локальный bootstrap создаёт Owner, случайный посетитель не может создать администратора.",
+  "recorded_at_utc": "2026-11-20T19:30:26.636Z",
+  "source_commit": "6edf8419ceaee6fc4881a22d2f37341002b6bd22",
+  "build_digest": "7a78722347244b85bec1f09037824d901bcac7f0358290c87d7a5bc350c05cf3",
+  "manifest_digest": "7a78722347244b85bec1f09037824d901bcac7f0358290c87d7a5bc350c05cf3",
+  "sbom_digest": "472b87046a183ef48d6be3175dcb815b4d44c2bd171d5dd4d9b484a356b4cf71",
+  "digest_scope": "Подписанный манифест идентифицирует комплект сборки Controller. CI-репетиция SSH использует тот же checkout с закреплёнными зависимостями.",
+  "bundle_metadata_artifact": "https://github.com/RoyMan810/HostOrbit/actions/runs/44751217715/artifacts/14635302268",
+  "reviewer": "Codex сверил логи CI, источники тестов и дайджесты артефактов.",
+  "environment": "Чистая Ubuntu 24.04.5 в GitHub Actions, подписанный Controller, systemd, Docker Compose и HTTPS.",
+  "initial_state": "Подписанная установка с пустой БД и без Owner.",
+  "scenario": "Проверить первое обращение с браузера, выполнить локальный bootstrap и войти в WebUI по HTTPS.",
+  "fault_injection": "Первый веб-посетитель пытается получить полномочия bootstrap.",
+  "observation": "Веб-посетитель не получил полномочия bootstrap. Локальная CLI создала Owner через скрытый ввод, после чего прошёл вход по HTTPS.",
+  "ci_jobs": [
+    "https://github.com/RoyMan810/HostOrbit/actions/runs/44751217715/job/136339293740",
+    "https://github.com/RoyMan810/HostOrbit/actions/runs/44751217715/job/136339293831"
+  ],
+  "source_paths": [
+    "tests_runtime/lab/installation.py",
+    "tests_app/test_auth_api.py"
+  ],
+  "evidence_digest": "115094615a410ce5b0cc2895dfcf5849353373a2f37ec329c3d07a5685d52284"
+}
