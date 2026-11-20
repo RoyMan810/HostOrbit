@@ -7,13 +7,13 @@
 На чистой Ubuntu Server 24.04 или 26.04 (amd64) с работающим systemd:
 
 ```sh
-git clone https://github.com/RoyMan810/HostOrbit.git
-sudo ./HostOrbit/install
+git clone https://github.com/RoyMan810/VPN-Orbit.git
+sudo ./VPN-Orbit/install
 ```
 
-Для bootstrap требуется интернет. Для сборки рекомендуется 2 ГиБ RAM и 6 ГиБ свободного места в `/var/lib`. При меньшем объёме установщик выводит предупреждение и продолжает работу. Число параллельных задач при сборке Python зависит от объёма памяти и числа CPU. Установка собирает Python 3.15.2 из официального архива по закреплённому SHA-256. Если Docker отсутствует, установка добавляет подписанный репозиторий Docker и ставит Engine 29.x, Compose и Buildx. Существующий Docker должен поддерживать тот же профиль. Конфликтующие пакеты и установки HostOrbit остаются на месте, а операция останавливается.
+Для bootstrap требуется интернет. Для сборки рекомендуется 2 ГиБ RAM и 6 ГиБ свободного места в `/var/lib`. При меньшем объёме установщик выводит предупреждение и продолжает работу. Число параллельных задач при сборке Python зависит от объёма памяти и числа CPU. Установка собирает Python 3.15.2 из официального архива по закреплённому SHA-256. Если Docker отсутствует, установка добавляет подписанный репозиторий Docker и ставит Engine 29.x, Compose и Buildx. Существующий Docker должен поддерживать тот же профиль. Конфликтующие пакеты и установки VPN-Orbit остаются на месте, а операция останавливается.
 
-Controller и WebUI собираются из коммита текущего checkout. Изменения в отслеживаемых файлах приводят к отказу. Сборка Controller использует закреплённые хеши Python-зависимостей и OCI digest. Одноразовый локальный подписант development-комплекта удаляется после сборки. Источник доверия здесь — выбранный вами checkout и закреплённые в нём зависимости. Ручной сценарий ниже принимает комплект с независимо доставленным ключом издателя. Node.js нужен только для сборки статики из npm lock. При установке регистрируются host-native Broker и Supervisor через systemd, API и Worker через Compose и отдельный HTTPS reverse proxy Nginx. Установщик извлекает Nginx из пакетов Ubuntu и запускает собственную службу на loopback.
+Controller и WebUI собираются из коммита текущего checkout. Изменения в отслеживаемых файлах приводят к отказу. Сборка Controller использует закреплённые хеши Python-зависимостей и OCI digest. Одноразовый локальный подписант development-комплекта удаляется после сборки. Источник доверия здесь — выбранный вами checkout и закреплённые в нём зависимости. Ручной сценарий ниже принимает комплект с независимо доставленным ключом издателя. Node.js нужен только для сборки статики из npm lock. При установке регистрируются host-native Broker и Supervisor через systemd, API и Worker через Compose и отдельный HTTPS reverse proxy Nginx. Установщик извлекает Nginx из пакетов Ubuntu. По умолчанию выделенная служба слушает loopback.
 
 В интерактивном терминале установка предлагает задать пароль Owner. По умолчанию используется имя `admin`. Для другого имени укажите `--owner roman`. Для запуска без терминала или повтора ввода после ошибки используйте `sudo /opt/hostorbit/admin create-owner --username admin`.
 
@@ -34,7 +34,7 @@ ssh -N -L 127.0.0.1:18443:127.0.0.1:18443 ubuntu@CONTROLLER
 sudo apt install certbot
 sudo certbot certonly --standalone --cert-name orbit.example.org -d orbit.example.org \
   --deploy-hook 'systemctl try-restart hostorbit-web.service'
-sudo ./HostOrbit/install --public-domain orbit.example.org
+sudo ./VPN-Orbit/install --public-domain orbit.example.org
 ```
 
 Режим `--public-domain` проверяет сертификат и ключ до установки. Nginx слушает IPv4 TCP 443, а API остаётся на `127.0.0.1:18080`. Начальный Owner создаётся локально на VPS. Для продления через standalone TCP 80 должен быть доступен Certbot. Deploy hook перезапускает выделенный Nginx, чтобы systemd перечитал сертификат и ключ. Системный Nginx и занятые порты требуют отдельного согласования конфигурации.
@@ -43,7 +43,7 @@ sudo ./HostOrbit/install --public-domain orbit.example.org
 
 Постоянные родительские каталоги установки (`/opt`, `/etc`, `/var/lib`, `/run` и их ancestors) должны принадлежать root и не допускать group/other write. Preflight отказывает с `INSTALLATION_PARENT_UNTRUSTED` до создания состояния и не меняет права чужих системных каталогов. Disposable CI fixture отдельно проверяет отказ на `/opt` 0777, затем готовит защищённый профиль 0755 только в своей временной VM.
 
-Установщик разворачивает **development-сборку** на Ubuntu Server 24.04 и новее, amd64. Native development-установка и restart проверены на 24.04 и на отдельной VM Ubuntu 26.04; остальные выпуски требуют отдельной проверки systemd, Docker и безопасности. Он устанавливает API и Worker через Compose, host-native Broker и supervisor через systemd. Доступно только наблюдение `host.probe`; production mutation, автоматическое обновление и миграция существующей БД этим установщиком не разрешены.
+Установщик разворачивает **development-сборку** на Ubuntu Server 24.04 или 26.04 amd64. API и Worker работают через Compose, Broker и Supervisor — через systemd. Для проверки наблюдений настройте [SSH-цель](#подготовка-vps-по-паролю-или-ssh-ключу). Для тестового перезапуска нужен [отдельный профиль стенда](stage2-inventory.md#сквозная-проверка-перезапуска-на-стенде).
 
 Нужны rootful Docker Engine 29.x, Compose plugin v2 или v5 (включая версии пакетов Ubuntu с суффиксом `+ds…ubuntu…`), Docker Buildx для offline-сборки образа, host Python 3.15 для нового комплекта (Python 3.13 для старого), SQLite ≥3.45, OpenSSL 3 и systemd. Интерпретатор Python должен находиться по постоянному доверенному пути: host supervisor использует его независимо от контейнеров. Для ручной установки рекомендуются 1 vCPU, 2 ГиБ RAM и 2 ГиБ свободного места в `/var/lib`. Проверка ресурсов выводит предупреждение при значениях ниже этих рекомендаций. Offline Rescue имеет отдельные [требования к памяти и изоляции](stage1-rescue.md). Установщик проверяет свободный высокий loopback-порт, существующие namespace, пользователей и units до создания данных. В ручном сценарии ниже Docker и Python готовятся заранее.
 
@@ -66,7 +66,7 @@ Builder также требует официальный binary `age` v1.3.2 lin
 
 ## Свежая установка
 
-Сначала доступны полная проверка входных файлов и preflight. `--development` явно выбирает текущий канал разработки. Этот флаг не открывает mutating adapters и не заменяет приёмку MVP.
+Сначала доступны полная проверка входных файлов и preflight. `--development` явно выбирает текущий канал разработки. Доступные операции определяет защищённая политика целей.
 
 ```bash
 sudo /trusted/python3.15 deploy/installer.py install \
@@ -100,22 +100,22 @@ sudo /opt/hostorbit/admin create-owner --username roman
 
 ## Проверки
 
-Локальные unit tests проверяют подпись/подмену manifest и wheel, пути, ограничения канала/схемы, trust-key permissions, отсутствие signing seed в копии и контракт namespaces. Отдельный job запускается только на disposable GitHub-hosted Ubuntu VM: устанавливает пакет и настоящие units, проверяет peer credentials контейнерного Worker, отсутствие privilege mounts API, занятый чужой порт 443, локальное создание Owner и вход через проверенный HTTPS proxy, повторную установку и restart Compose service. Итог CI записывается после фактического прогона; эта документация сама по себе не присваивает PASS оставшимся AC.
+Локальные unit tests проверяют подпись/подмену manifest и wheel, пути, ограничения канала/схемы, trust-key permissions, отсутствие signing seed в копии и контракт namespaces. Отдельный job запускается только на disposable GitHub-hosted Ubuntu VM: устанавливает пакет и настоящие units, проверяет peer credentials контейнерного Worker, отсутствие privilege mounts API, занятый чужой порт 443, локальное создание Owner и вход через проверенный HTTPS proxy, повторную установку и restart Compose service.
 
 API подключён к отдельному bridge с исходящей связностью: Docker не публикует host ports у контейнера, подключённого только к `internal` network. Порт API указан явно с host IP `127.0.0.1`, тот же адрес задан default binding сети; фактическая публикация проверяется после установки. Worker не подключён к этому bridge. Это не egress firewall для Backend.
 
 ### Подготовка VPS по паролю или SSH-ключу
 
-Для свежей управляемой VPS с Ubuntu 24.04 запустите команду с компьютера администратора из доверенного checkout HostOrbit. Нужны Python 3 и клиент OpenSSH. Возьмите отпечаток `SHA256:…` из консоли VPS командой `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`.
+Для свежей управляемой VPS с Ubuntu 24.04 запустите команду с компьютера администратора из доверенного checkout VPN-Orbit. Нужны Python 3 и клиент OpenSSH. Возьмите отпечаток `SHA256:…` из консоли VPS командой `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`.
 
 ```sh
 python3 tools/prepare_vps.py --host 192.0.2.20 --user ubuntu \
   --fingerprint 'SHA256:…' --output ./managed-vps
 ```
 
-Замените IP, имя пользователя и отпечаток своими значениями. OpenSSH запросит пароль входа, а `sudo` при необходимости запросит пароль повышения прав. Для входа своим SSH-ключом добавьте `--identity ~/.ssh/id_ed25519`. Для нестандартного порта добавьте `--port`. Команда создаёт отдельный аккаунт наблюдения и сразу проверяет вход с новым ключом HostOrbit.
+Замените IP, имя пользователя и отпечаток своими значениями. OpenSSH запросит пароль входа, а `sudo` при необходимости запросит пароль повышения прав. Для входа своим SSH-ключом добавьте `--identity ~/.ssh/id_ed25519`. Для нестандартного порта добавьте `--port`. Команда создаёт отдельный аккаунт наблюдения и сразу проверяет вход с новым ключом VPN-Orbit.
 
-Для команды `prepare_vps.py` используйте Controller или машину, чей SSH-адрес разрешён для наблюдения на управляемой VPS. Подготовьте цель до свежей установки. Передайте `managed-vps/targets.json` как `sudo ./HostOrbit/install --targets ./managed-vps/targets.json`. Режим регистрации в WebUI включится автоматически. Сохраните Resource ID, Secret Reference и напечатанный при создании ID Owner. Импортируйте приватный ключ наблюдения на Controller:
+Для команды `prepare_vps.py` используйте Controller или машину, чей SSH-адрес разрешён для наблюдения на управляемой VPS. Подготовьте цель до свежей установки. Передайте `managed-vps/targets.json` как `sudo ./VPN-Orbit/install --targets ./managed-vps/targets.json`. Режим регистрации в WebUI включится автоматически. Сохраните Resource ID, Secret Reference и напечатанный при создании ID Owner. Импортируйте приватный ключ наблюдения на Controller:
 
 ```sh
 sudo install -d -m 0700 -o ho-broker -g ho-broker /run/hostorbit/key-import

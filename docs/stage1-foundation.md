@@ -56,7 +56,7 @@ hostorbit --database "$database_path" --database-owner "$database_uid" --databas
 
 `GET /api/v1/audit` и `/api/v1/events` требуют `audit:read`. SSE отдаёт ограниченный пакет уже зафиксированных событий, поддерживает Last-Event-ID и переподключение EventSource. Автоматические подключения к `/events` не продлевают сессию по бездействию. Несохранённое состояние не становится событием. Доступ проверяется менеджером в том же read snapshot, из которого берутся события.
 
-## Проверки и следующие capability
+## Проверки
 
 ```bash
 .venv/bin/python -m unittest discover -s tests_app -v

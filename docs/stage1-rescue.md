@@ -1,4 +1,4 @@
-# Offline Rescue и импорт данных Stage1
+# Offline Rescue и импорт данных
 
 [Документация](README.md)
 
@@ -45,7 +45,7 @@ Writer admission получает отдельный устойчивый `recov
 
 Unit/fault tests проверяют точный Owner digest при подменённых DB/DEK с правильными внешними полями, чужой target/challenge, replay, expiry, Owner auth/lockout, непустую цель, ENOSPC и погашение failed import, старую recovery point, malformed tar, corrupted scope/generation, отзыв исходных sessions/jobs и durable read-only после restart/утраты latch. Отдельно проверяются отказы workstation profile и неинтерактивной консоли.
 
-Signed-installation CI запускает код из установленного wheel, настоящий pinned age/keygen и systemd-creds на временной GitHub-hosted Ubuntu VM. Проверяются native import/new credential/Vault decryption/new signer, Auth, отказ business writes, replay и watchdog. Положительная процедура использует явно обозначенную **CI profile fixture**; production preflight обязан отклонить уже установленный Controller. Этот прогон **не удостоверяет** реальную offline workstation, новую независимую физическую машину, полный service restore или manual restore attestation. AC статусы и общий Stage1/MVP gate не повышаются автоматически.
+Signed-installation CI запускает код из установленного wheel, настоящий pinned age/keygen и systemd-creds на временной GitHub-hosted Ubuntu VM. Проверяются native import/new credential/Vault decryption/new signer, Auth, отказ business writes, replay и watchdog. Положительная процедура использует явно обозначенную **CI profile fixture**; production preflight обязан отклонить уже установленный Controller. Этот прогон **не удостоверяет** реальную offline workstation, новую независимую физическую машину, полный service restore или manual restore attestation.
 
 ## Создание архива Docker-тома
 
@@ -60,7 +60,7 @@ sudo /path/to/hostorbit/bin/python -m hostorbit.runtime.resource_capture \
 
 Команда создаёт новый каталог с `volume.age` и `volume.provenance.json`. Для проверки сохраните открытый ключ подписи отдельно. Содержимое тома обрабатывается в памяти. Поддерживаются архивы до 512 МиБ с учётом упаковки и шифрования и до 8192 записей.
 
-## Проверка архива ресурса Stage2
+## Проверка архива ресурса
 
 `hostorbit-rescue verify-resource-archive` проверяет один формат архива остановленного тестового Docker named volume на той же изолированной workstation. Укажите `--ciphertext`, `--provenance`, отдельно сохранённый открытый 32-байтовый ключ Ed25519 `--trusted-key` и ожидаемую версию приложения `--application-schema`. Секретный ключ age вводится скрыто через локальный терминал.
 
@@ -98,6 +98,6 @@ sudo unshare --net /path/to/rescue/bin/python -m hostorbit.runtime.resource_rest
 
 Добавьте к команде `--docker-volume <новое-имя>` и после SHA-256 введите показанное имя тома. Режим предназначен для выделенной офлайн-машины Rescue с Docker. Владелец заранее обеспечивает эксклюзивный доступ к daemon, без других Docker-клиентов и слушателей. Команда требует root-owned сокет `/run/docker.sock` с режимом `0600`, стандартный каталог данных `/var/lib/docker` и заранее загруженный образ `docker.io/library/python@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928`. Для каталога staging используются ASCII-буквы, цифры и символы `/`, `_`, `.`, `-`.
 
-HostOrbit под локальной блокировкой создаёт том с уникальной меткой и подключает к нему остановленный контейнер. Перед запуском сверяются метка, отпечаток, пустота, место, срок аттестации и отсутствие других контейнеров у тома. Контейнер копирует данные из read-only staging с сохранением UID, GID и прав, без сети и скачивания образа. Существующее имя отклоняется, включая пустой том.
+VPN-Orbit под локальной блокировкой создаёт том с уникальной меткой и подключает к нему остановленный контейнер. Перед запуском сверяются метка, отпечаток, пустота, место, срок аттестации и отсутствие других контейнеров у тома. Контейнер копирует данные из read-only staging с сохранением UID, GID и прав, без сети и скачивания образа. Существующее имя отклоняется, включая пустой том.
 
-`RESTORE_WRITTEN` подтверждает запись. Владелец проверяет приложение и фиксирует результат для AC-B05. После сбоя или неопределённого исхода сохраните том и проверьте контейнер по метке резервирования. Команда сохраняет приватный staging и оставляет существующее имя недоступным для повторной записи.
+`RESTORE_WRITTEN` подтверждает запись. Владелец проверяет приложение и фиксирует результат проверки. После сбоя или неопределённого исхода сохраните том и проверьте контейнер по метке резервирования. Команда сохраняет приватный staging и оставляет существующее имя недоступным для повторной записи.
