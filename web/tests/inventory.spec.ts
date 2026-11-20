@@ -641,6 +641,7 @@ test('reuses the original request and VPS after the accepted reply is lost', asy
 
 test('resumes reading the accepted job and preserves an unknown outcome', async ({ page }) => {
   await signIn(page)
+  await page.getByRole('button', { name: new RegExp(fresh) }).click()
   let submissions = 0
   page.on('request', request => {
     if (request.url().endsWith('/observations') && request.method() === 'POST') submissions += 1
@@ -652,7 +653,10 @@ test('resumes reading the accepted job and preserves an unknown outcome', async 
   await expect(page.getByRole('button', { name: 'Check job status' })).toBeVisible()
   await expect(page.getByText('Outcome unknown', { exact: true })).toHaveCount(0)
   await finishProbe(page, job.id, 'UNKNOWN_OUTCOME')
+  const refreshed = page.waitForResponse(response =>
+    response.url().endsWith('/resources/' + fresh) && response.request().method() === 'GET' && response.ok())
   await page.getByRole('button', { name: 'Check job status' }).click()
+  expect((await (await refreshed).json()).observation.status).toBe('UNKNOWN')
   await expect(page.getByText('Outcome unknown', { exact: true })).toBeVisible()
   await expect(page.getByRole('region', { name: 'VPS details' }).getByText('Unknown', { exact: true })).toBeVisible()
   expect(submissions).toBe(1)
