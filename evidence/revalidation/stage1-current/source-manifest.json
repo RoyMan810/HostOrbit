@@ -1,7 +1,7 @@
 {
   "scope": "Tracked Foundation application, deploy, remote and test paths plus historical report paths and CI/build inputs; each file matches the checked commit.",
-  "source_commit": "006636d781bdd8918fb7afc024e582591b135cf9",
-  "source_tree": "699650f435eb54eb5f8e64e509dc576d9a129d9a",
+  "source_commit": "35cef1e79d9ed12fc4d6c9f62c5bf7f77a1da261",
+  "source_tree": "7c87cd6a5170227e9748007bc7f250195c9a4eb0",
   "files": [
     {
       "path": ".github/workflows/checks.yml",
@@ -21,7 +21,7 @@
     },
     {
       "path": "deploy/installer.py",
-      "sha256": "6895190ffb86900946b46c62f2b2c9aeef84c948166f7131f65abde28b4ea7f4"
+      "sha256": "13d85c8324a734a9298bc6c0e399df62633a00c0b79be7f8ded44cef987965a3"
     },
     {
       "path": "deploy/requirements-build.lock",
@@ -389,7 +389,7 @@
     },
     {
       "path": "tests_runtime/test_installation.py",
-      "sha256": "caa307d4145141c9a60647ad77876f98f3fe8a601979f70095c791c323e1eb6d"
+      "sha256": "aa85d66b56a24abb968a0791b97da1ba91c05c5c6710b29e3073b64c4d35e672"
     },
     {
       "path": "tests_runtime/test_key_lifecycle.py",
