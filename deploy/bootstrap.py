@@ -1,6 +1,7 @@
-"""Install a fresh HostOrbit development Controller and loopback-only HTTPS WebUI."""
+"""Install a fresh HostOrbit development Controller with HTTPS WebUI."""
 
 import argparse
+from dataclasses import dataclass
 import fcntl
 import hashlib
 import json
@@ -21,6 +22,7 @@ import tempfile
 TOOLS = Path("/opt/hostorbit-bootstrap")
 APP = Path("/opt/hostorbit")
 WEB_UNIT = Path("/etc/systemd/system/hostorbit-web.service")
+WEB_STATE = Path("/var/lib/hostorbit-web")
 DOCKER_SOCKET = "unix:///run/docker.sock"
 PYTHON_VERSION = "3.15.2"
 PYTHON_ARCHIVE = f"Python-{PYTHON_VERSION}.tar.xz"
@@ -38,6 +40,46 @@ SYSTEM_ENV = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LANG": "C.UTF-8"}
 API_PORT = 18080
 WEB_PORT = 18443
 ORIGIN = f"https://127.0.0.1:{WEB_PORT}"
+
+
+@dataclass(frozen=True)
+class WebEndpoint:
+    domain: str | None = None
+
+    def __post_init__(self):
+        if self.domain is not None and (
+            len(self.domain) > 253
+            or re.fullmatch(r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z](?:[a-z0-9-]{0,61}[a-z0-9])?", self.domain) is None
+        ):
+            raise ValueError("Укажите домен в нижнем регистре, без схемы, порта и пути.")
+
+    @property
+    def origin(self):
+        return f"https://{self.domain}" if self.domain else ORIGIN
+
+    @property
+    def bind(self):
+        return ("0.0.0.0", 443) if self.domain else ("127.0.0.1", WEB_PORT)
+
+    @property
+    def tls_files(self):
+        if self.domain:
+            live = Path("/etc/letsencrypt/live") / self.domain
+            return live / "fullchain.pem", live / "privkey.pem"
+        return TOOLS / "web.pem", TOOLS / "web.key"
+
+    def check_certificate(self):
+        if not self.domain:
+            return
+        cert, key = self.tls_files
+        if not cert.is_file() or not key.is_file():
+            raise ValueError(f"Подготовьте сертификат Certbot для {self.domain}.")
+        run("openssl", "verify", "-purpose", "sslserver", "-verify_hostname", self.domain,
+            "-untrusted", cert, cert)
+        public_cert = capture("openssl", "x509", "-in", cert, "-pubkey", "-noout")
+        public_key = capture("openssl", "pkey", "-in", key, "-pubout")
+        if public_cert != public_key:
+            raise ValueError("Ключ TLS не соответствует сертификату.")
 
 
 def run(*args, cwd=None, capture=False, output=None, env=None, identity=None, check=True):
@@ -66,7 +108,7 @@ def python_build_jobs(cpus, memory):
     return max(1, min(cpus or 1, memory // 1024**2, 4))
 
 
-def platform_and_ports():
+def platform_and_ports(endpoint):
     release = platform.freedesktop_os_release()
     if release.get("ID") != "ubuntu" or platform.machine() != "x86_64":
         raise ValueError("Требуется Ubuntu Server amd64.")
@@ -85,12 +127,12 @@ def platform_and_ports():
     disk = shutil.disk_usage("/var/lib")
     if memory < 1792 * 1024 or disk.free < 6 * 1024**3:
         print("Рекомендация: 2 ГиБ RAM и 6 ГиБ свободного места в /var/lib.", file=sys.stderr)
-    for port in (API_PORT, WEB_PORT):
+    for address, port in (("127.0.0.1", API_PORT), endpoint.bind):
         with socket.socket() as listener:
             try:
-                listener.bind(("127.0.0.1", port))
+                listener.bind((address, port))
             except OSError as error:
-                raise ValueError(f"Порт 127.0.0.1:{port} занят.") from error
+                raise ValueError(f"Порт {address}:{port} занят.") from error
     for path in (APP, TOOLS, WEB_UNIT, Path("/etc/hostorbit"), Path("/var/lib/hostorbit"),
                  Path("/run/hostorbit")):
         if path.exists() or path.is_symlink():
@@ -239,13 +281,79 @@ def build_web(source, work, identity, env):
     shutil.copytree(dist, TOOLS / "web")
 
 
-def prepare_web(temporary):
-    apt("download", "caddy", cwd=temporary)
-    package, = temporary.glob("caddy_*.deb")
-    extracted = temporary / "caddy-package"
-    run("dpkg-deb", "--extract", package, extracted)
-    shutil.copyfile(extracted / "usr/bin/caddy", TOOLS / "caddy")
-    (TOOLS / "caddy").chmod(0o755)
+def nginx_config(state, credentials, endpoint):
+    address, port = endpoint.bind
+    name = endpoint.domain or "127.0.0.1"
+    return f"""daemon off;
+master_process off;
+pid {state}/nginx.pid;
+error_log stderr warn;
+
+events {{}}
+
+http {{
+    include {TOOLS}/mime.types;
+    default_type application/octet-stream;
+    access_log off;
+    server_tokens off;
+    client_body_temp_path {state}/client-body;
+    proxy_temp_path {state}/proxy;
+    fastcgi_temp_path {state}/fastcgi;
+    uwsgi_temp_path {state}/uwsgi;
+    scgi_temp_path {state}/scgi;
+
+    server {{
+        listen {address}:{port} ssl;
+        server_name {name};
+        ssl_certificate {credentials}/web.pem;
+        ssl_certificate_key {credentials}/web.key;
+        ssl_protocols TLSv1.2 TLSv1.3;
+
+        proxy_http_version 1.1;
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header Connection "";
+        proxy_buffering off;
+        proxy_request_buffering off;
+
+        location /api/ {{
+            proxy_pass http://127.0.0.1:{API_PORT};
+        }}
+
+        location = /healthz {{
+            proxy_pass http://127.0.0.1:{API_PORT};
+        }}
+
+        location / {{
+            root {TOOLS}/web;
+            add_header Content-Security-Policy "frame-ancestors 'none'" always;
+            add_header X-Content-Type-Options "nosniff" always;
+            add_header Referrer-Policy "no-referrer" always;
+        }}
+    }}
+}}
+"""
+
+
+def prepare_web(temporary, endpoint):
+    # Extract the APT packages so Ubuntu's default Nginx service never binds port 80.
+    apt("download", "nginx", "nginx-common", cwd=temporary)
+    binary, = temporary.glob("nginx_*.deb")
+    common, = temporary.glob("nginx-common_*.deb")
+    extracted = temporary / "nginx-package"
+    for package in (binary, common):
+        run("dpkg-deb", "--extract", package, extracted)
+    shutil.copyfile(extracted / "usr/sbin/nginx", TOOLS / "nginx")
+    shutil.copyfile(extracted / "etc/nginx/mime.types", TOOLS / "mime.types")
+    (TOOLS / "nginx").chmod(0o755)
+    if not endpoint.domain:
+        create_local_certificate(temporary)
+    credentials = Path("/run/credentials") / WEB_UNIT.name
+    (TOOLS / "nginx.conf").write_text(nginx_config(WEB_STATE, credentials, endpoint))
+
+
+def create_local_certificate(temporary):
     for filename in ("web-ca.pem", "web.pem"):
         (TOOLS / filename).touch(mode=0o644, exist_ok=False)
     key = TOOLS / "web.key"
@@ -268,41 +376,19 @@ def prepare_web(temporary):
     run("openssl", "x509", "-req", "-in", csr, "-CA", ca, "-CAkey", ca_key,
         "-days", "397", "-extfile", extension, "-out", TOOLS / "web.pem")
     ca_key.unlink()
-    (TOOLS / "Caddyfile").write_text(f"""{{
-    admin off
-    auto_https disable_redirects
-    servers {{
-        protocols h1 h2
-    }}
-}}
-{ORIGIN} {{
-    bind 127.0.0.1
-    tls {TOOLS}/web.pem {{$CREDENTIALS_DIRECTORY}}/web.key
-    handle /api/* {{
-        reverse_proxy 127.0.0.1:{API_PORT}
-    }}
-    handle /healthz {{
-        reverse_proxy 127.0.0.1:{API_PORT}
-    }}
-    handle {{
-        root * {TOOLS}/web
-        header {{
-            Content-Security-Policy "frame-ancestors 'none'"
-            X-Content-Type-Options "nosniff"
-            Referrer-Policy "no-referrer"
-        }}
-        file_server
-    }}
-}}
-""")
-    run(TOOLS / "caddy", "validate", "--config", TOOLS / "Caddyfile",
-        env={"CREDENTIALS_DIRECTORY": str(TOOLS), "HOME": str(temporary)})
 
 
-def start_web():
+def start_web(endpoint):
+    cert, key = endpoint.tls_files
+    if endpoint.domain:
+        access = "AmbientCapabilities=CAP_NET_BIND_SERVICE\nCapabilityBoundingSet=CAP_NET_BIND_SERVICE"
+        curl_tls = ["--resolve", f"{endpoint.domain}:443:127.0.0.1"]
+    else:
+        access = "IPAddressDeny=any\nIPAddressAllow=localhost"
+        curl_tls = ["--cacert", TOOLS / "web-ca.pem"]
     with WEB_UNIT.open("x") as unit:
         unit.write(f"""[Unit]
-Description=HostOrbit loopback WebUI and HTTPS proxy
+Description=HostOrbit WebUI and HTTPS proxy
 Requires=hostorbit-compose.service
 After=hostorbit-compose.service
 
@@ -310,18 +396,18 @@ After=hostorbit-compose.service
 DynamicUser=yes
 StateDirectory=hostorbit-web
 StateDirectoryMode=0700
-Environment=XDG_DATA_HOME=/var/lib/hostorbit-web
-Environment=XDG_CONFIG_HOME=/var/lib/hostorbit-web
-LoadCredential=web.key:{TOOLS}/web.key
-ExecStart={TOOLS}/caddy run --config {TOOLS}/Caddyfile
+LoadCredential=web.pem:{cert}
+LoadCredential=web.key:{key}
+ExecStartPre={TOOLS}/nginx -e stderr -t -c {TOOLS}/nginx.conf
+ExecStart={TOOLS}/nginx -e stderr -c {TOOLS}/nginx.conf
+KillSignal=SIGQUIT
 Restart=on-failure
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
 PrivateTmp=true
 RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
-IPAddressDeny=any
-IPAddressAllow=localhost
+{access}
 
 [Install]
 WantedBy=multi-user.target
@@ -330,11 +416,12 @@ WantedBy=multi-user.target
     run("systemctl", "enable", "--now", WEB_UNIT.name)
     for path in ("/", "/healthz"):
         run("curl", "--disable", "--fail", "--silent", "--show-error", "--noproxy", "*",
-            "--retry", "5", "--retry-connrefused", "--max-time", "5", "--cacert", TOOLS / "web-ca.pem",
-            "--output", "/dev/null", ORIGIN + path)
+            "--retry", "5", "--retry-connrefused", "--max-time", "5", *curl_tls,
+            "--output", "/dev/null", endpoint.origin + path)
 
 
-def install(owner, targets, suite):
+def install(owner, targets, suite, endpoint):
+    endpoint.check_certificate()
     root = Path(__file__).resolve().parents[1]
     checkout_owner = pwd.getpwuid(root.stat().st_uid)
     checkout = {"cwd": root, "identity": checkout_owner, "env": {"HOME": checkout_owner.pw_dir}}
@@ -356,7 +443,8 @@ def install(owner, targets, suite):
         apt("update")
         apt("install", "-y", "--no-remove", "--no-install-recommends", "curl", "ca-certificates", "gnupg",
             "openssl", "xz-utils", "build-essential", "pkg-config", "libssl-dev", "zlib1g-dev",
-            "libsqlite3-dev", "libffi-dev", "libbz2-dev", "liblzma-dev", "libzstd-dev")
+            "libsqlite3-dev", "libffi-dev", "libbz2-dev", "liblzma-dev", "libzstd-dev",
+            "libcrypt1", "libpcre2-8-0")
         install_docker(suite, private)
         identity = build_identity()
         work = temporary / "build"
@@ -381,19 +469,20 @@ def install(owner, targets, suite):
             stage("Сборка Python 3.15 и подписанного комплекта Controller.")
             build_python(work, identity, env)
             bundle, trust = build_release(source, revision, work, identity, env)
-            stage("Сборка WebUI и проверка локального HTTPS.")
+            stage("Сборка WebUI и проверка HTTPS.")
             build_web(source, work, identity, env)
-            prepare_web(private)
+            prepare_web(private, endpoint)
             run(PYTHON, private / "deploy/installer.py", "install", "--bundle", bundle, "--trust-key", trust,
-                "--development", "--origin", ORIGIN, "--port", str(API_PORT), "--docker-host", DOCKER_SOCKET, *options)
-            start_web()
+                "--development", "--origin", endpoint.origin, "--port", str(API_PORT), "--docker-host", DOCKER_SOCKET, *options)
+            start_web(endpoint)
         finally:
             if not APP.exists():
                 shutil.rmtree(TOOLS)
     admin = APP / "admin"
-    print(f"WebUI {ORIGIN}\n"
-          f"SSH-туннель: ssh -N -L 127.0.0.1:{WEB_PORT}:127.0.0.1:{WEB_PORT} <пользователь>@<VPS>\n"
-          f"Публичный CA для доверия в браузере: {TOOLS}/web-ca.pem", flush=True)
+    print(f"WebUI {endpoint.origin}", flush=True)
+    if not endpoint.domain:
+        print(f"SSH-туннель: ssh -N -L 127.0.0.1:{WEB_PORT}:127.0.0.1:{WEB_PORT} <пользователь>@<VPS>\n"
+              f"Публичный CA для доверия в браузере: {TOOLS}/web-ca.pem", flush=True)
     print(f"Создание Owner на VPS: sudo {admin} create-owner --username {owner}", flush=True)
     if sys.stdin.isatty() and sys.stderr.isatty():
         stage("Пароль Owner: от 14 до 128 символов.")
@@ -405,11 +494,16 @@ def main():
     parser.add_argument("--owner", default="admin", help="Имя начального Owner (по умолчанию admin)")
     parser.add_argument("--targets", type=lambda value: Path(value).resolve(),
                         help="Подготовленная локальная политика VPS, видимая после подтверждения отпечатка в WebUI")
+    parser.add_argument("--public-domain", help="Домен HTTPS с готовым сертификатом Certbot")
     args = parser.parse_args()
     if not re.fullmatch(r"[a-zA-Z][a-zA-Z0-9_.-]{2,63}", args.owner):
         parser.error("Имя Owner должно начинаться с латинской буквы и содержать 3–64 символа.")
     if args.targets and not args.targets.is_file():
         parser.error("Файл политики VPS не найден.")
+    try:
+        endpoint = WebEndpoint(args.public_domain)
+    except ValueError as error:
+        parser.error(str(error))
     if os.geteuid() != 0:
         parser.exit(1, "Запустите sudo ./HostOrbit/install.\n")
     os.umask(0o022)
@@ -417,7 +511,7 @@ def main():
         with open("/run/hostorbit-bootstrap.lock", "w", opener=lambda p, f: os.open(
                 p, f | os.O_NOFOLLOW, 0o600)) as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            install(args.owner, args.targets, platform_and_ports())
+            install(args.owner, args.targets, platform_and_ports(endpoint), endpoint)
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         print(f"Установка остановлена: {error}", file=sys.stderr)
         return 1

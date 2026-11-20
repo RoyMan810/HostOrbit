@@ -1,8 +1,8 @@
 # Барьер записи перед согласованным Controller snapshot
 
-[Документация](README.md) · [Требования v2.4](spec/HostOrbit_Technical_Spec_v2.4.md)
+[Документация](README.md)
 
-Это прикладная основа Coordinator из §33.1 [технического контракта](spec/archive/HostOrbit_Technical_Spec_v2.3.md). Новая установка включает её для API, Worker, Broker, Vault и host authority. Сам барьер не открывает Backup Gate. [Controller archive](stage1-controller-archive.md), [SFTP publication](stage1-sftp-publication.md) и [Rescue](stage1-rescue.md) реализуют остальные операции; независимая DR-приёмка и freshness gate остаются открытыми.
+Новая установка включает её для API, Worker, Broker, Vault и host authority. Сам барьер не открывает Backup Gate. [Controller archive](stage1-controller-archive.md), [SFTP publication](stage1-sftp-publication.md) и [Rescue](stage1-rescue.md) реализуют остальные операции; независимая DR-приёмка и freshness gate остаются открытыми.
 
 [Локальный Vault pin](stage1-vault-pins.md) захватывает private Vault/receipt SQLite и referenced ciphertext отдельным sandboxed Broker helper.
 

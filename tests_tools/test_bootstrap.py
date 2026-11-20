@@ -9,6 +9,36 @@ from deploy import bootstrap
 
 
 class BootstrapTests(unittest.TestCase):
+    def test_public_endpoint_rejects_configuration_injection(self):
+        for value in ("example.org:443", "example.org/path", "localhost", "127.0.0.1",
+                      "example.org\nUser=root", "Example.org", "-host.example.org"):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                bootstrap.WebEndpoint(value)
+
+    def test_nginx_routes_and_certificate_sources_follow_the_endpoint(self):
+        local = bootstrap.WebEndpoint()
+        public = bootstrap.WebEndpoint("vpn.example.org")
+        self.assertEqual(local.origin, "https://127.0.0.1:18443")
+        self.assertEqual(public.origin, "https://vpn.example.org")
+        self.assertEqual(public.tls_files, (Path("/etc/letsencrypt/live/vpn.example.org/fullchain.pem"),
+                                           Path("/etc/letsencrypt/live/vpn.example.org/privkey.pem")))
+        for endpoint in (local, public):
+            with self.subTest(domain=endpoint.domain), tempfile.TemporaryDirectory() as location:
+                root = Path(location)
+                unit = root / "hostorbit-web.service"
+                with patch.object(bootstrap, "WEB_UNIT", unit), patch.object(bootstrap, "run") as run:
+                    bootstrap.start_web(endpoint)
+                    service = unit.read_text()
+                    self.assertIn(f"LoadCredential=web.key:{endpoint.tls_files[1]}", service)
+                    self.assertIn(endpoint.origin + "/healthz", run.call_args.args)
+                address, port = endpoint.bind
+                config = bootstrap.nginx_config(root, root / "credentials", endpoint)
+                self.assertIn(f"listen {address}:{port} ssl;", config)
+                self.assertIn("proxy_pass http://127.0.0.1:18080;", config)
+                self.assertIn("proxy_set_header X-Forwarded-For $remote_addr;", config)
+                self.assertEqual("IPAddressDeny=any" in service, endpoint is local)
+                self.assertEqual("AmbientCapabilities=CAP_NET_BIND_SERVICE" in service, endpoint is public)
+
     def test_bundle_checkout_is_detached_and_uses_only_committed_files(self):
         with tempfile.TemporaryDirectory() as location:
             root = Path(location)

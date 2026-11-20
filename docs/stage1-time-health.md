@@ -1,6 +1,6 @@
 # Время хоста и допуск к изменениям
 
-[Документация](README.md) · [Требования v2.4](spec/HostOrbit_Technical_Spec_v2.4.md)
+[Документация](README.md)
 
 Host supervisor проверяет время независимо от заменяемых API/Worker. Поддержаны системные chrony 4.5 и timesyncd 255 на Ubuntu 24.04. Данные не принимаются из HTTP, application SQLite, environment Worker или произвольного JSON. Backend не получает privilege socket; Worker получает подписанный ответ через AF_UNIX с проверкой UID сервера и Ed25519 public key.
 
