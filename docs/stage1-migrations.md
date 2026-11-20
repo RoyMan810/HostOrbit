@@ -59,6 +59,22 @@ sudo /opt/hostorbit/venv/bin/python -m hostorbit.runtime.migration_backup \
 
 Команда сверяет размер и SHA-256 каждого файла с данными подписанного снимка и квитанции. Возраст проверяется после чтения. Успех возвращает `FRESH_BACKUP_COPY_VERIFIED` для предоставленного комплекта. Скачивание выполняется отдельно, поэтому доступность SFTP на момент миграции проверяется отдельно. В обоих режимах `backup_gate: DENIED`. Независимость площадки и возможность восстановления требуют своих проверок.
 
+## План проверки подписанного обновления
+
+Из доверенного checkout на Controller свяжите подписанный выпуск, репетицию для соответствующей пары схем и скачанную копию опубликованного архива:
+
+```sh
+sudo /opt/hostorbit/venv/bin/python -m deploy.prepare_migration ./release-1.2.0 \
+  --trust-key /etc/hostorbit/release.pub \
+  --installed 1.1.0 --bootstrap 1.0.0 --minimum-release 1.1.0 \
+  --schema 2 --vault-format 1 --review /var/tmp/hostorbit-migration-review-001 \
+  --snapshot-id ID_СНИМКА --downloaded-copy /var/tmp/hostorbit-backup-check
+```
+
+Подставьте фактические версии и параметры выпуска. Команда перепроверяет подпись и архив, схему и содержимое обеих копий SQLite, скачанный бэкап и подписанный TimeHealth от Supervisor того же экземпляра. Рабочую БД читает в отдельной read-only транзакции и сверяет дайджест всех строк с репетицией. При изменении БД требуется новая репетиция.
+
+`MIGRATION_INPUTS_VERIFIED` возвращает план и его SHA-256. План привязан к манифесту выпуска, источнику SQLite, квитанции бэкапа и поколению Supervisor. Результат относится к моменту проверки. При запуске рабочей миграции все условия потребуется сверить повторно под допуском. `live_apply` остаётся `BLOCKED`, а `backup_gate` — `DENIED` до проверки восстановления и независимого размещения копии.
+
 ## Граница текущего блока
 
 Команды live apply пока нет. Успешная репетиция не выдаёт maintenance permit, не подтверждает Vault/DEK portability, `RESTORE_ATTESTED` или DR readiness. Для применения к рабочей БД требуется связать утверждённый update plan и подписанный совместимый release с независимым host authority, согласованной off-host ControllerBackup ≤30 минут, проверенной restore-процедурой и host TimeHealth. [Host TimeHealth](stage1-time-health.md) уже проверяется независимым supervisor; его привязка к live migration остаётся частью следующего updater workflow. Эти предусловия не заменяются boolean-флагами или `--force`.
