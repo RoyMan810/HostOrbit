@@ -49,7 +49,7 @@ def verify_current_source(config, schema, review_digest):
 
 
 def prepare_migration(config, release, key, gate, *, installed, bootstrap, schema, vault_format,
-                      minimum_release, review, snapshot_id, downloaded_copy, restore=None, owner=0):
+                      minimum_release, review, snapshot_id, downloaded_copy, restore=None, owner=0, gate_state="NORMAL"):
     if os.geteuid() != owner:
         raise Denied("LOCAL_ROOT_REQUIRED")
     candidate = verify_candidate(release, key, installed=installed, bootstrap=bootstrap,
@@ -66,7 +66,7 @@ def prepare_migration(config, release, key, gate, *, installed, bootstrap, schem
     verify_current_source(config, schema, rehearsal["source_rows_sha256"])
     verify_key = protected_bytes(config["public_verify_key"], owner=owner, maximum=32)
     health = verify_host_time(gate.call("time.health", {}), verify_key)
-    if (health.get("gate_state") != "NORMAL" or health.get("state") not in ("FRESH", "HOLDOVER")
+    if (health.get("gate_state") != gate_state or health.get("state") not in ("FRESH", "HOLDOVER")
             or health.get("authority_id") != backup["source_instance"]):
         raise Denied("MIGRATION_SUPERVISOR_UNAVAILABLE")
 
