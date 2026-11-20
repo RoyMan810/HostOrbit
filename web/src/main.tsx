@@ -15,6 +15,12 @@ import './style.css'
 
 type Theme = 'system' | 'light' | 'dark'
 
+const recoveryGuides = [
+  ['guideRestore', 'stage1-rescue.md', new URL('../../docs/stage1-rescue.md', import.meta.url).href],
+  ['guideRecoveryInstall', 'stage1-recovery-installation.md', new URL('../../docs/stage1-recovery-installation.md', import.meta.url).href],
+  ['guideActivation', 'stage1-recovery-activation.md', new URL('../../docs/stage1-recovery-activation.md', import.meta.url).href],
+] as const
+
 function preference(key: string) {
   try { return localStorage.getItem(key) } catch { return null }
 }
@@ -416,6 +422,9 @@ function App() {
             <h2>{t.helpConnect}</h2><p>{t.helpConnectText}</p>
             <h2>{t.helpHealth}</h2><p>{t.helpHealthText}</p>
             <h2>{t.helpRecovery}</h2><p>{t.helpRecoveryText}</p>
+            <p>{t.guideLanguage}</p>
+            <ul>{recoveryGuides.map(([label, filename, url]) =>
+              <li key={filename}><a href={url} download={filename}>{t[label]}</a></li>)}</ul>
           </section>}
         </> : sessionError != null ? <div className="workspace">
           <p role="alert" className="error">{message(sessionError, t)}</p>
