@@ -117,22 +117,51 @@ def verify_signature(data, signature, key):
             raise ArtifactError("ARTIFACT_SIGNATURE_INVALID")
 
 
-def manifest(bundle, key, *, allow_development=False):
+SIGNED_FIELDS = {"v", "application", "version", "channel", "source_commit", "python_image", "files",
+                 "platform", "python", "sqlite_schema", "remote_mutation_enabled", "signing_key_sha256"}
+DIGEST_FIELDS = {"v", "application", "version", "channel", "source_commit", "python_image", "files",
+                 "platform", "python", "sqlite_schema", "remote_mutation_enabled", "authentication"}
+
+
+def manifest(bundle, key=None, *, expected_sha256=None, allow_development=False):
+    """Verify a signed (v1) or digest-authenticated (v2) development manifest.
+
+    A signed bundle needs an independently delivered Ed25519 public key. A
+    locally built unsigned bundle needs the SHA-256 of manifest.json, which
+    root obtains after the build; both are checked before any file is copied.
+    """
+    if (key is None) == (expected_sha256 is None):
+        raise ArtifactError("BUNDLE_AUTHENTICATION_REQUIRED")
     data = read_at(bundle, "manifest.json", 65536)
-    signature = read_at(bundle, "manifest.sig", 64)
-    verify_signature(data, signature, key)
+    if key is not None:
+        signature = read_at(bundle, "manifest.sig", 64)
+        verify_signature(data, signature, key)
+    else:
+        if (not isinstance(expected_sha256, str)
+                or re.fullmatch(r"[0-9a-f]{64}", expected_sha256) is None
+                or hashlib.sha256(data).hexdigest() != expected_sha256):
+            raise ArtifactError("ARTIFACT_DIGEST_MISMATCH")
+        signature = None
     value = parse(data)
-    expected = {"v", "application", "version", "channel", "source_commit", "python_image", "files",
-                "platform", "python", "sqlite_schema", "remote_mutation_enabled", "signing_key_sha256"}
-    if (not isinstance(value, dict) or value.keys() != expected or type(value["v"]) is not int or value["v"] != 1
-            or value["application"] != "VPN-Orbit" or value["platform"] != "ubuntu-24.04-amd64"
-            or value["python"] not in ("3.13", "3.15") or type(value["sqlite_schema"]) is not int or value["sqlite_schema"] not in (2, 3, 4)
-            or value["remote_mutation_enabled"] is not False or value["channel"] != "development"
-            or not allow_development or not isinstance(value["version"], str)
-            or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+\.dev[0-9]+", value["version"])
+    expected = SIGNED_FIELDS if key is not None else DIGEST_FIELDS
+    if (not isinstance(value, dict) or value.keys() != expected or not allow_development
+            or not isinstance(value.get("version"), str)
+            or re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+\.dev[0-9]+", value["version"]) is None
+            or value.get("application") != "VPN-Orbit" or value.get("platform") != "ubuntu-24.04-amd64"
+            or value.get("python") not in ("3.13", "3.15") or type(value.get("sqlite_schema")) is not int
+            or value["sqlite_schema"] not in (2, 3, 4)
+            or value.get("remote_mutation_enabled") is not False or value.get("channel") != "development"
+            or not isinstance(value.get("source_commit"), str)
             or re.fullmatch(r"[0-9a-f]{40}", value["source_commit"]) is None
-            or re.fullmatch(IMAGE, value["python_image"]) is None
-            or value["signing_key_sha256"] != hashlib.sha256(key).hexdigest()):
+            or not isinstance(value.get("python_image"), str)
+            or re.fullmatch(IMAGE, value["python_image"]) is None):
+        raise ArtifactError("BUNDLE_CONTRACT_UNSUPPORTED")
+    if key is not None:
+        if (type(value["v"]) is not int or value["v"] != 1
+                or value["signing_key_sha256"] != hashlib.sha256(key).hexdigest()):
+            raise ArtifactError("BUNDLE_CONTRACT_UNSUPPORTED")
+    elif (type(value["v"]) is not int or value["v"] != 2
+          or value["authentication"] != "sha256"):
         raise ArtifactError("BUNDLE_CONTRACT_UNSUPPORTED")
     files = value["files"]
     if not isinstance(files, list) or not 10 <= len(files) <= 100:
@@ -159,9 +188,10 @@ def manifest(bundle, key, *, allow_development=False):
     return value, data, signature
 
 
-def snapshot(bundle, destination, key, *, allow_development=False):
+def snapshot(bundle, destination, key=None, *, expected_sha256=None, allow_development=False):
     """Copy the authenticated bytes to a private directory before executing any."""
-    value, data, signature = manifest(bundle, key, allow_development=allow_development)
+    value, data, signature = manifest(bundle, key, expected_sha256=expected_sha256,
+                                      allow_development=allow_development)
     destination = Path(destination)
     destination.mkdir(mode=0o700, exist_ok=False)
     for item in value["files"]:
@@ -176,5 +206,6 @@ def snapshot(bundle, destination, key, *, allow_development=False):
             os.fsync(stream.fileno())
         path.chmod(0o644)
     (destination / "manifest.json").write_bytes(data)
-    (destination / "manifest.sig").write_bytes(signature)
+    if signature is not None:
+        (destination / "manifest.sig").write_bytes(signature)
     return value, hashlib.sha256(data).hexdigest()

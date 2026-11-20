@@ -249,20 +249,15 @@ def build_release(source, revision, work, identity, env):
     builder = venv / "bin/python"
     run(builder, "-m", "pip", "install", "--only-binary=:all:", "--require-hashes",
         "-r", source / "deploy/requirements-wheels.lock", **settings)
-    key = work / "signer.seed"
-    raw_public = work / "signer.pub"
-    run(builder, "-c", "import os, pathlib, sys; from nacl.signing import SigningKey; "
-        "os.umask(0o077); key=SigningKey.generate(); pathlib.Path(sys.argv[1]).write_bytes(bytes(key)); "
-        "pathlib.Path(sys.argv[2]).write_bytes(bytes(key.verify_key))", key, raw_public, **settings)
     bundle = work / "bundle"
-    run(builder, source / "deploy/build_bundle.py", "--output", bundle, "--signing-key", key,
+    run(builder, source / "deploy/build_bundle.py", "--output", bundle, "--unsigned",
         "--python-image", PYTHON_IMAGE, "--age-tool", work / "age/age", **settings)
-    key.unlink()
     if json.loads((bundle / "manifest.json").read_bytes())["source_commit"] != revision:
         raise ValueError("Ревизия сборки Controller отличается от исходного checkout.")
-    trust = work.parent / "release.pub"
-    trust.write_bytes(raw_public.read_bytes())
-    return bundle, trust
+    # Root authenticates the locally built manifest by its digest before the
+    # installer copies and executes any bundle file.
+    digest = hashlib.sha256((bundle / "manifest.json").read_bytes()).hexdigest()
+    return bundle, digest
 
 
 def build_web(source, work, identity, env):
@@ -466,13 +461,13 @@ def install(owner, targets, suite, endpoint):
             archive.extractall(private, filter="data")
         TOOLS.mkdir(mode=0o755)
         try:
-            stage("Сборка Python 3.15 и подписанного комплекта Controller.")
+            stage("Сборка Python 3.15 и проверенного комплекта Controller.")
             build_python(work, identity, env)
-            bundle, trust = build_release(source, revision, work, identity, env)
+            bundle, digest = build_release(source, revision, work, identity, env)
             stage("Сборка WebUI и проверка HTTPS.")
             build_web(source, work, identity, env)
             prepare_web(private, endpoint)
-            run(PYTHON, private / "deploy/installer.py", "install", "--bundle", bundle, "--trust-key", trust,
+            run(PYTHON, private / "deploy/installer.py", "install", "--bundle", bundle, "--manifest-sha256", digest,
                 "--development", "--origin", endpoint.origin, "--port", str(API_PORT), "--docker-host", DOCKER_SOCKET, *options)
             start_web(endpoint)
         finally:

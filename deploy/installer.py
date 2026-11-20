@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fresh Ubuntu installation from an independently trusted, signed development bundle."""
+"""Fresh Ubuntu installation from a verified development bundle."""
 
 import argparse
 import getpass
@@ -283,15 +283,18 @@ def create_owner(username):
 def install(args):
     os.umask(0o077)
     interpreter = preflight(args)
-    trust = Path(args.trust_key).resolve()
-    if trust.is_relative_to(args.bundle.resolve()):
-        raise ArtifactError("INDEPENDENT_TRUST_KEY_REQUIRED")
-    key = trusted_key(args.trust_key)
+    key = None
+    if args.trust_key is not None:
+        trust = Path(args.trust_key).resolve()
+        if trust.is_relative_to(args.bundle.resolve()):
+            raise ArtifactError("INDEPENDENT_TRUST_KEY_REQUIRED")
+        key = trusted_key(args.trust_key)
     # A copied/authenticated staging tree is the only source used below. No
     # network package index or mutable input directory is executed by root.
     with tempfile.TemporaryDirectory(prefix="vpn-orbit-install-", dir="/var/tmp") as temporary:
         stage = Path(temporary) / "bundle"
-        manifest, digest = snapshot(args.bundle, stage, key, allow_development=args.development)
+        manifest, digest = snapshot(args.bundle, stage, key, expected_sha256=args.manifest_sha256,
+                                    allow_development=args.development)
         if manifest["python"] != f"{sys.version_info.major}.{sys.version_info.minor}":
             raise ArtifactError("HOST_BUNDLE_PYTHON_MISMATCH")
         if not (stage / AGE_FILE).is_file():
@@ -314,6 +317,7 @@ def install(args):
                 raise ArtifactError("RECOVERY_DATA_NOT_ELIGIBLE")
         if args.check:
             print(json.dumps({"preflight": "PASS", "manifest_sha256": digest, "channel": "development",
+                              "authentication": "signature" if key is not None else "sha256",
                               "recovery": recovery["mode"] if recovery else "NOT_READY"}))
             return
         image = "vpn-orbit/controller:dev-" + digest[:24]
@@ -367,7 +371,12 @@ def install(args):
         write(CONFIG / "targets.json", targets)
         write(CONFIG / "backup-target.json", canonical({"v": 1, "enabled": False}))
         write(CONFIG / "runtime.json", canonical(cfg))
-        write(CONFIG / "release-trust.pub", key)
+        if key is not None:
+            write(CONFIG / "release-trust.pub", key)
+        else:
+            write(CONFIG / "release-authentication.json",
+                  canonical({"v": 1, "authentication": "sha256", "manifest_sha256": digest,
+                             "source_commit": manifest["source_commit"]}))
         runtime = APP / "venv/bin/vpn-orbit-runtime"
         if recovery:
             command(python, "-m", "vpn_orbit.runtime.recovery_install", "apply", "--state", args.recovery_state,
@@ -402,6 +411,7 @@ def install(args):
         write(CONFIG / "runtime.json", canonical(cfg), replace=True)
         metadata = {"v": 1, "project": "vpn-orbit", "image": image, "image_id": image_id, "docker_host": args.docker_host,
                     "manifest_sha256": digest, "source_commit": manifest["source_commit"], "version": manifest["version"],
+                    "authentication": "signature" if key is not None else "sha256",
                     "channel": "development", "remote_mutation_enabled": False, "recovery": recovery["mode"] if recovery else "NOT_READY", "port": args.port}
         write(APP / "installation.json", canonical(metadata), mode=0o600)
         for path in (UNITS, Path("/etc/sysusers.d"), Path("/etc/tmpfiles.d")):
@@ -442,10 +452,14 @@ def install(args):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    new = commands.add_parser("install", help="Install a fresh signed development bundle; existing data is never replaced")
+    new = commands.add_parser("install", help="Install a fresh verified development bundle; existing data is never replaced")
     new.add_argument("--bundle", type=Path, required=True)
-    new.add_argument("--trust-key", type=Path, required=True)
-    new.add_argument("--development", action="store_true", help="Explicitly accept a signed development channel")
+    authentication = new.add_mutually_exclusive_group(required=True)
+    authentication.add_argument("--trust-key", type=Path,
+                                help="Independently delivered 32-byte Ed25519 public key for an external bundle")
+    authentication.add_argument("--manifest-sha256",
+                                help="SHA-256 of manifest.json for a bundle built locally by ./install")
+    new.add_argument("--development", action="store_true", help="Explicitly accept a development channel")
     new.add_argument("--origin", required=True)
     new.add_argument("--port", type=int, default=18080)
     new.add_argument("--web-enrollment", action="store_true", help="Require Owner fingerprint confirmation for --targets")

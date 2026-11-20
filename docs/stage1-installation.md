@@ -13,7 +13,7 @@ sudo ./VPN-Orbit/install
 
 Для bootstrap требуется интернет. Для сборки рекомендуется 2 ГиБ RAM и 6 ГиБ свободного места в `/var/lib`. При меньшем объёме установщик выводит предупреждение и продолжает работу. Число параллельных задач при сборке Python зависит от объёма памяти и числа CPU. Установка собирает Python 3.15.2 из официального архива по закреплённому SHA-256. Если Docker отсутствует, установка добавляет подписанный репозиторий Docker и ставит Engine 29.x, Compose и Buildx. Существующий Docker должен поддерживать тот же профиль. Конфликтующие пакеты и установки VPN-Orbit остаются на месте, а операция останавливается.
 
-Controller и WebUI собираются из коммита текущего checkout. Изменения в отслеживаемых файлах приводят к отказу. Сборка Controller использует закреплённые хеши Python-зависимостей и OCI digest. Одноразовый локальный подписант development-комплекта удаляется после сборки. Источник доверия здесь — выбранный вами checkout и закреплённые в нём зависимости. Ручной сценарий ниже принимает комплект с независимо доставленным ключом издателя. Node.js нужен только для сборки статики из npm lock. При установке регистрируются host-native Broker и Supervisor через systemd, API и Worker через Compose и отдельный HTTPS reverse proxy Nginx. Установщик извлекает Nginx из пакетов Ubuntu. По умолчанию выделенная служба слушает loopback.
+Controller и WebUI собираются из коммита текущего checkout. Изменения в отслеживаемых файлах приводят к отказу. Сборка Controller использует закреплённые хеши Python-зависимостей и OCI digest. Локальная сборка аутентифицируется SHA-256 манифеста, который root получает до установки. Ed25519-подпись используется только для внешнего комплекта, собранного на отдельной машине. Источник доверия здесь — выбранный вами checkout и закреплённые в нём зависимости. Node.js нужен только для сборки статики из npm lock. При установке регистрируются host-native Broker и Supervisor через systemd, API и Worker через Compose и отдельный HTTPS reverse proxy Nginx. Установщик извлекает Nginx из пакетов Ubuntu. По умолчанию выделенная служба слушает loopback.
 
 В интерактивном терминале установка предлагает задать пароль Owner. По умолчанию используется имя `admin`. Для другого имени укажите `--owner roman`. Для запуска без терминала или повтора ввода после ошибки используйте `sudo /opt/vpn-orbit/admin create-owner --username admin`.
 
@@ -47,9 +47,11 @@ sudo ./VPN-Orbit/install --public-domain orbit.example.org
 
 Нужны rootful Docker Engine 29.x, Compose plugin v2 или v5 (включая версии пакетов Ubuntu с суффиксом `+ds…ubuntu…`), Docker Buildx для offline-сборки образа, host Python 3.15 для нового комплекта (Python 3.13 для старого), SQLite ≥3.45, OpenSSL 3 и systemd. Интерпретатор Python должен находиться по постоянному доверенному пути: host supervisor использует его независимо от контейнеров. Для ручной установки рекомендуются 1 vCPU, 2 ГиБ RAM и 2 ГиБ свободного места в `/var/lib`. Проверка ресурсов выводит предупреждение при значениях ниже этих рекомендаций. Offline Rescue имеет отдельные [требования к памяти и изоляции](stage1-rescue.md). Установщик проверяет свободный высокий loopback-порт, существующие namespace, пользователей и units до создания данных. В ручном сценарии ниже Docker и Python готовятся заранее.
 
-## Подписанный комплект
+## Комплект и его аутентификация
 
-На доверенной build-машине Python 3.15 создайте комплект из **зафиксированного коммита**. `--signing-key` указывает на внешнее хранилище 32-байтного Ed25519 seed издателя. Этот ключ отличается от offline Owner age identity и не копируется в комплект или на Controller. Первичный доверенный публичный ключ доставляется на Controller независимо от комплекта.
+Локальная установка `./install` собирает комплект на самой VPS и передаёт установщику SHA-256 файла `manifest.json`. Ed25519-ключ не создаётся: root копирует только разрешённые файлы, сверяет их размеры и SHA-256 и исполняет приватную копию. Это защищает от подмены файлов и TOCTOU, но не является подписью издателя.
+
+Для внешнего комплекта на доверенной build-машине Python 3.15 создайте комплект из **зафиксированного коммита**. `--signing-key` указывает на внешнее хранилище 32-байтного Ed25519 seed издателя. Этот ключ отличается от offline Owner age identity и не копируется в комплект или на Controller. Первичный доверенный публичный ключ доставляется на Controller независимо от комплекта.
 
 ```bash
 python deploy/build_bundle.py --output /path/vpn-orbit-bundle \
@@ -58,27 +60,36 @@ python deploy/build_bundle.py --output /path/vpn-orbit-bundle \
   --age-tool /verified/age-v1.3.2-linux-amd64/age
 ```
 
-Комплект содержит подпись manifest, wheelhouse с закреплёнными зависимостями, их SHA-256 lock, ограниченный CycloneDX SBOM, Dockerfile и host profiles. Builder экспортирует исходники только из указанного текущим `HEAD` коммита: неотслеживаемые и игнорируемые файлы не попадают в wheel. До сборки он проверяет зависимости по [закреплённым хешам](../deploy/requirements-wheels.lock), а build backend устанавливает в отдельное окружение по [отдельному lock](../deploy/requirements-build.lock). При обновлении версий нужны проверка происхождения и обновление обоих соответствующих pins; хеши сами по себе не доказывают безопасность издателя или build-машины. Установка на Controller выполняет pip с `--no-index --require-hashes` из проверенных локальных wheels. Для OCI base используется digest; pull не обращается к API хостинг-провайдера. Полный SBOM ОС/base image и production release trust-chain пока не приняты.
+Комплект для локальной установки собирается тем же builder с флагом `--unsigned`: он создаёт manifest версии 2 с полем `authentication: sha256` и не содержит `manifest.sig`.
 
-Builder также требует официальный binary `age` v1.3.2 linux/amd64 с закреплённым SHA-256 `eb7dd1b518f0a307c99cd97782623c5321da049154b04acd2d98d21aa7bc9b2c`. Он входит в подписанный manifest/SBOM и устанавливается как root-owned `/opt/vpn-orbit/tools/age` (0755). Подмена версии запрещается stdlib verifier даже при корректной подписи bundle; байты проверяются до исполнения. Offline Owner identity и `age-keygen` на Controller не устанавливаются. Предыдущий development bundle без инструмента читается verifier, но новая установка отказывает с `PINNED_AGE_TOOL_REQUIRED`.
+Внешний комплект содержит подпись manifest, wheelhouse с закреплёнными зависимостями, их SHA-256 lock, ограниченный CycloneDX SBOM, Dockerfile и host profiles. Локальный комплект создаётся manifest версии 2 с аутентификацией по SHA-256 и без `manifest.sig`. Builder экспортирует исходники только из указанного текущим `HEAD` коммита: неотслеживаемые и игнорируемые файлы не попадают в wheel. До сборки он проверяет зависимости по [закреплённым хешам](../deploy/requirements-wheels.lock), а build backend устанавливает в отдельное окружение по [отдельному lock](../deploy/requirements-build.lock). При обновлении версий нужны проверка происхождения и обновление обоих соответствующих pins; хеши сами по себе не доказывают безопасность издателя или build-машины. Установка на Controller выполняет pip с `--no-index --require-hashes` из проверенных локальных wheels. Для OCI base используется digest; pull не обращается к API хостинг-провайдера. Полный SBOM ОС/base image и production release trust-chain пока не приняты.
 
-Доверенный bootstrap запускается из проверенного checkout. Его stdlib verifier проверяет Ed25519 через системный OpenSSL **до исполнения кода из комплекта**. Сначала проверяется подпись по отдельно предоставленному root-owned public key, затем копируются только разрешённые файлы и проверяются их размеры/SHA-256. Родительские symlinks и hardlinks не допускаются. Копия создаётся в закрытом каталоге root; изменяемый исходный комплект дальше не исполняется.
+Builder также требует официальный binary `age` v1.3.2 linux/amd64 с закреплённым SHA-256 `eb7dd1b518f0a307c99cd97782623c5321da049154b04acd2d98d21aa7bc9b2c`. Он входит в manifest/SBOM и устанавливается как root-owned `/opt/vpn-orbit/tools/age` (0755). Подмена версии запрещается stdlib verifier даже при корректной подписи bundle; байты проверяются до исполнения. Offline Owner identity и `age-keygen` на Controller не устанавливаются. Предыдущий development bundle без инструмента читается verifier, но новая установка отказывает с `PINNED_AGE_TOOL_REQUIRED`.
+
+Доверенный bootstrap запускается из проверенного checkout. Его stdlib verifier проверяет **до исполнения кода из комплекта** либо подпись Ed25519 по отдельно предоставленному root-owned public key, либо SHA-256 манифеста, который root получает после сборки. Затем копируются только разрешённые файлы и проверяются их размеры/SHA-256. Родительские symlinks и hardlinks не допускаются. Копия создаётся в закрытом каталоге root; изменяемый исходный комплект дальше не исполняется.
 
 ## Свежая установка
 
 Сначала доступны полная проверка входных файлов и preflight. `--development` явно выбирает текущий канал разработки. Доступные операции определяет защищённая политика целей.
 
 ```bash
+# Локальная установка: SHA-256 манифеста, который root получает после сборки
+sudo /trusted/python3.15 deploy/installer.py install \
+  --bundle /path/vpn-orbit-bundle \
+  --manifest-sha256 "$(sha256sum /path/vpn-orbit-bundle/manifest.json | cut -d' ' -f1)" \
+  --development --origin https://vpn-orbit.example --port 18080 --check
+
+# Внешний комплект: независимо доставленная Ed25519 подпись
 sudo /trusted/python3.15 deploy/installer.py install \
   --bundle /path/vpn-orbit-bundle --trust-key /etc/vpn-orbit-release.pub \
   --development --origin https://vpn-orbit.example --port 18080 --check
 ```
 
-Для установки выполните ту же команду без `--check`. Public key имеет 32 raw Ed25519 bytes, принадлежит root и закрыт от записи группой. Он должен находиться вне переданного комплекта. Не передавайте приватный signing seed или Owner recovery identity на Controller.
+Для установки выполните ту же команду без `--check`. Для локальной установки root принимает `--manifest-sha256`: это SHA-256 файла `manifest.json` комплекта. Проверяется совпадение канонического манифеста и затем всех разрешённых файлов. Для внешнего комплекта вместо этого используется `--trust-key`: Public key имеет 32 raw Ed25519 bytes, принадлежит root и закрыт от записи группой. Он должен находиться вне переданного комплекта. Не передавайте приватный signing seed или Owner recovery identity на Controller.
 
 По умолчанию inventory пуст: ни одна VPS не получает скрытого разрешения. `--targets /root/approved-targets.json` позволяет передать предварительно проверенную владельцем политику по текущему контракту `deploy/runtime.example.json` / `docs/stage1-runtime.md`. Это первоначальное provisioning, не публичная регистрация или расширение scope через API. Изменение защищённой policy после запуска требует отдельного maintenance workflow; простая замена файла не обходит authority binding.
 
-Свежая подписанная сборка создаёт SQLite со схемой 4, общей очередью задач и таблицей черновиков Change Plan. Установщик создаёт `/opt/vpn-orbit`, `/etc/vpn-orbit`, `/var/lib/vpn-orbit` и узкие служебные accounts/groups. Если namespace, данные, ключи или users уже существуют, установка останавливается. Прерванная установка оставляет `install-state.json` для диагностики; повтор не стирает и не переинициализирует данные. Восстановление и schema 1→2 должны идти через отдельную управляемую миграцию с Backup Gate.
+Свежая проверенная сборка создаёт SQLite со схемой 4, общей очередью задач и таблицей черновиков Change Plan. Установщик создаёт `/opt/vpn-orbit`, `/etc/vpn-orbit`, `/var/lib/vpn-orbit` и узкие служебные accounts/groups. Если namespace, данные, ключи или users уже существуют, установка останавливается. Прерванная установка оставляет `install-state.json` для диагностики; повтор не стирает и не переинициализирует данные. Восстановление и schema 1→2 должны идти через отдельную управляемую миграцию с Backup Gate.
 
 ## Запуск и доступ
 
@@ -86,7 +97,7 @@ sudo /trusted/python3.15 deploy/installer.py install \
 
 Broker и supervisor запускаются реальными systemd socket units. Runtime DEK запечатывается `systemd-creds --with-key=host` в root-owned `.cred`; Broker получает расшифрованную приватную копию через `LoadCredentialEncrypted`. Открытый DEK не записывается во временный файл и не передаётся в argv/env. Чужой host key или credential name не подходят для дешифрования. Доступ AF_UNIX проверяется по `SO_PEERCRED`; параметры JSON не задают identity. Setgid-каталог SQLite с отдельной группой обеспечивает совместную запись API/Worker. Host code принадлежит root и недоступен службам для записи.
 
-Compose не загружает приложение из registry при каждом старте: local image tag связан с подписанным bundle digest, `pull_policy=never`, а systemd перед запуском сверяет фактический image ID с защищённой installation metadata. Подмена local tag блокирует запуск. Это bootstrap development channel, не готовая система self-update/A/B.
+Compose не загружает приложение из registry при каждом старте: local image tag связан с проверенным bundle digest, `pull_policy=never`, а systemd перед запуском сверяет фактический image ID с защищённой installation metadata. Подмена local tag блокирует запуск. Это bootstrap development channel, не готовая система self-update/A/B.
 
 Owner создаётся **только локально**:
 
@@ -100,7 +111,7 @@ sudo /opt/vpn-orbit/admin create-owner --username roman
 
 ## Проверки
 
-Локальные unit tests проверяют подпись/подмену manifest и wheel, пути, ограничения канала/схемы, trust-key permissions, отсутствие signing seed в копии и контракт namespaces. Отдельный job запускается только на disposable GitHub-hosted Ubuntu VM: устанавливает пакет и настоящие units, проверяет peer credentials контейнерного Worker, отсутствие privilege mounts API, занятый чужой порт 443, локальное создание Owner и вход через проверенный HTTPS proxy, повторную установку и restart Compose service.
+Локальные unit tests проверяют подпись или SHA-256 манифеста, подмену manifest и wheel, пути, ограничения канала/схемы, trust-key permissions, отсутствие signing seed в копии и контракт namespaces. Отдельный job запускается только на disposable GitHub-hosted Ubuntu VM: устанавливает пакет и настоящие units, проверяет peer credentials контейнерного Worker, отсутствие privilege mounts API, занятый чужой порт 443, локальное создание Owner и вход через проверенный HTTPS proxy, повторную установку и restart Compose service.
 
 API подключён к отдельному bridge с исходящей связностью: Docker не публикует host ports у контейнера, подключённого только к `internal` network. Порт API указан явно с host IP `127.0.0.1`, тот же адрес задан default binding сети; фактическая публикация проверяется после установки. Worker не подключён к этому bridge. Это не egress firewall для Backend.
 

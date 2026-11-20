@@ -251,9 +251,14 @@ class ControllerBackup:
                 _copy_database(self.gate, directory / "gate.sqlite3", check)
                 paths = {"runtime.json": self.layout.config / "runtime.json", "targets.json": Path(self.config["targets"]),
                          "gate.pub": Path(self.config["public_verify_key"]), "installation.json": self.layout.app / "installation.json",
-                         "release-manifest.json": self.layout.app / "bundle/manifest.json", "release.sig": self.layout.app / "bundle/manifest.sig",
-                         "release.pub": self.layout.config / "release-trust.pub", "requirements-install.txt": self.layout.app / "bundle/requirements-install.txt",
+                         "release-manifest.json": self.layout.app / "bundle/manifest.json",
+                         "requirements-install.txt": self.layout.app / "bundle/requirements-install.txt",
                          "sbom.cdx.json": self.layout.app / "bundle/sbom.cdx.json", "compose.json": self.layout.config / "compose.json"}
+                if (self.layout.config / "release-trust.pub").exists():
+                    paths["release.pub"] = self.layout.config / "release-trust.pub"
+                    paths["release.sig"] = self.layout.app / "bundle/manifest.sig"
+                else:
+                    paths["release-authentication.json"] = self.layout.config / "release-authentication.json"
                 if (self.layout.config / "backup-target.json").exists():
                     paths["backup-target.json"] = self.layout.config / "backup-target.json"
                 for name, path in paths.items():

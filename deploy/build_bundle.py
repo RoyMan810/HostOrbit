@@ -1,4 +1,8 @@
-"""Build an installable development bundle; the Ed25519 private key stays outside it."""
+"""Build an installable development bundle.
+
+A local build emits a v2 manifest authenticated by its SHA-256. An external
+bundle can still be signed with an offline Ed25519 key that stays outside it.
+"""
 
 import argparse
 from contextlib import contextmanager
@@ -12,8 +16,6 @@ import sys
 import tarfile
 import tempfile
 import tomllib
-
-from nacl.signing import SigningKey
 
 if __package__:
     from .artifact import AGE_FILE, AGE_SHA256, AGE_VERSION, FIXED_FILES, IMAGE, canonical
@@ -49,23 +51,31 @@ def wheel_lock(root):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--signing-key", type=Path, required=True, help="32-byte offline Ed25519 seed; never placed in the bundle")
+    parser.add_argument("--signing-key", type=Path,
+                        help="32-byte offline Ed25519 seed for an externally delivered bundle; never placed in the bundle")
+    parser.add_argument("--unsigned", action="store_true",
+                        help="Emit a SHA-256 authenticated manifest for a bundle built and installed locally")
     parser.add_argument("--python-image", required=True)
     parser.add_argument("--age-tool", type=Path, required=True, help="Official checksum-pinned age v1.3.2 linux/amd64 executable")
     args = parser.parse_args(argv)
+    if (args.signing_key is None) == (not args.unsigned):
+        parser.error("Choose either --signing-key for an external bundle or --unsigned for a local build")
     root = Path(__file__).resolve().parents[1]
     if sys.version_info[:2] != (3, 15) or re.fullmatch(IMAGE, args.python_image) is None:
         parser.error("Python 3.15 and an official digest-pinned Python image are required")
     output = args.output.absolute()
-    if output.exists() or args.signing_key.resolve().is_relative_to(output):
+    if output.exists() or (args.signing_key is not None and args.signing_key.resolve().is_relative_to(output)):
         parser.error("Output must be new and the signing key must be independent")
-    seed = args.signing_key.read_bytes()
-    if len(seed) != 32:
-        parser.error("The Ed25519 seed must be exactly 32 bytes")
+    signer = None
+    if args.signing_key is not None:
+        seed = args.signing_key.read_bytes()
+        if len(seed) != 32:
+            parser.error("The Ed25519 seed must be exactly 32 bytes")
+        from nacl.signing import SigningKey
+        signer = SigningKey(seed)
     age = args.age_tool.read_bytes()
     if hashlib.sha256(age).hexdigest() != AGE_SHA256:
         parser.error("Unsupported age binary; expected the pinned official linux/amd64 release")
-    signer = SigningKey(seed)
     source = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root).decode().strip()
     if subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=no"], cwd=root).strip():
         parser.error("Build from a committed source revision")
@@ -115,15 +125,27 @@ def main(argv=None):
     files = [{"path": str(path.relative_to(output)), "size": path.stat().st_size,
               "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
              for path in sorted(output.rglob("*")) if path.is_file()]
-    value = {"v": 1, "application": "VPN-Orbit", "version": version, "channel": "development",
-             "source_commit": source, "python_image": args.python_image, "platform": "ubuntu-24.04-amd64",
-             "python": "3.15", "sqlite_schema": sqlite_schema, "remote_mutation_enabled": False, "files": files,
-             "signing_key_sha256": hashlib.sha256(bytes(signer.verify_key)).hexdigest()}
-    data = canonical(value)
-    (output / "manifest.json").write_bytes(data)
-    (output / "manifest.sig").write_bytes(signer.sign(data).signature)
-    print(json.dumps({"bundle": str(output), "manifest_sha256": hashlib.sha256(data).hexdigest(),
-                      "signing_key_sha256": value["signing_key_sha256"], "channel": "development"}))
+    if signer is None:
+        value = {"v": 2, "application": "VPN-Orbit", "version": version, "channel": "development",
+                 "source_commit": source, "python_image": args.python_image, "platform": "ubuntu-24.04-amd64",
+                 "python": "3.15", "sqlite_schema": sqlite_schema, "remote_mutation_enabled": False,
+                 "authentication": "sha256", "files": files}
+        data = canonical(value)
+        (output / "manifest.json").write_bytes(data)
+        result = {"bundle": str(output), "manifest_sha256": hashlib.sha256(data).hexdigest(),
+                  "authentication": "sha256", "channel": "development"}
+    else:
+        value = {"v": 1, "application": "VPN-Orbit", "version": version, "channel": "development",
+                 "source_commit": source, "python_image": args.python_image, "platform": "ubuntu-24.04-amd64",
+                 "python": "3.15", "sqlite_schema": sqlite_schema, "remote_mutation_enabled": False, "files": files,
+                 "signing_key_sha256": hashlib.sha256(bytes(signer.verify_key)).hexdigest()}
+        data = canonical(value)
+        (output / "manifest.json").write_bytes(data)
+        (output / "manifest.sig").write_bytes(signer.sign(data).signature)
+        result = {"bundle": str(output), "manifest_sha256": hashlib.sha256(data).hexdigest(),
+                  "authentication": "signature", "signing_key_sha256": value["signing_key_sha256"],
+                  "channel": "development"}
+    print(json.dumps(result))
     return 0
 
 

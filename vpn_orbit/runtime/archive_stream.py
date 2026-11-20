@@ -29,10 +29,15 @@ AGE_SHA256 = "eb7dd1b518f0a307c99cd97782623c5321da049154b04acd2d98d21aa7bc9b2c"
 AGE_PATH = Path("/opt/vpn-orbit/tools/age")
 AGE_KEYGEN_SHA256 = "0a0009db842259d6717f7eeb30acb6b90d2a2eb924c6acd0a0db0ca1f1537899"
 AGE_KEYGEN_PATH = Path("/opt/vpn-orbit-rescue/tools/age-keygen")
-CONTROLLER_FILES = frozenset({"app.sqlite3", "gate.sqlite3", "runtime.json", "targets.json", "gate.pub",
-                              "installation.json", "release-manifest.json", "release.sig", "release.pub",
-                              "requirements-install.txt", "sbom.cdx.json", "compose.json"})
+_COMMON_CONTROLLER_FILES = frozenset({"app.sqlite3", "gate.sqlite3", "runtime.json", "targets.json", "gate.pub",
+                                      "installation.json", "release-manifest.json",
+                                      "requirements-install.txt", "sbom.cdx.json", "compose.json"})
+# Legacy signed layout and the SHA-256 layout used by ./install. Exactly one
+# authentication set is required so a restored archive cannot claim both.
+CONTROLLER_FILES = _COMMON_CONTROLLER_FILES | frozenset({"release.sig", "release.pub"})
+CONTROLLER_FILES_SHA256 = _COMMON_CONTROLLER_FILES | frozenset({"release-authentication.json"})
 OPTIONAL_CONTROLLER_FILES = frozenset({"backup-target.json"})
+MAX_CONTROLLER_FILES = CONTROLLER_FILES | CONTROLLER_FILES_SHA256 | OPTIONAL_CONTROLLER_FILES
 MAX_FILE = 512 * 1024 * 1024
 MAX_PAYLOAD = 512 * 1024 * 1024
 # Bound the largest request/envelope and recovery summary added to the tar.
@@ -97,17 +102,21 @@ def validate_source(value, snapshot_id):
     for name in ("gate_epoch", "audit_sequence", "monotonic_ns", "captured_utc"):
         integer(value[name], 0, 2**63 - 1)
     integer(value["schema"], 1, 4)
-    if not isinstance(value["files"], list) or not len(CONTROLLER_FILES) <= len(value["files"]) <= len(CONTROLLER_FILES | OPTIONAL_CONTROLLER_FILES):
+    if not isinstance(value["files"], list) or not len(_COMMON_CONTROLLER_FILES) <= len(value["files"]) <= len(MAX_CONTROLLER_FILES):
         raise Denied("ARCHIVE_MANIFEST_INVALID")
     names = set()
     for item in value["files"]:
         fields(item, ("path", "size", "sha256"))
-        if not isinstance(item["path"], str) or item["path"] not in CONTROLLER_FILES | OPTIONAL_CONTROLLER_FILES or item["path"] in names:
+        if not isinstance(item["path"], str) or item["path"] not in MAX_CONTROLLER_FILES or item["path"] in names:
             raise Denied("ARCHIVE_MANIFEST_INVALID")
         names.add(item["path"])
         integer(item["size"], 1, MAX_FILE)
         text(item["sha256"], SHA256)
-    if not CONTROLLER_FILES.issubset(names):
+    if not _COMMON_CONTROLLER_FILES.issubset(names):
+        raise Denied("ARCHIVE_MANIFEST_INVALID")
+    signed = CONTROLLER_FILES.issubset(names)
+    digest = CONTROLLER_FILES_SHA256.issubset(names)
+    if signed == digest or (not signed and names & {"release.sig", "release.pub"}):
         raise Denied("ARCHIVE_MANIFEST_INVALID")
     return value
 
@@ -134,7 +143,7 @@ def validated_pin(vault, broker_directory, snapshot_id, expected_digest):
     if len(pin["files"]) != len(expected):
         raise Denied("ARCHIVE_PIN_INCOMPLETE")
     # The recovery bundle adds one member to the Controller archive.
-    if len(CONTROLLER_FILES | OPTIONAL_CONTROLLER_FILES) + len(pin["files"]) + 4 > MAX_RECOVERY_MEMBERS:
+    if len(MAX_CONTROLLER_FILES) + len(pin["files"]) + 4 > MAX_RECOVERY_MEMBERS:
         raise Denied("ARCHIVE_SIZE_UNSUPPORTED")
     seen = set()
     for item in pin["files"]:

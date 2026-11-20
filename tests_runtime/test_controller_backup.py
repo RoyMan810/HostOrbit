@@ -19,7 +19,7 @@ from vpn_orbit.admission import Admission
 from vpn_orbit.auth import AuthService
 from vpn_orbit.database import Store
 from vpn_orbit.errors import Denied
-from vpn_orbit.runtime.archive_stream import CONTROLLER_FILES, feed, seal
+from vpn_orbit.runtime.archive_stream import CONTROLLER_FILES, CONTROLLER_FILES_SHA256, feed, seal, validate_source
 from vpn_orbit.runtime.authority import Authority
 from vpn_orbit.runtime.broker import Broker
 from vpn_orbit.runtime.controller_backup import ControllerBackup, Layout, verify_provenance
@@ -276,6 +276,25 @@ class ControllerBackupTests(unittest.TestCase):
         with self.assertRaises(OSError):
             self.backup.create(self.recipient)
         self.assertFalse(list(self.coordinator.directory.glob("captures/*/provenance.json")))
+
+
+class ArchiveAuthenticationTests(unittest.TestCase):
+    identifier = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+
+    def manifest(self, names):
+        return {"v": 1, "type": "controller.snapshot", "snapshot_id": self.identifier,
+                "source_instance": self.identifier, "gate_epoch": 0, "schema": 4, "audit_head": "0" * 64,
+                "audit_sequence": 0, "boot_id": "12345678-1234-1234-1234-123456789abc", "monotonic_ns": 0,
+                "captured_utc": 0, "time_trusted": False, "source_commit": "a" * 40, "pin_sha256": "b" * 64,
+                "files": [{"path": name, "size": 1, "sha256": "c" * 64} for name in sorted(names)]}
+
+    def test_signed_and_digest_layouts_are_each_accepted_alone(self):
+        validate_source(self.manifest(CONTROLLER_FILES), self.identifier)
+        validate_source(self.manifest(CONTROLLER_FILES_SHA256), self.identifier)
+        for names in (CONTROLLER_FILES | CONTROLLER_FILES_SHA256,
+                      (CONTROLLER_FILES_SHA256 - {"release-authentication.json"}) | {"release.sig"}):
+            with self.subTest(names=sorted(names)), self.assertRaisesRegex(Denied, "ARCHIVE_MANIFEST_INVALID"):
+                validate_source(self.manifest(names), self.identifier)
 
 
 if __name__ == "__main__":

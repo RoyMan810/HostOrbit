@@ -134,7 +134,8 @@ class InstallationTests(unittest.TestCase):
                 manifest(self.bundle, self.key, allow_development=True)
 
     def test_installer_refuses_bundle_with_different_host_python(self):
-        args = SimpleNamespace(bundle=self.bundle, trust_key=self.directory / "external.pub", development=True)
+        args = SimpleNamespace(bundle=self.bundle, trust_key=self.directory / "external.pub",
+                               manifest_sha256=None, development=True)
         with (patch("installer.preflight"), patch("installer.trusted_key"),
               patch("installer.snapshot", return_value=({"python": "0.0"}, "digest")),
               self.assertRaisesRegex(ArtifactError, "HOST_BUNDLE_PYTHON_MISMATCH")):
@@ -211,6 +212,43 @@ class InstallationTests(unittest.TestCase):
         public.chmod(0o666)
         with self.assertRaisesRegex(ArtifactError, "TRUST_KEY_PERMISSIONS"):
             trusted_key(public, owner=os.geteuid())
+
+    def digest_manifest(self):
+        value = {name: item for name, item in self.value.items() if name != "signing_key_sha256"}
+        value.update({"v": 2, "authentication": "sha256"})
+        raw = canonical(value)
+        (self.bundle / "manifest.json").write_bytes(raw)
+        (self.bundle / "manifest.sig").unlink(missing_ok=True)
+        return value, hashlib.sha256(raw).hexdigest()
+
+    def test_digest_authenticated_bundle_needs_the_exact_manifest_hash(self):
+        value, digest = self.digest_manifest()
+        self.assertEqual(manifest(self.bundle, expected_sha256=digest, allow_development=True)[0], value)
+        dest = self.directory / "digest-copy"
+        copied, actual = snapshot(self.bundle, dest, expected_sha256=digest, allow_development=True)
+        self.assertEqual(copied, value)
+        self.assertEqual(actual, digest)
+        self.assertFalse((dest / "manifest.sig").exists())
+        with self.assertRaisesRegex(ArtifactError, "DIGEST_MISMATCH"):
+            manifest(self.bundle, expected_sha256="0" * 64, allow_development=True)
+        with self.assertRaisesRegex(ArtifactError, "AUTHENTICATION_REQUIRED"):
+            manifest(self.bundle, allow_development=True)
+        with self.assertRaisesRegex(ArtifactError, "AUTHENTICATION_REQUIRED"):
+            manifest(self.bundle, self.key, expected_sha256=digest, allow_development=True)
+
+    def test_digest_authenticated_bundle_cannot_downgrade_or_claim_a_signature(self):
+        value, _ = self.digest_manifest()
+        for field, changed in (("v", 1), ("authentication", "signature")):
+            with self.subTest(field=field):
+                raw = canonical({**value, field: changed})
+                (self.bundle / "manifest.json").write_bytes(raw)
+                with self.assertRaisesRegex(ArtifactError, "CONTRACT_UNSUPPORTED"):
+                    manifest(self.bundle, expected_sha256=hashlib.sha256(raw).hexdigest(), allow_development=True)
+
+    def test_signed_manifest_is_not_accepted_by_digest_alone(self):
+        digest = hashlib.sha256((self.bundle / "manifest.json").read_bytes()).hexdigest()
+        with self.assertRaisesRegex(ArtifactError, "CONTRACT_UNSUPPORTED"):
+            manifest(self.bundle, expected_sha256=digest, allow_development=True)
 
     def test_compose_separates_public_api_from_networkless_worker_and_private_host_data(self):
         cfg = {"app_uid": 23101, "app_gid": 23201, "worker_uid": 23102, "worker_gid": 23102,
