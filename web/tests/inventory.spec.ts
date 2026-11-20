@@ -812,7 +812,7 @@ test('owner enrolls a prepared VPS with its independent pin and selects it for a
   const id = '01JCYQZ4T9V8MNVYEH3D2M7Q1D'
   await signIn(page)
   await page.getByText('Connect a VPS', { exact: true }).click()
-  await page.getByLabel('Provisioned VPS ID').fill(id)
+  await expect(page.locator('select[name=id]')).toHaveValue(id)
   const pin = page.getByLabel('SSH fingerprint from the VPS console')
   await pin.fill('SHA256:' + 'B'.repeat(43))
   await page.getByRole('button', { name: 'Connect and check SSH' }).click()
@@ -823,4 +823,25 @@ test('owner enrolls a prepared VPS with its independent pin and selects it for a
   await expect(page.getByText('VPS connected. See the SSH check below.')).toBeVisible()
   await expect(page.locator('.detail-id').getByText(id, { exact: true })).toBeVisible()
   expect((await (await probe).json()).resource_id).toBe(id)
+})
+
+
+test('first-run help and device time settings are keyboard accessible', async ({ page }) => {
+  await signIn(page)
+  const help = page.getByRole('button', { name: 'Help', exact: true })
+  await help.focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('heading', { name: 'Connect your first VPS' })).toBeVisible()
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await page.getByLabel('Time zone').selectOption('UTC')
+  await page.reload()
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await expect(page.getByLabel('Time zone')).toHaveValue('UTC')
+})
+
+test('distinguishes missing dependency data on earlier SSH observations', async ({ page }) => {
+  await signIn(page)
+  const details = page.locator('.docker-list > li').filter({ hasText: 'fixture / web' })
+  await details.getByText('Restart dependencies', { exact: true }).click()
+  await expect(details.getByText('Unavailable in this observation', { exact: true })).toHaveCount(3)
 })

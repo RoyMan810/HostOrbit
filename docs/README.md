@@ -52,6 +52,7 @@
 
 ## Приёмка
 
+- [Проверки перед выпуском MVP](stage3-release-checks.md)
 - [Лаборатория Stage0](stage0-laboratory.md)
 - [Текущие проверки Stage1 Foundation](../evidence/revalidation/stage1-current/README.md)
 - [Приёмочные данные AC-B05](../evidence/tests/ac-b05.json)

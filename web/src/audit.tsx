@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { TimeZone } from './time-zone'
+import { useContext, useEffect, useState } from 'react'
 import { hasApiStatus, isUlid, request } from './api'
 import type { Copy, Language } from './copy'
 import { AuditPlan } from './audit-plan'
@@ -167,6 +168,7 @@ function IntegrityCheck({ t, expired }: { t: Copy; expired: () => void }) {
 }
 
 export function Audit({ t, lang, expired }: { t: Copy; lang: Language; expired: () => void }) {
+  const timeZone = useContext(TimeZone)
   const [cursors, setCursors] = useState([0])
   const [revision, refresh] = useState(0)
   const [items, setItems] = useState<AuditEvent[] | null>(null)
@@ -221,7 +223,7 @@ export function Audit({ t, lang, expired }: { t: Copy; lang: Language; expired: 
             return <li key={seq}>
               <strong>{event.event}</strong> <span id={`audit-event-${seq}`} tabIndex={planRevision === null ? undefined : -1}>#{seq} · {event.outcome}</span>
               <dl className="audit-facts">
-                <div><dt>{t.auditTime}</dt><dd>{new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(event.at * 1000))}</dd></div>
+                <div><dt>{t.auditTime}</dt><dd>{new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'medium', timeZone }).format(new Date(event.at * 1000))}</dd></div>
                 <div><dt>{t.auditActor}</dt><dd><code>{event.actor_id}</code></dd></div>
                 <div><dt>{t.auditTarget}</dt><dd><code>{event.target_id}</code></dd></div>
                 <div><dt>{planRevision === null ? t.auditCorrelation : t.auditPlan}</dt><dd><code>{event.correlation_id}</code></dd></div>

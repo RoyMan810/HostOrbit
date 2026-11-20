@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useContext, useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { createRoot } from 'react-dom/client'
 import { hasApiStatus, observationState, request } from './api'
@@ -10,6 +10,7 @@ import { ProbeControl } from './probe'
 import { RestartPreview } from './restart-preview'
 import { Audit } from './audit'
 import { readRestartHash, restartHash, RestartTimeline } from './restart-timeline'
+import { TimeZone } from './time-zone'
 import './style.css'
 
 type Theme = 'system' | 'light' | 'dark'
@@ -98,14 +99,17 @@ function statusReason(reason: string, t: Copy) {
 function Detail({ resource, t, lang, now, expired, session }: {
   resource: Resource; t: Copy; lang: Language; now: number; expired: () => void; session: Session
 }) {
+  const timeZone = useContext(TimeZone)
   const observation = resource.observation
   const current = observationState(observation, now)
   const time = (seconds: number | null | undefined) => seconds == null ? '—' :
-    new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(seconds * 1000))
+    new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'short', timeZone }).format(new Date(seconds * 1000))
   const presence = (value: Presence) => value === 'PRESENT' ? t.present : value === 'NOT_DETECTED' ? t.notDetected : t.unknown
   const software = observation.last_success?.software
   const sample = observation.last_success
   const docker = sample?.docker
+  const isolation = (value?: 'ISOLATED' | 'OTHER' | 'UNKNOWN') =>
+    value === 'ISOLATED' ? t.isolated : value === 'OTHER' ? t.sharedOrExternal : t.dependencyUnavailable
 
   return <>
     <div className="detail-id"><span>{t.host}</span><code>{resource.id}</code></div>
@@ -155,6 +159,15 @@ function Detail({ resource, t, lang, now, expired, session }: {
                 })}
               </ul>}
           </div>
+          <details className="docker-ports">
+            <summary>{t.dependencyHeading}</summary>
+            <dl>
+              <div><dt>{t.mounts}</dt><dd>{container.mount_status === 'NONE' ? t.noMounts :
+                container.mount_status === 'PRESENT' ? t.hasMounts : t.dependencyUnavailable}</dd></div>
+              <div><dt>{t.network}</dt><dd>{isolation(container.network_status)}</dd></div>
+              <div><dt>{t.dependencies}</dt><dd>{isolation(container.dependency_status)}</dd></div>
+            </dl>
+          </details>
           {session.user.role !== 'Auditor' && resource.enabled && current.status === 'REACHABLE' && container.state === 'RUNNING' && sample &&
             <RestartPreview key={JSON.stringify([resource.id, resource.revision, resource.policy_revision,
               sample.observed_at, sample.boot_id, container.project, container.service, container.started_at])}
@@ -288,11 +301,14 @@ function App() {
   const [sessionError, setSessionError] = useState<unknown>(null)
   const [retry, setRetry] = useState(0)
   const [ending, setEnding] = useState(false)
-  const [view, setView] = useState<'inventory' | 'audit'>('inventory')
+  const [view, setView] = useState<'inventory' | 'audit' | 'settings' | 'help'>('inventory')
+  const [timeZone, setTimeZone] = useState<'UTC' | undefined>(() =>
+    preference('hostorbit.timeZone') === 'UTC' ? 'UTC' : undefined)
+
   const [restart, setRestart] = useState(() => readRestartHash(window.location.hash))
   const t = copy[lang]
 
-  function show(section: 'inventory' | 'audit') {
+  function show(section: typeof view) {
     if (readRestartHash(window.location.hash)) window.history.replaceState(null, '', window.location.pathname + window.location.search)
     setRestart(null)
     setView(section)
@@ -345,7 +361,7 @@ function App() {
     }
   }
 
-  return <>
+  return <TimeZone.Provider value={timeZone}>
     <a className="skip" href="#main" onClick={event => {
       event.preventDefault()
       document.getElementById('main')?.focus()
@@ -376,6 +392,8 @@ function App() {
           <nav className="workspace-nav" aria-label={t.navigation}>
             <button aria-current={!restart && view === 'inventory' ? 'page' : undefined} onClick={() => show('inventory')}>{t.inventory}</button>
             <button aria-current={!restart && view === 'audit' ? 'page' : undefined} onClick={() => show('audit')}>{t.audit}</button>
+            <button aria-current={!restart && view === 'settings' ? 'page' : undefined} onClick={() => show('settings')}>{t.settings}</button>
+            <button aria-current={!restart && view === 'help' ? 'page' : undefined} onClick={() => show('help')}>{t.help}</button>
           </nav>
           <div hidden={Boolean(restart) || view !== 'inventory'}>
             <Inventory key={session.user.id} t={t} lang={lang} expired={expired} session={session}/>
@@ -384,12 +402,27 @@ function App() {
           {view === 'audit' && <div hidden={Boolean(restart)}>
             <Audit key={session.user.id} t={t} lang={lang} expired={expired}/>
           </div>}
+          {!restart && view === 'settings' && <section className="workspace" aria-labelledby="settings-heading">
+            <h1 id="settings-heading">{t.settings}</h1>
+            <p>{t.devicePreferences}</p>
+            <label>{t.timeZone} <select value={timeZone ?? 'local'} onChange={event => {
+              const value = event.target.value === 'UTC' ? 'UTC' : undefined
+              setTimeZone(value)
+              savePreference('hostorbit.timeZone', value ?? 'local')
+            }}><option value="local">{t.localTime}</option><option value="UTC">{t.utcTime}</option></select></label>
+          </section>}
+          {!restart && view === 'help' && <section className="workspace" aria-labelledby="help-heading">
+            <h1 id="help-heading">{t.help}</h1>
+            <h2>{t.helpConnect}</h2><p>{t.helpConnectText}</p>
+            <h2>{t.helpHealth}</h2><p>{t.helpHealthText}</p>
+            <h2>{t.helpRecovery}</h2><p>{t.helpRecoveryText}</p>
+          </section>}
         </> : sessionError != null ? <div className="workspace">
           <p role="alert" className="error">{message(sessionError, t)}</p>
           <button onClick={() => setRetry(value => value + 1)}>{t.retry}</button>
         </div> : <Login t={t} onLogin={setSession}/>}
     </main>
-  </>
+  </TimeZone.Provider>
 }
 
 createRoot(document.getElementById('root')!).render(<App/>)

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { TimeZone } from './time-zone'
+import { useContext, useEffect, useRef, useState } from 'react'
 import { hasApiStatus, request } from './api'
 import type { Copy, Language } from './copy'
 
@@ -7,6 +8,7 @@ interface TimelineItem { seq: number; at: number; status: keyof Copy['probeStatu
 export function JobTimeline({ jobId, t, lang, expired, describedBy }: {
   jobId: string; t: Copy; lang: Language; expired: () => void; describedBy?: string
 }) {
+  const timeZone = useContext(TimeZone)
   const [items, setItems] = useState<TimelineItem[] | null>(null)
   const [error, setError] = useState<unknown>(null)
   const [loading, setLoading] = useState(false)
@@ -38,7 +40,7 @@ export function JobTimeline({ jobId, t, lang, expired, describedBy }: {
     {error != null && <p className="error" role="alert">{hasApiStatus(error, 403, 404) ? t.probeUnavailable : t.requestError}</p>}
     {items && (items.length === 0 ? <p>{t.timelineEmpty}</p> : <ol>
       {items.map(item => <li key={item.seq}>
-        <time dateTime={new Date(item.at * 1000).toISOString()}>{new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'medium' }).format(new Date(item.at * 1000))}</time>
+        <time dateTime={new Date(item.at * 1000).toISOString()}>{new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'medium', timeZone }).format(new Date(item.at * 1000))}</time>
         {' — '}<span>{t.probeStatus[item.status]}</span>{item.reason && <> <code>{item.reason}</code></>}
       </li>)}
     </ol>)}
