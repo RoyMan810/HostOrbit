@@ -2,13 +2,37 @@
 
 [Документация](README.md) · [Требования v2.4](spec/HostOrbit_Technical_Spec_v2.4.md)
 
+## Установка одной командой
+
+На чистой Ubuntu Server 24.04 или 26.04 (amd64) с работающим systemd:
+
+```sh
+git clone https://github.com/RoyMan810/HostOrbit.git
+sudo ./HostOrbit/install
+```
+
+Bootstrap требует подключения к интернету, минимум 2 ГиБ RAM, диск 40 ГиБ и 6 ГиБ свободного места. В APT должен быть доступен репозиторий Ubuntu `universe` для пакета Caddy. Установка собирает Python 3.15.2 из официального архива по закреплённому SHA-256. Если Docker отсутствует, установка добавляет подписанный репозиторий Docker и ставит Engine 29.x, Compose и Buildx. Существующий Docker должен поддерживать тот же профиль. Конфликтующие пакеты и установки HostOrbit остаются на месте, а операция останавливается.
+
+Controller и WebUI собираются из коммита текущего checkout. Изменения в отслеживаемых файлах приводят к отказу. Сборка Controller использует закреплённые хеши Python-зависимостей и OCI digest. Одноразовый локальный подписант development-комплекта удаляется после сборки. Источник доверия здесь — выбранный вами checkout и закреплённые в нём зависимости. Ручной сценарий ниже принимает комплект с независимо доставленным ключом издателя. Node.js нужен только для сборки статики из npm lock. При установке регистрируются host-native Broker и Supervisor через systemd, API и Worker через Compose и отдельный HTTPS reverse proxy Caddy.
+
+В интерактивном терминале установка предлагает задать пароль Owner. По умолчанию используется имя `admin`. Для другого имени укажите `--owner roman`. Для запуска без терминала или повтора ввода после ошибки используйте `sudo /opt/hostorbit/admin create-owner --username admin`.
+
+С рабочего компьютера скопируйте публичный сертификат CA и установите доверие к нему в используемом браузере. Затем откройте SSH-туннель:
+
+```sh
+scp ubuntu@CONTROLLER:/opt/hostorbit-bootstrap/web-ca.pem .
+ssh -N -L 127.0.0.1:18443:127.0.0.1:18443 ubuntu@CONTROLLER
+```
+
+Откройте [https://127.0.0.1:18443](https://127.0.0.1:18443) и войдите как Owner. Замените `ubuntu@CONTROLLER` на вашу учётную запись и адрес. Локальный сертификат действует 397 дней. Caddy слушает только `127.0.0.1:18443`, а API — `127.0.0.1:18080`. Docker при запуске устанавливает стандартные сетевые правила для своих контейнеров. При ошибке сборки можно повторить команду. Если Controller уже начал установку, проверьте `/opt/hostorbit/install-state.json` и журналы systemd. Повторная установка потребует отдельного обслуживания.
+
 Для завершённого локального Rescue import доступен отдельный [recovery installation](stage1-recovery-installation.md) через `--recovery-state`; он сохраняет READ_ONLY_RECOVERY и не открывает повторный Owner bootstrap.
 
 Постоянные родительские каталоги установки (`/opt`, `/etc`, `/var/lib`, `/run` и их ancestors) должны принадлежать root и не допускать group/other write. Preflight отказывает с `INSTALLATION_PARENT_UNTRUSTED` до создания состояния и не меняет права чужих системных каталогов. Disposable CI fixture отдельно проверяет отказ на `/opt` 0777, затем готовит защищённый профиль 0755 только в своей временной VM.
 
 Установщик разворачивает **development-сборку** на Ubuntu Server 24.04 и новее, amd64. Native development-установка и restart проверены на 24.04 и на отдельной VM Ubuntu 26.04; остальные выпуски требуют отдельной проверки systemd, Docker и безопасности. Он устанавливает API и Worker через Compose, host-native Broker и supervisor через systemd. Доступно только наблюдение `host.probe`; production mutation, автоматическое обновление и миграция существующей БД этим установщиком не разрешены.
 
-Нужны rootful Docker Engine 29.x, Compose plugin v2 или v5 (включая версии пакетов Ubuntu с суффиксом `+ds…ubuntu…`), Docker Buildx для offline-сборки образа, host Python 3.15 для нового комплекта (Python 3.13 для старого), SQLite ≥3.45, OpenSSL 3 и systemd. Интерпретатор Python должен находиться по постоянному доверенному пути: host supervisor использует его независимо от контейнеров. Минимум установщика Controller — 1 vCPU, VPS с 2 GiB RAM и 40 GiB диска: для учёта резервирования ядром проверяется `MemTotal` не менее 1792 MiB, а также не менее 2 GiB свободного места в `/var/lib`. Владелец изменил аппаратный профиль ТЗ на 1 vCPU / 2 GiB; capacity/soak на новой конфигурации ещё не пройден. Offline Rescue имеет отдельные [требования к памяти и изоляции](stage1-rescue.md). Установщик проверяет свободный высокий loopback-порт, существующие namespace, пользователей и units до создания данных. Установка Docker/Python и подписанные самостоятельные host-runtime artifacts относятся к следующей упаковке bootstrap/release.
+Нужны rootful Docker Engine 29.x, Compose plugin v2 или v5 (включая версии пакетов Ubuntu с суффиксом `+ds…ubuntu…`), Docker Buildx для offline-сборки образа, host Python 3.15 для нового комплекта (Python 3.13 для старого), SQLite ≥3.45, OpenSSL 3 и systemd. Интерпретатор Python должен находиться по постоянному доверенному пути: host supervisor использует его независимо от контейнеров. Минимум установщика Controller — 1 vCPU, VPS с 2 GiB RAM и 40 GiB диска: для учёта резервирования ядром проверяется `MemTotal` не менее 1792 MiB, а также не менее 2 GiB свободного места в `/var/lib`. Владелец изменил аппаратный профиль ТЗ на 1 vCPU / 2 GiB; capacity/soak на новой конфигурации ещё не пройден. Offline Rescue имеет отдельные [требования к памяти и изоляции](stage1-rescue.md). Установщик проверяет свободный высокий loopback-порт, существующие namespace, пользователей и units до создания данных. В ручном сценарии ниже Docker и Python готовятся заранее.
 
 ## Подписанный комплект
 
@@ -78,12 +102,28 @@ python3 tools/prepare_vps.py --host 192.0.2.20 --user ubuntu \
 
 Замените IP, имя пользователя и отпечаток своими значениями. OpenSSH запросит пароль входа, а `sudo` при необходимости запросит пароль повышения прав. Для входа своим SSH-ключом добавьте `--identity ~/.ssh/id_ed25519`. Для нестандартного порта добавьте `--port`. Команда создаёт отдельный аккаунт наблюдения и сразу проверяет вход с новым ключом HostOrbit.
 
-Перенесите `managed-vps/targets.json` на Controller для `--targets`. Используйте приватный `managed-vps/probe` для `import-key` в Broker согласно [профилю runtime](stage1-runtime.md). Эти шаги выполняются оператором. Привилегии перезапуска требуют отдельной политики. Если подготовка прервалась после записи `targets.json`, повторите команду с тем же каталогом. Она использует сохранённую политику и ключ.
+Для команды `prepare_vps.py` используйте Controller или машину, чей SSH-адрес разрешён для наблюдения на управляемой VPS. Подготовьте цель до свежей установки. Передайте `managed-vps/targets.json` как `sudo ./HostOrbit/install --targets ./managed-vps/targets.json`. Режим регистрации в WebUI включится автоматически. Сохраните Resource ID, Secret Reference и напечатанный при создании ID Owner. Импортируйте приватный ключ наблюдения на Controller:
+
+```sh
+sudo install -d -m 0700 -o ho-broker -g ho-broker /run/hostorbit/key-import
+sudo install -m 0600 -o ho-broker -g ho-broker \
+  ./managed-vps/probe /run/hostorbit/key-import/probe
+sudo systemd-run --wait --pipe --collect \
+  --property=User=ho-broker --property=Group=ho-broker \
+  --property=UMask=0077 \
+  --property=LoadCredentialEncrypted=broker-dek:/etc/hostorbit/credentials/broker-dek.cred \
+  /opt/hostorbit/venv/bin/hostorbit-runtime --config /etc/hostorbit/runtime.json import-key \
+  --key-file /run/hostorbit/key-import/probe --target "$TARGET_ID" \
+  --secret-id "$SECRET_ID" --owner-id "$OWNER_ID"
+sudo rm /run/hostorbit/key-import/probe
+```
+
+Подставьте `TARGET_ID` из Resource ID, `SECRET_ID` из Secret Reference без суффикса `:v1` и `OWNER_ID` из команды создания владельца. Удаляйте временную копию после успешного импорта. В WebUI подтвердите fingerprint по шагам ниже. Привилегии перезапуска требуют отдельной политики.
 
 ### Подключение подготовленной VPS владельцем
 
 Для новой установки укажите `install --targets /root/approved-targets.json --web-enrollment` вместе с обычными параметрами установки. Root заранее утверждает IP, CIDR, SSH host key и ссылку на ключ для каждой VPS. Подготовьте ограниченную учётную запись и импортируйте ключ наблюдения по [инструкции runtime](stage1-runtime.md). Установщик передаёт API только ID, SHA256-отпечаток, ревизию и хэш политики целей с разрешением `host.probe`. Inventory до подтверждения пуст.
 
 1. В доверенной консоли VPS выполните `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub -E sha256`. Скопируйте значение `SHA256:…`.
-2. Скачайте готовый WebUI из GitHub Actions той же ревизии и опубликуйте распакованный каталог `dist/` в корне HTTPS-домена Controller с проксированием `/api/` по [инструкции WebUI](../web/README.md#сборка-и-запуск). Войдите как Owner. В Inventory откройте «Подключить VPS», введите ID из утверждённой политики и отпечаток из консоли. API установленного Controller принимает те же поля через `POST /api/v1/resources`: JSON `{"resource_id":"<ULID>","fingerprint":"SHA256:…"}`, session cookie, текущие Origin и X-CSRF-Token. Ответ 201 содержит Location карточки, 412 означает несовпадение, 404 — цель отсутствует в каталоге, 409 — цель уже зарегистрирована.
+2. Откройте WebUI, установленный bootstrap. При ручной установке скачайте готовый WebUI из GitHub Actions той же ревизии и опубликуйте `dist/` в корне HTTPS-домена Controller с проксированием `/api/` по [инструкции WebUI](../web/README.md#сборка-и-запуск). Войдите как Owner. В Inventory откройте «Подключить VPS», введите ID из утверждённой политики и отпечаток из консоли. API установленного Controller принимает те же поля через `POST /api/v1/resources`: JSON `{"resource_id":"<ULID>","fingerprint":"SHA256:…"}`, session cookie, текущие Origin и X-CSRF-Token. Ответ 201 содержит Location карточки, 412 означает несовпадение, 404 — цель отсутствует в каталоге, 409 — цель уже зарегистрирована.
 3. После подключения через панель SSH-проверка запускается автоматически. Карточка показывает результат. При подключении напрямую через API запустите SSH-наблюдение отдельно. Для оператора выдайте `vps:read` и `vps:probe` на конкретный ID. Worker и Broker проверяют исходную root-политику и привязку SSH-ключа при выполнении.
