@@ -15,10 +15,18 @@ EXECUTABLE = "hostorbit-updater"
 MAX_EXECUTABLE = 64 * 1024 * 1024
 
 
+def zstd_runtime():
+    try:
+        from compression import zstd
+    except ImportError as error:
+        raise Denied("UPDATER_ZSTD_UNAVAILABLE") from error
+    return zstd
+
+
 def unpack_updater(package, version, output):
     # The input is a signed private copy. Limit decompression before interpreting
     # the header and accept only a single USTAR file, without extended headers.
-    from compression import zstd
+    zstd = zstd_runtime()
 
     archive = f"hostorbit-updater-{PLATFORM}-{version}.tar.zst"
     try:

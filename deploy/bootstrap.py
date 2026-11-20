@@ -193,7 +193,7 @@ def build_python(work, identity, env):
     destination = work / "python-install"
     run("make", "install", f"DESTDIR={destination}", cwd=source, **settings)
     shutil.copytree(destination / PYTHON.parent.parent.relative_to("/"), PYTHON.parent.parent, symlinks=True)
-    run(PYTHON, "-I", "-c", "import sqlite3, ssl, sys; assert sys.version_info[:3] == (3,15,2); "
+    run(PYTHON, "-I", "-c", "import compression.zstd, sqlite3, ssl, sys; assert sys.version_info[:3] == (3,15,2); "
         "assert sqlite3.sqlite_version_info >= (3,45)")
 
 
@@ -356,7 +356,7 @@ def install(owner, targets, suite):
         apt("update")
         apt("install", "-y", "--no-remove", "--no-install-recommends", "curl", "ca-certificates", "gnupg",
             "openssl", "xz-utils", "build-essential", "pkg-config", "libssl-dev", "zlib1g-dev",
-            "libsqlite3-dev", "libffi-dev", "libbz2-dev", "liblzma-dev")
+            "libsqlite3-dev", "libffi-dev", "libbz2-dev", "liblzma-dev", "libzstd-dev")
         install_docker(suite, private)
         identity = build_identity()
         work = temporary / "build"

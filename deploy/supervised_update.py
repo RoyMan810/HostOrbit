@@ -13,7 +13,7 @@ import tempfile
 from deploy.artifact import ArtifactError, trusted_key
 from deploy.rehearse_update import select_slot, stage_candidate
 from deploy.update_release import verify_candidate
-from deploy.updater_self_test import run_updater_self_test
+from deploy.updater_self_test import run_updater_self_test, zstd_runtime
 from hostorbit.errors import Denied
 from hostorbit.runtime.cli import configuration
 from hostorbit.runtime.ipc import Client
@@ -147,6 +147,7 @@ def main(argv=None):
         print("HostOrbit: LOCAL_ROOT_REQUIRED", file=sys.stderr)
         return 1
     try:
+        zstd_runtime()
         config = configuration(Path("/etc/hostorbit/runtime.json"))
         gate = Client(config["gate_socket"], server_uids={0})
         report = select_update(args.directory, Path("/var/lib/hostorbit/update-slots"), trusted_key(args.trust_key),
