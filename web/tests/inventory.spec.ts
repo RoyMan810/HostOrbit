@@ -24,6 +24,13 @@ async function signIn(page: Page, username = 'fixture-owner') {
   await expect(page.getByRole('heading', { name: 'VPS inventory' })).toBeVisible()
 }
 
+test('distinguishes missing dependency data on earlier SSH observations', async ({ page }) => {
+  await signIn(page)
+  const details = page.locator('.docker-list > li').filter({ hasText: 'fixture / web' })
+  await details.getByText('Restart dependencies', { exact: true }).click()
+  await expect(details.getByText('Unavailable in this observation', { exact: true })).toHaveCount(3)
+})
+
 test('checks audit integrity on demand and displays the latest result', async ({ page }) => {
   let checks = 0
   page.on('request', req => {
@@ -633,7 +640,9 @@ test('reuses the original request and VPS after the accepted reply is lost', asy
 })
 
 test('resumes reading the accepted job and preserves an unknown outcome', async ({ page }) => {
+  expect((await page.request.post('/__fixture__/reset-api-budget')).status()).toBe(204)
   await signIn(page)
+  await page.getByRole('button', { name: new RegExp(fresh) }).click()
   let submissions = 0
   page.on('request', request => {
     if (request.url().endsWith('/observations') && request.method() === 'POST') submissions += 1
@@ -645,7 +654,10 @@ test('resumes reading the accepted job and preserves an unknown outcome', async 
   await expect(page.getByRole('button', { name: 'Check job status' })).toBeVisible()
   await expect(page.getByText('Outcome unknown', { exact: true })).toHaveCount(0)
   await finishProbe(page, job.id, 'UNKNOWN_OUTCOME')
+  const refreshed = page.waitForResponse(response =>
+    response.url().endsWith('/resources/' + fresh) && response.request().method() === 'GET' && response.ok())
   await page.getByRole('button', { name: 'Check job status' }).click()
+  expect((await (await refreshed).json()).observation.status).toBe('UNKNOWN')
   await expect(page.getByText('Outcome unknown', { exact: true })).toBeVisible()
   await expect(page.getByRole('region', { name: 'VPS details' }).getByText('Unknown', { exact: true })).toBeVisible()
   expect(submissions).toBe(1)
@@ -812,7 +824,7 @@ test('owner enrolls a prepared VPS with its independent pin and selects it for a
   const id = '01JCYQZ4T9V8MNVYEH3D2M7Q1D'
   await signIn(page)
   await page.getByText('Connect a VPS', { exact: true }).click()
-  await page.getByLabel('Provisioned VPS ID').fill(id)
+  await expect(page.locator('select[name=id]')).toHaveValue(id)
   const pin = page.getByLabel('SSH fingerprint from the VPS console')
   await pin.fill('SHA256:' + 'B'.repeat(43))
   await page.getByRole('button', { name: 'Connect and check SSH' }).click()
@@ -823,4 +835,22 @@ test('owner enrolls a prepared VPS with its independent pin and selects it for a
   await expect(page.getByText('VPS connected. See the SSH check below.')).toBeVisible()
   await expect(page.locator('.detail-id').getByText(id, { exact: true })).toBeVisible()
   expect((await (await probe).json()).resource_id).toBe(id)
+})
+
+test('first-run help and device time settings are keyboard accessible', async ({ page }) => {
+  await signIn(page)
+  const help = page.getByRole('button', { name: 'Help', exact: true })
+  await help.focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('heading', { name: 'Connect your first VPS' })).toBeVisible()
+  const recovery = page.getByRole('link', { name: 'Download the recovery guide', exact: true })
+  await expect(recovery).toHaveAttribute('download', 'stage1-rescue.md')
+  const guide = await page.request.get((await recovery.getAttribute('href'))!)
+  expect(guide.ok()).toBe(true)
+  expect(await guide.text()).toContain('hostorbit-rescue')
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await page.getByLabel('Time zone').selectOption('UTC')
+  await page.reload()
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await expect(page.getByLabel('Time zone')).toHaveValue('UTC')
 })

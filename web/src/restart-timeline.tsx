@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { TimeZone } from './time-zone'
+import { useContext, useEffect, useState } from 'react'
 import { hasApiStatus, isUlid, request } from './api'
 import type { Session } from './api'
 import type { Copy, Language } from './copy'
@@ -23,6 +24,7 @@ const pending = new Set(['QUEUED', 'INTENT_PREPARED', 'DISPATCHING', 'RECONCILIA
 export function RestartTimeline({ route, t, lang, expired, session }: {
   session: Session; route: RestartRoute; t: Copy; lang: Language; expired: () => void
 }) {
+  const timeZone = useContext(TimeZone)
   const { planId, operationId, revision } = route
   const [entries, setEntries] = useState<Entry[] | null>(null)
   const [error, setError] = useState<'denied' | 'failed' | null>(null)
@@ -70,7 +72,7 @@ export function RestartTimeline({ route, t, lang, expired, session }: {
       setSending(false)
     }
   }
-  const format = new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'medium' })
+  const format = new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'medium', timeZone })
   const label = (status: string) => Object.hasOwn(t.restartStates, status)
     ? t.restartStates[status as keyof Copy['restartStates']] : status
   const needsCheck = last?.status === 'UNKNOWN_OUTCOME' || last?.status === 'QUARANTINED'

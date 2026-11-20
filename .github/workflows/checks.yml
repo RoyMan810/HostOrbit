@@ -140,6 +140,8 @@ jobs:
           export HOSTORBIT_TEST_AGE_DIR="$age_dir/age"
           python -m unittest discover -s tests_app -v
           python -m unittest discover -s tests_runtime -v
+      - name: Exercise synthetic capacity workload
+        run: python -m tools.capacity_soak --warmup 0 --seconds 4
 
   isolated-runtime:
     name: Stage 1 process boundary / Linux UIDs and SSH

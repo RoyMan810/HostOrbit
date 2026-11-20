@@ -58,3 +58,25 @@ class EnrollmentTests(Fixture):
             reply = client.post(f"/api/v1/resources/{target}/observations", json={},
                                 headers={**headers, "Idempotency-Key": identifier()})
             self.assertEqual(reply.status_code, status, reply.text)
+
+    def test_enrollment_rejects_unexpected_credentials_without_echo_or_audit(self):
+        canary = "enrollment-secret-canary"
+        response = self.client.post("/api/v1/resources", headers=self.headers(), json={
+            "resource_id": SCOPE, "fingerprint": self.pins[SCOPE], "password": canary,
+        })
+        self.assertEqual(response.status_code, 422)
+        self.assertNotIn(canary, response.text)
+        self.assertNotIn(canary, str(self.store.events_after(0)))
+        with self.store.read() as db:
+            self.assertEqual(db.execute("SELECT count(*) FROM resources").fetchone()[0], 0)
+
+    def test_candidate_list_exposes_only_unregistered_ids_to_owner(self):
+        endpoint = "/api/v1/enrollment/candidates"
+        self.assertEqual(self.client.get(endpoint).json(), {"items": sorted((SCOPE, OTHER))})
+        self.assertEqual(self.enroll(SCOPE, self.pins[SCOPE]).status_code, 201)
+        self.assertEqual(self.client.get(endpoint).json(), {"items": [OTHER]})
+        self.create_user(grants=[{"permission": "vps:read", "resource_id": OTHER}])
+        client = self.enterContext(TestClient(self.client.app, base_url=ORIGIN))
+        self.assertEqual(client.get(endpoint).status_code, 401)
+        self.login(client=client, user="operator")
+        self.assertEqual(client.get(endpoint).status_code, 403)

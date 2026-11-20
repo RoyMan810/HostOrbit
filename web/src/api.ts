@@ -16,6 +16,9 @@ export interface DockerContainer {
   service: string
   state: ContainerState
   started_at?: string | null
+  mount_status?: 'NONE' | 'PRESENT' | 'UNKNOWN'
+  network_status?: 'ISOLATED' | 'OTHER' | 'UNKNOWN'
+  dependency_status?: 'ISOLATED' | 'OTHER' | 'UNKNOWN'
 }
 interface DockerPortBinding {
   address: string

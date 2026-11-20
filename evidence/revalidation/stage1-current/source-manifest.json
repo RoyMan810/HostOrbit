@@ -1,11 +1,11 @@
 {
   "scope": "Tracked Foundation application, deploy, remote and test paths plus historical report paths and CI/build inputs; each file matches the checked commit.",
-  "source_commit": "35cef1e79d9ed12fc4d6c9f62c5bf7f77a1da261",
-  "source_tree": "7c87cd6a5170227e9748007bc7f250195c9a4eb0",
+  "source_commit": "092c7b5757a6556bd676a49270c692fb70f46507",
+  "source_tree": "634333c97d424de70ee993ebb3f6ed96ea4a059c",
   "files": [
     {
       "path": ".github/workflows/checks.yml",
-      "sha256": "d62239411d231af8a01dcb1ab6e9bdf75bf848bbf95dde9bc6c6fcd1ed1054d0"
+      "sha256": "af34d4639ca5b282d990535044cea6b736671f96ce6c14186b0ae26d9cd87e3a"
     },
     {
       "path": "deploy/Controller.Dockerfile",
@@ -81,7 +81,7 @@
     },
     {
       "path": "hostorbit/api.py",
-      "sha256": "19819a01adb55184b45b93e8bb221f5acf49813bb4dbd220dbb4d9c0755b582a"
+      "sha256": "efc382ab009b4d08af3d36185c365b617a59cf29477a1698d9cf73b5f716eaf6"
     },
     {
       "path": "hostorbit/audit_plan.py",
@@ -117,7 +117,7 @@
     },
     {
       "path": "hostorbit/queue.py",
-      "sha256": "3d33b7bbd03103be873aac819113ab4eb8c74202cc7c2702ae42f0096c916c58"
+      "sha256": "65af0ba808fd16532e2718ba186ba4c41269c679737c0ad712723f47d2ce9b77"
     },
     {
       "path": "hostorbit/release-manifest.json",
@@ -313,7 +313,7 @@
     },
     {
       "path": "tests_app/test_enrollment_api.py",
-      "sha256": "7128102369011be8d11f758b0712ce28cc9929ef2592ddd9c574a0fcd167ec67"
+      "sha256": "380b8802b3046b0c8236f9d6614593a196b12b86250b072d986f4efb64e5f29b"
     },
     {
       "path": "tests_app/test_http_boundary.py",

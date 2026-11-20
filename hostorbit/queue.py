@@ -54,6 +54,15 @@ class JobQueue:
         self.store.event(db, at=now, actor=actor, kind="resource.observation_registered", target=identity,
                          outcome="SUCCEEDED", correlation=correlation, details={"policy_revision": policy_revision, "scope_digest": scope_digest})
 
+    def enrollment_candidates(self, auth, token, catalog):
+        with self.store.read() as db:
+            self._schema(db)
+            actor = auth._session(db, token)
+            if actor["role"] != Role.OWNER:
+                raise Denied("FORBIDDEN")
+            registered = {row["id"] for row in db.execute("SELECT id FROM resources")}
+            return sorted(catalog.keys() - registered)
+
     def enroll(self, auth, token, csrf, identity, fingerprint, catalog, correlation):
         with self.store.write() as db:
             self._schema(db)

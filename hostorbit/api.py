@@ -323,6 +323,10 @@ def create_app(settings: Settings, *, auth: AuthService | None = None, enrollmen
         response.headers["Location"] = f'/api/v1/jobs/{result["id"]}'
         return result
 
+    @app.get("/api/v1/enrollment/candidates")
+    def enrollment_candidates(request: Request, actor=Depends(principal)):
+        return {"items": queue.enrollment_candidates(service, token(request), enrollment_catalog or {})}
+
     @app.post("/api/v1/resources", status_code=201)
     def enroll_resource(body: EnrollResource, request: Request, response: Response, actor=Depends(principal)):
         result = queue.enroll(service, token(request), csrf(request), body.resource_id, body.fingerprint,
