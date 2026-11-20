@@ -1,0 +1,26 @@
+{
+  "test_id": "AC-03",
+  "outcome": "PASS",
+  "assertion": "Подмена SSH host fingerprint приводит к блокировке подключения и событию безопасности.",
+  "recorded_at_utc": "2026-11-20T19:30:26.636Z",
+  "source_commit": "6edf8419ceaee6fc4881a22d2f37341002b6bd22",
+  "build_digest": "7a78722347244b85bec1f09037824d901bcac7f0358290c87d7a5bc350c05cf3",
+  "manifest_digest": "7a78722347244b85bec1f09037824d901bcac7f0358290c87d7a5bc350c05cf3",
+  "sbom_digest": "472b87046a183ef48d6be3175dcb815b4d44c2bd171d5dd4d9b484a356b4cf71",
+  "digest_scope": "Подписанный манифест идентифицирует комплект сборки Controller. CI-репетиция SSH использует тот же checkout с закреплёнными зависимостями.",
+  "bundle_metadata_artifact": "https://github.com/RoyMan810/HostOrbit/actions/runs/44751217715/artifacts/14635302268",
+  "reviewer": "Codex сверил логи CI, источники тестов и дайджесты артефактов.",
+  "environment": "Ubuntu в GitHub Actions, отдельные Linux UID для API и Worker, штатный Broker и настоящий OpenSSH в сетевом namespace.",
+  "initial_state": "Управляемая SSH-цель с закреплённым host key и успешным наблюдением через Worker.",
+  "scenario": "Заменить host key цели и повторить наблюдение с прежним закреплённым отпечатком.",
+  "fault_injection": "sshd перезапущен с другим host key.",
+  "observation": "Broker заблокировал подключение. Job записан как FAILED с SSH_HOST_KEY_MISMATCH, целостность аудита подтверждена. В этой ветке Queue записывает security.ssh_host_key_mismatch в той же транзакции.",
+  "ci_jobs": [
+    "https://github.com/RoyMan810/HostOrbit/actions/runs/44751217715/job/136339293236"
+  ],
+  "source_paths": [
+    "tests_runtime/lab/runtime_boundary.py",
+    "hostorbit/queue.py"
+  ],
+  "evidence_digest": "65e5b30744e57508fce7ed2ed171f5b9162276bd325c329692c3bad005c919e7"
+}

@@ -1276,7 +1276,7 @@
       ],
       "owner": "Auth/Bootstrap",
       "stage": "Stage1",
-      "status": "NOT_RUN",
+      "status": "PASS",
       "verification_path": "evidence/verification/stage3-local.json"
     },
     {
@@ -1303,7 +1303,7 @@
       ],
       "owner": "SSH/OS Manager",
       "stage": "Stage1",
-      "status": "NOT_RUN"
+      "status": "PASS"
     },
     {
       "assertion": "Приватные SSH-ключи и API-токены отсутствуют в ответах обычного Web API и в структурированных журналах HostOrbit; разрешённая операция использует Secret Reference. Сырые сторонние stdout/stderr не выдаются в MVP; допускается только явно санкционированный age-зашифрованный Rescue export (§33, §35).",
@@ -1361,7 +1361,8 @@
       ],
       "owner": "Architecture/Security",
       "stage": "Stage0",
-      "status": "NOT_RUN"
+      "status": "NOT_RUN",
+      "verification_path": "evidence/verification/stage3-acceptance-review.json"
     },
     {
       "assertion": "Разрыв SSH после передачи команды переводит операцию в Unknown Outcome; автоматический повтор запрещён до reconciliation.",
@@ -1374,7 +1375,8 @@
       ],
       "owner": "Architecture/Security",
       "stage": "Stage0",
-      "status": "NOT_RUN"
+      "status": "NOT_RUN",
+      "verification_path": "evidence/verification/stage3-acceptance-review.json"
     },
     {
       "assertion": "Все mutating jobs MVP глобально сериализованы одним host admission authority с Update Controller. UNKNOWN сохраняет конфликтное dependency closure; карантин всей затронутой VPS и связанных cross-host ресурсов запрещает все пересекающиеся изменения до reconciliation/изоляции. Параллельные read-only проверки разрешены.",
@@ -1426,7 +1428,8 @@
       ],
       "owner": "Architecture/Security",
       "stage": "Stage0",
-      "status": "NOT_RUN"
+      "status": "NOT_RUN",
+      "verification_path": "evidence/verification/stage3-acceptance-review.json"
     },
     {
       "assertion": "Восстановленный Controller не допускает `ACTIVE` без локальной Owner attestation ручного протокола изоляции старого экземпляра, зафиксированных наблюдений и следующих условий: остановка/изоляция старого Worker, отсутствие опасных исполняющихся операций, отзыв старых credentials на доступных ресурсах, карантин остальных, целостность базы/Vault и локальное повторное подтверждение в Rescue CLI. API хостера не используется.",
@@ -1439,7 +1442,8 @@
       ],
       "owner": "Architecture/Security",
       "stage": "Stage0",
-      "status": "NOT_RUN"
+      "status": "NOT_RUN",
+      "verification_path": "evidence/verification/stage3-acceptance-review.json"
     },
     {
       "assertion": "После DR все незавершённые задания не запускаются самопроизвольно, расписания остаются на паузе до явного разрешения.",
@@ -1451,7 +1455,8 @@
       ],
       "owner": "Scheduler",
       "stage": "Stage1",
-      "status": "NOT_RUN"
+      "status": "NOT_RUN",
+      "verification_path": "evidence/verification/stage3-acceptance-review.json"
     },
     {
       "assertion": "При недоступной проверке интерфейс показывает Unknown/Unreachable с источником и временем, не Healthy.",
@@ -1504,7 +1509,8 @@
       ],
       "owner": "Independent Update Controller",
       "stage": "Stage1",
-      "status": "NOT_RUN"
+      "status": "NOT_RUN",
+      "verification_path": "evidence/verification/stage3-acceptance-review.json"
     },
     {
       "assertion": "Новая VPS, попавшая в динамическую группу, не добавляется в ранее подтверждённую изменяющую операцию и не наследует прежнее разрешение на изменение.",
@@ -1603,7 +1609,7 @@
       ],
       "owner": "Frontend",
       "stage": "Stage2",
-      "status": "NOT_RUN",
+      "status": "PASS",
       "verification_path": "evidence/verification/stage3-local.json"
     },
     {
@@ -1756,7 +1762,8 @@
       ],
       "owner": "Secrets Broker",
       "stage": "Stage1",
-      "status": "NOT_RUN"
+      "status": "NOT_RUN",
+      "verification_path": "evidence/verification/stage3-acceptance-review.json"
     },
     {
       "assertion": "Подмена подписи/digest update manifest блокирует обновление; сбой обновления самого Update Controller откатывает только его A/B слот, а не SQLite.",
@@ -1779,7 +1786,8 @@
       ],
       "owner": "Architecture/Security",
       "stage": "Stage0",
-      "status": "NOT_RUN"
+      "status": "NOT_RUN",
+      "verification_path": "evidence/verification/stage3-acceptance-review.json"
     },
     {
       "assertion": "Штатный перенос с доступного старого Controller допускает ручную остановку/mask Worker и Scheduler и отзыв старых credentials без выключения VPS с посторонними сервисами. Если невозможно подтвердить прекращение опасных операций или изолировать недоступный старый экземпляр, только `READ_ONLY_RECOVERY`, без `force active` и удаления VPS.",
@@ -1823,7 +1831,8 @@
       ],
       "owner": "Recovery/Rescue CLI",
       "stage": "Stage1",
-      "status": "NOT_RUN"
+      "status": "NOT_RUN",
+      "verification_path": "evidence/verification/stage3-acceptance-review.json"
     },
     {
       "assertion": "На стенде 25 VPS/200 services соблюдаются оговорённые ограничения concurrency и p95 API; журнал не содержит паролей и приватных SSH-ключей даже при ошибках.",
@@ -1849,7 +1858,8 @@
       ],
       "owner": "Architecture/Security",
       "stage": "Stage0",
-      "status": "NOT_RUN"
+      "status": "NOT_RUN",
+      "verification_path": "evidence/verification/stage3-acceptance-review.json"
     },
     {
       "assertion": "Оба независимых офлайн-носителя recovery identity проходят ручную проверку и test-restore с локальной offline-дешифровкой; потеря/неверный ключ приводит к `DR_NOT_READY`, процедура ротации не удаляет прежний доступ до проверки новых зашифрованных архивов. На новую VPS передаётся только зашифрованный recovery bundle.",
@@ -2103,7 +2113,8 @@
       ],
       "owner": "Independent Update Controller",
       "stage": "Stage1",
-      "status": "NOT_RUN"
+      "status": "NOT_RUN",
+      "verification_path": "evidence/verification/stage3-acceptance-review.json"
     },
     {
       "assertion": "На VPS с чужими vhost/shared nginx создать отдельный owned instance; проверить старые routing/TLS/health до и после. Duplicate server_name, IPv6 dual-stack, default_server, опасный include, занятый socket и partial reload не воздействуют на system master.",

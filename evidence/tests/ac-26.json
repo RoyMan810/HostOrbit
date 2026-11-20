@@ -1,0 +1,27 @@
+{
+  "test_id": "AC-26",
+  "outcome": "PASS",
+  "assertion": "В RU/EN проходят основные сценарии с клавиатуры; критические предупреждения доступны без опоры только на цвет.",
+  "recorded_at_utc": "2026-11-20T19:30:26.636Z",
+  "source_commit": "6edf8419ceaee6fc4881a22d2f37341002b6bd22",
+  "build_digest": "394eee4269adbe40f4c9d4370464ab402eb78d2854fd2869d71788f2fed90303",
+  "manifest_digest": "837228ca62ef22c774725b13ff2d181746f16ad1f73120f4dccbfb9f4a2155f1",
+  "sbom_digest": "472b87046a183ef48d6be3175dcb815b4d44c2bd171d5dd4d9b484a356b4cf71",
+  "digest_scope": "Сборка WebUI и файл SHA256SUMS из проверенного WebUI artifact. SBOM относится к Controller из того же checkout в параллельном CI.",
+  "bundle_metadata_artifact": "https://github.com/RoyMan810/HostOrbit/actions/runs/44751217715/artifacts/14635302268",
+  "reviewer": "Codex сверил логи CI, источники тестов и дайджесты артефактов.",
+  "environment": "Chrome на Ubuntu 24.04 в GitHub Actions, Playwright и WebUI по loopback HTTPS. Локально оба сценария дополнительно выполнены в Chromium.",
+  "initial_state": "Страница входа без сессии, подготовленная цель с устаревшим наблюдением и отдельный контекст браузера для каждого языка.",
+  "scenario": "В RU и EN пройти с клавиатуры вход, переход к основному содержимому, инвентарь, аудит, настройки и выход.",
+  "fault_injection": "Неверный пароль и устаревшее наблюдение.",
+  "observation": "Оба языка прошли. Ошибка входа объявлена как alert, состояние цели и его причина показаны текстом. В CI прошли все 39 браузерных тестов.",
+  "ci_jobs": [
+    "https://github.com/RoyMan810/HostOrbit/actions/runs/44751217685/job/136339293041"
+  ],
+  "source_paths": [
+    "web/tests/accessibility.spec.ts"
+  ],
+  "browser_artifact": "https://github.com/RoyMan810/HostOrbit/actions/runs/44751217685/artifacts/14634689625",
+  "additional_evidence_path": "evidence/verification/stage3-local.json",
+  "evidence_digest": "46421e6e02f5c962a6c85cd126378b0722d61a316cc9683cfc92659caa35e95c"
+}

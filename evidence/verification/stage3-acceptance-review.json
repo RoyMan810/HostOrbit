@@ -1,0 +1,111 @@
+{
+  "schema_version": 1,
+  "scope": "STAGE3_ACCEPTANCE_REVIEW",
+  "recorded_at_utc": "2026-11-20T19:30:26.636Z",
+  "source_commit": "230263825cd6928cc9ae658cd56ecff31c831fab",
+  "local_disaster_recovery": {
+    "status": "ACCEPTED_BY_OWNER",
+    "scope": "Отказ целой VM Controller. Исходная и восстановленная VM, а также лабораторное off-host хранилище использовали один физический хост.",
+    "owner_decision_at_utc": "2026-11-20",
+    "shared_physical_failure_domain": true,
+    "source_power_off_confirmed": true,
+    "outage_started_epoch": 1795202118,
+    "source_power_off_confirmed_epoch": 1795202120,
+    "read_only_recovery_verified_epoch": 1795202417,
+    "rpo_seconds": 126,
+    "rto_seconds": 299,
+    "rto_endpoint": "Owner вошёл по HTTPS и проверил целостность Audit и Outbox.",
+    "recovery_state": "READ_ONLY_RECOVERY",
+    "activation_status": "MANUAL_FENCING_REQUIRED",
+    "quarantined_targets": 1,
+    "offline_age_identity_transferred": false,
+    "remote_backup_verified": true,
+    "snapshot_id": "01M7X610G7BC18R52BEYYSRTPY",
+    "backup_ciphertext_sha256": "4eb04f30bf7a1360cbd78459a4d212fa1095ca9849ce5633d5d9c5484a77f7b6",
+    "offline_reencrypted_bundle_sha256": "a7f27bc7ce0a024d3509cacabc93d6de1ce2d4f8c997e45c6c447a67414e7b12",
+    "installed_manifest_sha256": "fbabce9bf8df7b305313402a7adf81e84ce076bb714421ef2e3964b96b68268a",
+    "installed_sbom_sha256": null
+  },
+  "previous_local_verification": "evidence/verification/stage3-local.json",
+  "ci_workflows": [
+    "https://github.com/RoyMan810/HostOrbit/actions/runs/44751217715",
+    "https://github.com/RoyMan810/HostOrbit/actions/runs/44751217685",
+    "https://github.com/RoyMan810/HostOrbit/actions/runs/44751217739"
+  ],
+  "status_after_review": {
+    "required": 72,
+    "pass": 20,
+    "not_run": 52
+  },
+  "acceptance": {
+    "AC-07": {
+      "status": "NOT_RUN",
+      "observation": "CI заблокировал второй Worker и сохранил UNKNOWN_OUTCOME у исходного задания после SIGKILL и перезапуска, несмотря на позднюю квитанцию Broker.",
+      "remaining": "Сверить сохранение checkpoint для изменяющего задания.",
+      "references": [
+        "https://github.com/RoyMan810/HostOrbit/actions/runs/44751217715/job/136339293236"
+      ]
+    },
+    "AC-08": {
+      "status": "NOT_RUN",
+      "observation": "CI подтвердил потерю SSH и состояние реального делегированного Docker-эффекта. Отдельный тест подтверждает блокировку повторной отправки при UNKNOWN_OUTCOME.",
+      "remaining": "Проверить в одном прогоне на установленном Controller прямой обрыв SSH после отправки команды, UNKNOWN_OUTCOME, блокировку повтора и отсутствие второго эффекта.",
+      "references": [
+        "https://github.com/RoyMan810/HostOrbit/actions/runs/44751217715/job/136339293675",
+        "https://github.com/RoyMan810/HostOrbit/actions/runs/44751217715/job/136339293831"
+      ]
+    },
+    "AC-12": {
+      "status": "NOT_RUN",
+      "observation": "На отдельной рабочей станции выполнили офлайн Rescue. Импорт на новой VM завершился в READ_ONLY_RECOVERY. Ключ остался на рабочей станции.",
+      "remaining": "Для формального PASS требуется зафиксировать SHA-256 SBOM именно установленной сборки и привязать его к протоколу восстановления."
+    },
+    "AC-13": {
+      "status": "NOT_RUN",
+      "observation": "Новый Controller остался в READ_ONLY_RECOVERY при MANUAL_FENCING_REQUIRED.",
+      "remaining": "Проверить полный локальный протокол изоляции, отзыва credentials и активирования Owner."
+    },
+    "AC-14": {
+      "status": "NOT_RUN",
+      "observation": "После импорта Controller доступен в READ_ONLY_RECOVERY.",
+      "remaining": "Сверить состояния восстановленных незавершённых Jobs и расписаний до и после запуска."
+    },
+    "AC-18": {
+      "status": "NOT_RUN",
+      "observation": "На реальной SQLite и Supervisor протестирован отказ после COMMIT с имитацией службы.",
+      "remaining": "Повторить применение подписанного обновления и отказ после COMMIT с реальными systemd и Compose.",
+      "references": [
+        "https://github.com/RoyMan810/HostOrbit/pull/114"
+      ]
+    },
+    "AC-38": {
+      "status": "NOT_RUN",
+      "observation": "Импорт зашифрованного recovery bundle завершился. Офлайн identity осталась на рабочей станции.",
+      "remaining": "Приложить отрицательные результаты по повреждённому архиву и неверной identity, подтверждение DB/Vault и проверку журналов, аргументов и env."
+    },
+    "AC-40": {
+      "status": "NOT_RUN",
+      "observation": "Controller остался в READ_ONLY_RECOVERY без подтверждённого fencing.",
+      "remaining": "Проверить заявленные негативные варианты из критерия."
+    },
+    "AC-44": {
+      "status": "NOT_RUN",
+      "observation": "После потери исходной VM импорт завершился в READ_ONLY_RECOVERY. Одна цель в QUARANTINED.",
+      "remaining": "Сверить незавершённые Jobs и paused schedules."
+    },
+    "AC-46": {
+      "status": "NOT_RUN",
+      "observation": "Локальный сценарий завершён на этапе READ_ONLY_RECOVERY.",
+      "remaining": "Провести ручной fencing, отозвать credentials, активировать новый Controller и проверить отказ старого Worker с отозванными credentials."
+    },
+    "AC-A15": {
+      "status": "NOT_RUN",
+      "observation": "На реальной SQLite и Supervisor проверены исключение до COMMIT, сбой запуска и SIGKILL после COMMIT с имитацией службы.",
+      "remaining": "Прогнать фазовые отказы и восстановление на реальных systemd и Compose, сверить остальные сценарии критерия.",
+      "references": [
+        "https://github.com/RoyMan810/HostOrbit/pull/114"
+      ]
+    }
+  },
+  "evidence_digest": "6996827f6281c4415b1930563b6225be4bcc2348313b8443727b5b049ca7e288"
+}
