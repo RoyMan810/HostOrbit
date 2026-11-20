@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { ApiError, hasApiStatus, isUlid, request } from './api'
 import type { Resource, Session } from './api'
 import type { Copy, Language } from './copy'
@@ -43,8 +43,13 @@ function checkedJob(value: unknown, target: string, expectedId?: string): Job {
   return job
 }
 
-export function ProbeControl({ resource, session, t, lang, expired, reload }: {
+function newAttempt(target: string): Attempt {
+  return { target, key: crypto.randomUUID(), startedAt: Date.now(), monotonicStart: performance.now() }
+}
+
+export function ProbeControl({ resource, enrolled, session, t, lang, expired, reload }: {
   resource: Resource | null
+  enrolled: string | null
   session: Session
   t: Copy
   lang: Language
@@ -56,7 +61,8 @@ export function ProbeControl({ resource, session, t, lang, expired, reload }: {
 
   useEffect(() => () => submission.current?.abort(), [])
 
-  async function submit(attempt: Attempt, retry = false) {
+  const csrf = session.csrf_token
+  const submit = useCallback(async (attempt: Attempt, retry = false) => {
     if (submission.current) return
     // Stay inside the Controller's 24-hour request deduplication window.
     if (Math.max(Date.now() - attempt.startedAt, performance.now() - attempt.monotonicStart) >= retryWindowMs) {
@@ -69,7 +75,7 @@ export function ProbeControl({ resource, session, t, lang, expired, reload }: {
     try {
       const value = await request<unknown>('/resources/' + encodeURIComponent(attempt.target) + '/observations', {
         body: {},
-        csrf: session.csrf_token,
+        csrf,
         idempotencyKey: attempt.key,
         signal: AbortSignal.any([abort.signal, AbortSignal.timeout(15_000)]),
       })
@@ -90,7 +96,7 @@ export function ProbeControl({ resource, session, t, lang, expired, reload }: {
     } finally {
       submission.current = null
     }
-  }
+  }, [csrf, expired, reload])
 
   useEffect(() => {
     if (run?.phase !== 'watching') return
@@ -122,17 +128,20 @@ export function ProbeControl({ resource, session, t, lang, expired, reload }: {
 
   const canStart = resource?.enabled && session.user.role !== 'Auditor'
   const locked = run && ['sending', 'uncertain', 'retry-denied', 'watching', 'paused'].includes(run.phase)
+  const checkedEnrollment = useRef<string | null>(null)
+  useEffect(() => {
+    if (!enrolled || !canStart || locked || enrolled !== resource?.id || checkedEnrollment.current === enrolled) return
+    checkedEnrollment.current = enrolled
+    void submit(newAttempt(enrolled))
+  }, [canStart, enrolled, locked, resource?.id, submit])
+
   if (!canStart && !run) return null
 
   return <div className="probe">
     <div className="probe-heading">
       <h3>{t.probeHeading}</h3>
-      {canStart && <button className="primary" disabled={Boolean(locked)} onClick={() => {
-        void submit({
-          target: resource.id, key: crypto.randomUUID(),
-          startedAt: Date.now(), monotonicStart: performance.now(),
-        })
-      }}>{t.probeStart}</button>}
+      {canStart && <button className="primary" disabled={Boolean(locked)}
+        onClick={() => void submit(newAttempt(resource.id))}>{t.probeStart}</button>}
     </div>
     {run && <div className="probe-state" role="status">
       <div className="probe-id"><span>{t.probeTarget}</span><code>{run.attempt.target}</code></div>

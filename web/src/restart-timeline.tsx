@@ -54,7 +54,8 @@ export function RestartTimeline({ route, t, lang, expired, session }: {
     return () => { abort.abort(); window.clearTimeout(timer) }
   }, [planId, operationId, revision, expired, refresh])
 
-  const last = entries?.at(-1)
+  const history = entries ?? []
+  const last = history.at(-1)
   const attempt = (last?.attempt ?? 0) + 1
   const [sending, setSending] = useState(false)
   async function reconcile() {
@@ -70,22 +71,36 @@ export function RestartTimeline({ route, t, lang, expired, session }: {
     }
   }
   const format = new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'medium' })
+  const label = (status: string) => Object.hasOwn(t.restartStates, status)
+    ? t.restartStates[status as keyof Copy['restartStates']] : status
+  const needsCheck = last?.status === 'UNKNOWN_OUTCOME' || last?.status === 'QUARANTINED'
   return <div className="workspace">
     <section aria-label={t.restartTimeline} className="panel">
       <div className="panel-heading"><h1>{t.restartTimeline}</h1>
-        <button type="button" onClick={() => setRefresh(value => value + 1)}>{t.restartCheckResult}</button>
+        {error === 'failed' && <button type="button" onClick={() => setRefresh(value => value + 1)}>{t.retry}</button>}
       </div>
-      {entries && <p className="notice">{t.restartRevision} {revision}</p>}
-      {session.user.role === 'Owner' && attempt <= 3 && (last?.status === 'UNKNOWN_OUTCOME' || last?.status === 'QUARANTINED') &&
-        <button type="button" disabled={sending} onClick={reconcile}>{t.restartReconcile}</button>}
       {error && <p className="notice error" role="alert">{error === 'denied' ? t.restartTimelineDenied : t.requestError}</p>}
       {entries === null && !error && <p className="notice" role="status">{t.loading}</p>}
       {entries?.length === 0 && <p className="notice" role="status">{t.timelineEmpty}</p>}
-      {!!entries?.length && <ol className="audit-list" aria-live="polite">{entries.map(item => <li key={item.seq}>
-        <strong>{Object.hasOwn(t.restartStates, item.status) ? t.restartStates[item.status as keyof Copy['restartStates']] : item.status}</strong>
-        {Number.isSafeInteger(item.at) && item.at >= 0 && item.at <= 253402300799 && <> · {format.format(item.at * 1000)}</>}
-        {item.reason && <> · <code>{item.reason}</code></>}
-      </li>)}</ol>}
+      {last && <>
+        <div className="restart-result" role="status">
+          <h2>{label(last.status)}</h2>
+          {needsCheck && <p>{t.restartUnknownHelp}</p>}
+          {last.status === 'RECONCILIATION_REQUESTED' && <p>{t.restartReconcileHelp}</p>}
+          {last.status === 'SUCCEEDED' && <p>{t.restartVerifiedHelp}</p>}
+        </div>
+        {session.user.role === 'Owner' && attempt <= 3 && needsCheck &&
+          <button type="button" disabled={sending} onClick={reconcile}>{t.restartReconcile}</button>}
+        <details className="restart-events">
+          <summary>{t.restartEvents}</summary>
+          <p>{t.restartRevision} {revision} · <code>{operationId}</code></p>
+          <ol className="audit-list" reversed>{history.slice().reverse().map(item => <li key={item.seq}>
+            <strong>{label(item.status)}</strong>
+            {Number.isSafeInteger(item.at) && item.at >= 0 && item.at <= 253402300799 && <> · {format.format(item.at * 1000)}</>}
+            {item.reason && <> · <code>{item.reason}</code></>}
+          </li>)}</ol>
+        </details>
+      </>}
     </section>
   </div>
 }

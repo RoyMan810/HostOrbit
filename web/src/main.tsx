@@ -231,7 +231,7 @@ function Inventory({ t, lang, expired, session }: { t: Copy; lang: Language; exp
         <span aria-hidden="true">↻</span> {t.refresh}
       </button>
     </div>
-    {session.user.role === 'Owner' && <Enrollment t={t} session={session} expired={expired}
+    {session.user.role === 'Owner' && <Enrollment t={t} session={session} expired={expired} firstVps={page?.items.length === 0 && cursors.length === 1}
       onEnroll={id => { setEnrolled(id); reload() }}/>}
     <div className="columns">
       <section className="panel hosts" aria-labelledby="host-heading">
@@ -267,7 +267,7 @@ function Inventory({ t, lang, expired, session }: { t: Copy; lang: Language; exp
         </p> : current ? <Detail resource={current} t={t} lang={lang} now={now}
           expired={expired} session={session}/> :
           <p className="notice" role="status">{selected && !error ? t.loading : t.select}</p>}
-        <ProbeControl resource={current} session={session} t={t} lang={lang} expired={expired} reload={reload}/>
+        <ProbeControl resource={current} enrolled={enrolled} session={session} t={t} lang={lang} expired={expired} reload={reload}/>
       </section>
     </div>
   </div>
