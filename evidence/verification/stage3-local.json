@@ -1,0 +1,266 @@
+{
+  "schema_version": 1,
+  "scope": "LOCAL_VERIFICATION",
+  "release_acceptance": false,
+  "recorded_at_utc": "2026-11-20T14:10:42.205878+00:00",
+  "source_commit": "ce467d2d5cf0a5d9b285356ab07a80efb4e2eab3",
+  "reviewer_status": "PENDING",
+  "acceptance": {
+    "AC-01": {
+      "status": "NOT_RUN",
+      "observation": "Опыт с локальным bootstrap и тестовой Web API."
+    },
+    "AC-02": {
+      "status": "NOT_RUN",
+      "observation": "Проверки области RBAC и постановки заданий."
+    },
+    "AC-04": {
+      "status": "NOT_RUN",
+      "observation": "Проверки откликов API, сессий и доступа к ключу через Worker/Broker."
+    },
+    "AC-26": {
+      "status": "NOT_RUN",
+      "observation": "Локально пройдены клавиатурные сценарии на русском и английском в Chromium."
+    },
+    "AC-45": {
+      "status": "NOT_RUN",
+      "observation": "Короткий синтетический прогон с API, SQLite и проверкой пользовательской квоты."
+    },
+    "AC-A22": {
+      "status": "NOT_RUN",
+      "observation": "Короткий синтетический прогон с 30-дневным набором Audit/Jobs, WAL и checkpoint."
+    }
+  },
+  "observations": {
+    "security": {
+      "command": "python -m tools.stage3_security",
+      "finished_at_utc": "2026-11-20T14:01:44.608555+00:00",
+      "python": "3.15.2",
+      "release_acceptance": false,
+      "scope": "LOCAL_DEFENSIVE_REGRESSIONS",
+      "sqlite": "3.53.1",
+      "started_at_utc": "2026-11-20T14:01:24.581503+00:00",
+      "status": "PASSED",
+      "suites": [
+        {
+          "errors": 0,
+          "failures": 0,
+          "passed": true,
+          "run": 15,
+          "skipped": 0,
+          "suite": "tests_app/test_auth_api.py"
+        },
+        {
+          "errors": 0,
+          "failures": 0,
+          "passed": true,
+          "run": 7,
+          "skipped": 0,
+          "suite": "tests_app/test_http_boundary.py"
+        },
+        {
+          "errors": 0,
+          "failures": 0,
+          "passed": true,
+          "run": 8,
+          "skipped": 0,
+          "suite": "tests_app/test_permissions.py"
+        },
+        {
+          "errors": 0,
+          "failures": 0,
+          "passed": true,
+          "run": 10,
+          "skipped": 0,
+          "suite": "tests_app/test_queue_api.py"
+        },
+        {
+          "errors": 0,
+          "failures": 0,
+          "passed": true,
+          "run": 3,
+          "skipped": 0,
+          "suite": "tests_runtime/test_credentials.py"
+        },
+        {
+          "errors": 0,
+          "failures": 0,
+          "passed": true,
+          "run": 18,
+          "skipped": 0,
+          "suite": "tests_runtime/test_worker_broker.py"
+        }
+      ]
+    },
+    "synthetic_capacity": {
+      "command": "python -m tools.capacity_soak --warmup 1 --seconds 4 --check-quota",
+      "api_user_quota": {
+        "http_statuses": {
+          "200": 120,
+          "429": 1
+        },
+        "passed": true,
+        "rejection": {
+          "code": "API_RATE_LIMIT",
+          "retry_after": "60"
+        }
+      },
+      "audit": "6eefa0fc21e6ccff363612f769d64e34bfb13339591699a0088a8739a5536780",
+      "audit_canary_rows": 0,
+      "environment": {
+        "available_vcpus": 9,
+        "fastapi": "0.162.4",
+        "kernel": "6.18.57",
+        "os": "Debian GNU/Linux 13 (trixie)",
+        "python": "3.15.2",
+        "ram_bytes": 10451423232,
+        "sqlite": "3.53.1",
+        "work_filesystem_bytes": 20957446144
+      },
+      "finished_at_utc": "2026-11-20T14:06:16.958701+00:00",
+      "full_duration": false,
+      "history_days": 30,
+      "hosts": 25,
+      "interval_seconds": 3.0,
+      "measured": {
+        "elapsed_seconds": 4.004,
+        "read_latency_ms": {
+          "audit": {
+            "count": 2,
+            "p95": 63,
+            "p99": 63
+          },
+          "detail": {
+            "count": 2,
+            "p95": 40,
+            "p99": 40
+          },
+          "inventory": {
+            "count": 2,
+            "p95": 152,
+            "p99": 152
+          },
+          "session": {
+            "count": 2,
+            "p95": 110,
+            "p99": 110
+          }
+        },
+        "seconds": 4,
+        "secret_canaries_found": 0,
+        "sqlite_errors": {},
+        "sqlite_write_latency_ms": {
+          "begin": {
+            "count": 22,
+            "p95": 50,
+            "p99": 57
+          },
+          "commit": {
+            "count": 22,
+            "p95": 13,
+            "p99": 24
+          },
+          "transaction": {
+            "count": 22,
+            "p95": 14,
+            "p99": 25
+          }
+        },
+        "unexpected_http": 0,
+        "unexpected_statuses": {},
+        "wal_peak_bytes": 1013552,
+        "writer_count": 2,
+        "writer_errors": 0,
+        "writer_max_ms": 75
+      },
+      "profile": "synthetic_in_process",
+      "read_concurrency": 4,
+      "release_acceptance": false,
+      "services": 200,
+      "sqlite_integrity": "ok",
+      "started_at_utc": "2026-11-20T14:05:35.227479+00:00",
+      "status": "WORKLOAD_PASSED",
+      "wal_checkpoint": {
+        "busy": 0,
+        "checkpointed_frames": 246,
+        "duration_ms": 3,
+        "log_frames": 246
+      },
+      "warmup": {
+        "elapsed_seconds": 1.005,
+        "read_latency_ms": {
+          "audit": {
+            "count": 1,
+            "p95": 33,
+            "p99": 33
+          },
+          "detail": {
+            "count": 1,
+            "p95": 89,
+            "p99": 89
+          },
+          "inventory": {
+            "count": 1,
+            "p95": 78,
+            "p99": 78
+          },
+          "session": {
+            "count": 1,
+            "p95": 44,
+            "p99": 44
+          }
+        },
+        "seconds": 1,
+        "secret_canaries_found": 0,
+        "sqlite_errors": {},
+        "sqlite_write_latency_ms": {
+          "begin": {
+            "count": 11,
+            "p95": 63,
+            "p99": 63
+          },
+          "commit": {
+            "count": 11,
+            "p95": 11,
+            "p99": 11
+          },
+          "transaction": {
+            "count": 11,
+            "p95": 13,
+            "p99": 13
+          }
+        },
+        "unexpected_http": 0,
+        "unexpected_statuses": {},
+        "wal_peak_bytes": 341992,
+        "writer_count": 1,
+        "writer_errors": 0,
+        "writer_max_ms": 59
+      }
+    },
+    "installed_controller_8h": {
+      "status": "NOT_RUN",
+      "reason": "Изолированный Ubuntu Controller с требуемыми ресурсами, 25 SSH-целями и отдельным backup-хранилищем недоступен."
+    },
+    "webui_build": {
+      "command": "npm --prefix web run build",
+      "status": "PASSED",
+      "node": "24.22.3",
+      "limitations": "В CI используется Node 26. Локальная сборка проверена на имеющемся Node 24."
+    },
+    "webui_keyboard": {
+      "commands": [
+        "npm --prefix web test -- tests/accessibility.spec.ts --grep 'en keyboard'",
+        "npm --prefix web test -- tests/accessibility.spec.ts --grep 'ru keyboard'"
+      ],
+      "status": "PASSED",
+      "chromium": "153.0.8010.0",
+      "passed_by_locale": {
+        "en": 1,
+        "ru": 1
+      },
+      "limitations": "Каждый сценарий запущен отдельно с локальной сборкой Chromium через HOSTORBIT_CHROMIUM."
+    }
+  },
+  "evidence_digest": "04644154bf3b8c40686c2b85d83a4d025c269d4b1f2d528a0b0fcba0ecf4e58e"
+}
