@@ -30,6 +30,7 @@ class SupervisedUpdateTests(unittest.TestCase):
                                               time_health=trusted_time(self.root / "time", clock))
         self.addCleanup(self.authority.close)
         self.calls = []
+        self.smoke_calls = []
 
     def call(self, operation, request):
         self.calls.append(operation)
@@ -48,14 +49,21 @@ class SupervisedUpdateTests(unittest.TestCase):
                     "release_sha256": report["release_sha256"]}
         return destination, approval
 
-    def apply(self, source, approval, installed):
+    def verify_self_test(self, destination, version):
+        self.assertEqual(self.state(), "MAINTENANCE")
+        self.assertEqual(slot_name(self.slots), destination.name)
+        self.smoke_calls.append(version)
+
+    def apply(self, source, approval, installed, self_test=None):
         return select_update(source, self.slots, bytes(self.signer.verify_key), self, approval, installed=installed,
-                             bootstrap="1.0.0", minimum_release="1.0.0", schema=3, vault_format=1)
+                             bootstrap="1.0.0", minimum_release="1.0.0", schema=3, vault_format=1,
+                             self_test=self_test or self.verify_self_test)
 
     def test_checks_ticket_and_selects_a_then_b_with_real_authority(self):
         first, approval = self.build("1.2.0", "1.1.0")
         self.assertEqual(self.apply(first, approval, "1.1.0")["slot"], "A")
         self.assertEqual(self.state(), "NORMAL")
+        self.assertEqual(self.smoke_calls, ["1.2.0"])
         self.assertEqual(self.calls, ["time.anchor", "update.quiesce", "update.maintenance", "update.resuming", "update.normal"])
         self.assertFalse((self.slots / "pending.json").exists())
 
@@ -124,3 +132,19 @@ class SupervisedUpdateTests(unittest.TestCase):
         self.assertEqual(self.state(), "RECOVERY_HOLD")
         with self.assertRaisesRegex(Denied, "UPDATE_RECOVERY_REQUIRED"):
             self.apply(candidate, approval, "1.2.0")
+
+    def test_failed_execution_rolls_back_and_does_not_resume(self):
+        initial, approval = self.build("1.2.0", "1.1.0")
+        self.apply(initial, approval, "1.1.0")
+        candidate, approval = self.build("1.3.0", "1.2.0")
+
+        def fail(destination, version):
+            self.verify_self_test(destination, version)
+            raise Denied("UPDATER_SELF_TEST_FAILED")
+
+        self.calls.clear()
+        with self.assertRaisesRegex(Denied, "UPDATER_SELF_TEST_FAILED"):
+            self.apply(candidate, approval, "1.2.0", self_test=fail)
+        self.assertEqual(slot_name(self.slots), "A")
+        self.assertEqual(self.calls[-1], "update.maintenance")
+        self.assertTrue((self.slots / "pending.json").is_file())

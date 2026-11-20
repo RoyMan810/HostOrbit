@@ -13,6 +13,7 @@ import tempfile
 from deploy.artifact import ArtifactError, trusted_key
 from deploy.rehearse_update import select_slot, stage_candidate
 from deploy.update_release import verify_candidate
+from deploy.updater_self_test import run_updater_self_test
 from hostorbit.errors import Denied
 from hostorbit.runtime.cli import configuration
 from hostorbit.runtime.ipc import Client
@@ -60,7 +61,8 @@ def check_gate(gate, operation, ticket, state):
         raise Denied("UPDATE_GATE_RESPONSE_INVALID")
 
 
-def select_update(source, root, key, gate, approval, *, installed, bootstrap, schema, vault_format, minimum_release):
+def select_update(source, root, key, gate, approval, *, installed, bootstrap, schema, vault_format, minimum_release,
+                  self_test=run_updater_self_test):
     approval_fields(approval)
     root = Path(root).absolute()
     private_slots(root)
@@ -113,6 +115,7 @@ def select_update(source, root, key, gate, approval, *, installed, bootstrap, sc
                 select_slot(root, target)
                 if verify_candidate(destination, key, **compatibility) != candidate:
                     raise Denied("UPDATE_PACKAGE_CHECK_FAILED")
+                self_test(destination, candidate["version"])
                 check_gate(gate, "update.resuming", ticket, "RESUMING")
                 check_gate(gate, "update.normal", ticket, "NORMAL")
             except BaseException:
@@ -126,7 +129,7 @@ def select_update(source, root, key, gate, approval, *, installed, bootstrap, sc
             pending.unlink()
             directory_sync(root)
         return {"status": "UPDATER_PACKAGE_SELECTED", "slot": target, "version": candidate["version"],
-                "release_sha256": candidate["release_sha256"]}
+                "release_sha256": candidate["release_sha256"], "self_test": "PASSED"}
 
 
 def main(argv=None):
