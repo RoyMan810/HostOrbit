@@ -141,9 +141,9 @@ print(s.verify_audit())
                 or copied.execute("SELECT count(*) FROM change_plan_drafts").fetchone() != (0,)):
             raise RuntimeError("Plan migration changed the source or produced an invalid draft table")
     with sqlite3.connect("file:/var/lib/hostorbit/app/controller.sqlite3?mode=ro", uri=True) as installed:
-        if (installed.execute("PRAGMA user_version").fetchone() != (3,)
+        if (installed.execute("PRAGMA user_version").fetchone() != (4,)
                 or installed.execute("SELECT count(*) FROM change_plan_drafts").fetchone() != (0,)):
-            raise RuntimeError("Clean signed install did not initialize schema 3")
+            raise RuntimeError("Clean signed install did not initialize schema 4")
     print("Installed wheel CLI rehearsed schema 2 to 3 and created an empty draft table on a private copy.", flush=True)
 
 

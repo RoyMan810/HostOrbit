@@ -14,7 +14,7 @@ import sqlite3
 import stat
 import time
 
-from .database import SCHEMA_VERSION, Store, _PLAN_SCHEMA, _SCHEMA, canonical, identifier
+from .database import SCHEMA_VERSION, Store, _OPERATION_SCHEMA, _PLAN_SCHEMA, _SCHEMA, application_schema, canonical, identifier
 from .errors import Denied
 from .runtime.storage import directory_sync, new_private_file
 
@@ -43,11 +43,11 @@ def _schema_from_sql(script):
 
 
 def expected_schema(version):
-    if version not in (1, 2, 3):
+    if version not in (1, 2, 3, 4):
         raise Denied("MIGRATION_SCHEMA_UNSUPPORTED")
     if version == 1:
         return _schema_from_sql(historical_schema())
-    return _schema_from_sql(_SCHEMA + (_PLAN_SCHEMA if version == 3 else ""))
+    return _schema_from_sql(application_schema(version))
 
 
 def _verify(db, version):
@@ -100,13 +100,18 @@ def _statements(script):
         raise Denied("MIGRATION_DEFINITION_INVALID")
 
 
+def migration_script(to_schema):
+    return {
+        2: (_SCHEMA[_SCHEMA.index("CREATE TABLE resources"):], _QUEUE_TABLES),
+        3: (_PLAN_SCHEMA, ("change_plan_drafts",)),
+        4: (_OPERATION_SCHEMA, ()),
+    }[to_schema]
+
+
 def _migrate_snapshot(store, *, to_schema, audit_sequence, source_digest, at, correlation, progress):
     """Internal copy executor; callers never pass the live database here."""
     before = to_schema - 1
-    script, new_tables = (
-        (_SCHEMA[_SCHEMA.index("CREATE TABLE resources"):], _QUEUE_TABLES) if to_schema == 2
-        else (_PLAN_SCHEMA, ("change_plan_drafts",))
-    )
+    script, new_tables = migration_script(to_schema)
     with store.write() as db:
         db.set_progress_handler(progress, 1000)
         _verify(db, before)
@@ -149,7 +154,7 @@ def _verify_copy_connection(store, version):
 
 def rehearse(store, output, *, to_schema=2, clock=time.monotonic):
     """Read-only SQLite source + bounded, coherent copies; never replace source."""
-    if type(to_schema) is not int or to_schema not in (2, 3):
+    if type(to_schema) is not int or to_schema not in (2, 3, 4):
         raise Denied("MIGRATION_SCHEMA_UNSUPPORTED")
     before = to_schema - 1
     output = Path(output).absolute()

@@ -27,7 +27,7 @@ WITH page AS MATERIALIZED (
                  THEN a.seq END) AS success_seq
     FROM page r
     LEFT JOIN audit a ON a.target_id=r.id AND a.event IN ('job.finished','job.accepted')
-    LEFT JOIN jobs candidate ON candidate.id=a.correlation_id AND candidate.resource_id=r.id
+    LEFT JOIN jobs candidate ON candidate.id=a.correlation_id AND candidate.resource_id=r.id AND candidate.action='host.probe'
     GROUP BY r.id
 )
 SELECT r.*, j.status AS job_status, j.reason AS job_reason, j.updated_at AS checked_at,

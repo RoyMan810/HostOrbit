@@ -264,6 +264,26 @@ class PlanDraftMigrationTests(unittest.TestCase):
         queue.finish(claim, "UNKNOWN_OUTCOME", "SSH_TIMEOUT")
         self.output = self.root / "schema-three"
 
+    def test_operation_schema_preserves_existing_jobs_and_foreign_keys(self):
+        from hostorbit.runtime.migration_review import verify_rehearsal
+
+        rehearse(self.store, self.output, to_schema=3)
+        source = Store(self.output / "migrated.sqlite3")
+        output = self.root / "schema-four"
+        with source.read() as db:
+            tables = ("jobs", "request_keys", "job_incidents")
+            before = {name: db.execute(f'SELECT * FROM "{name}"').fetchall() for name in tables}
+        rehearse(source, output, to_schema=4)
+        self.assertEqual(verify_rehearsal(output)["schema_after"], 4)
+        with Store(output / "migrated.sqlite3").read() as db:
+            self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 4)
+            self.assertEqual(schema_rows(db), expected_schema(4))
+            self.assertIsNone(db.execute("PRAGMA foreign_key_check").fetchone())
+            for name, rows in before.items():
+                self.assertEqual(db.execute(f'SELECT * FROM "{name}"').fetchall(), rows)
+        with source.read() as db:
+            self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 3)
+
     def test_rehearses_plan_schema_on_a_copy_without_losing_queue_rows(self):
         tables = ("resources", "jobs", "request_keys", "job_incidents")
         with self.store.read() as db:

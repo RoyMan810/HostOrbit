@@ -14,7 +14,7 @@ RESOLVED = ("RECONCILED_SUCCEEDED", "RECONCILED_FAILED")
 MAX_AGE = 300
 
 
-def request_restart(db, source, auth, token, csrf, draft_id, *, if_match, probe_id, request_key, approval_id):
+def request_restart(db, source, queue, auth, token, csrf, draft_id, *, if_match, probe_id, request_key, approval_id):
     row, draft, actor = _checked_draft(db, auth, token, draft_id, if_match, csrf=csrf, mutating=True)
     if actor["role"] != Role.OWNER:
         raise Denied("CHANGE_PLAN_APPROVAL_OWNER_REQUIRED", 403)
@@ -47,6 +47,8 @@ def request_restart(db, source, auth, token, csrf, draft_id, *, if_match, probe_
                  "boot_id": baseline["boot_id"], "started_at": started_at, "scope_digest": baseline["scope_digest"]}
     Store.event(db, at=now, actor=actor["id"], target=row["resource_id"], correlation=draft_id,
                 kind=REQUESTED, outcome="QUEUED", details=operation)
+    queue.enqueue_restart(db, operation["operation_id"], actor["id"], row["resource_id"], baseline["scope_digest"],
+                          baseline["policy_revision"], row["plan_hash"])
     return {"id": operation["operation_id"], "revision": row["revision"], "status": "QUEUED"}
 
 
@@ -131,30 +133,31 @@ def restart_timeline(db, auth, token, draft_id):
                       for event in reversed(events)]}
 
 
-class RestartWorker:
-    def __init__(self, store, gate, broker, clock, secret_refs):
-        self.store, self.gate, self.broker, self.clock, self.secret_refs = store, gate, broker, clock, secret_refs
+class RestartOperations:
+    def __init__(self, queue, gate, broker, secret_refs):
+        self.queue, self.store, self.clock = queue, queue.store, queue.clock
+        self.gate, self.broker, self.secret_refs = gate, broker, secret_refs
 
-    @staticmethod
-    def waiting(db, from_event, until_events):
-        return db.execute("""SELECT a.* FROM audit a WHERE a.event=? AND NOT EXISTS (
-            SELECT 1 FROM audit b WHERE b.seq>a.seq AND b.correlation_id=a.correlation_id
-            AND b.target_id=a.target_id AND b.event IN (?,?) AND
-            json_extract(b.details,'$.operation_id')=json_extract(a.details,'$.operation_id'))
-            ORDER BY a.seq LIMIT 1""", (from_event, *until_events)).fetchone()
-
-    def event(self, db, row, operation, kind, outcome, reason=None):
-        Store.event(db, at=int(self.clock()), actor=row["actor_id"], target=row["target_id"],
-                    correlation=row["correlation_id"], kind=kind, outcome=outcome,
-                    details={"operation_id": operation["operation_id"], "revision": operation["revision"], "reason": reason})
-
-    def recover(self):
-        # Worker already holds its lifetime process lock. An interrupted dispatch
-        # never re-enters the Broker, even when its final receipt was lost.
+    def recover_legacy_requests(self):
+        # Requests from schema 3 lived only in audit. Never send them from the new queue.
         with self.store.write(kind="control") as db:
-            row = self.waiting(db, AC28_EVENTS[1], (AC28_EVENTS[2], AC28_EVENTS[2]))
-            if row is not None:
-                self.event(db, row, json.loads(row["details"]), AC28_EVENTS[2], "UNKNOWN_OUTCOME", "WORKER_RESTART")
+            if db.execute("PRAGMA user_version").fetchone()[0] != 4:
+                return
+            for row in db.execute("""SELECT a.* FROM audit a WHERE a.event=?
+                AND NOT EXISTS (SELECT 1 FROM jobs j WHERE j.id=json_extract(a.details,'$.operation_id'))
+                AND NOT EXISTS (SELECT 1 FROM audit b WHERE b.event=? AND b.target_id=a.target_id
+                    AND b.correlation_id=a.correlation_id
+                    AND json_extract(b.details,'$.operation_id')=json_extract(a.details,'$.operation_id'))
+                ORDER BY a.seq""", (REQUESTED, AC28_EVENTS[2])).fetchall():
+                operation = json.loads(row["details"])
+                prepared = db.execute("""SELECT 1 FROM audit WHERE event=? AND target_id=? AND correlation_id=?
+                    AND json_extract(details,'$.operation_id')=? LIMIT 1""",
+                    (AC28_EVENTS[1], row["target_id"], row["correlation_id"], operation["operation_id"])).fetchone()
+                Store.event(db, at=int(self.clock()), actor=row["actor_id"], target=row["target_id"],
+                            correlation=row["correlation_id"], kind=AC28_EVENTS[2],
+                            outcome="UNKNOWN_OUTCOME" if prepared else "CANCELLED_SAFE",
+                            details={"operation_id": operation["operation_id"], "revision": operation["revision"],
+                                     "reason": "WORKER_RESTART"})
 
     @staticmethod
     def pending_reconciliation(db):
@@ -196,75 +199,44 @@ class RestartWorker:
                 _require(db, actor, row["target_id"], restart=True)
             except Denied as error:
                 outcome, reason = "QUARANTINED", error.code
+            if outcome in RESOLVED:
+                db.execute("DELETE FROM job_incidents WHERE job_id=?", (job_id,))
             Store.event(db, at=int(self.clock()), actor=row["actor_id"], target=row["target_id"], correlation=row["correlation_id"],
                         kind=RECONCILIATION_EVENTS[1], outcome=outcome,
                         details={**details, "request_seq": row["seq"], "reason": reason, "receipt_digest": digest})
         return True
 
-    def run_one(self):
-        from .runtime.protocol import checksum, fields, restart_payload, text
-
-        try:
-            with self.store.write(kind="dispatch") as db:
-                if db.execute("PRAGMA user_version").fetchone()[0] != 3:
-                    return False
-                reconciliation = self.pending_reconciliation(db)
-                if reconciliation is None:
-                    row = self.waiting(db, REQUESTED, AC28_EVENTS[1:])
-                    if row is None:
-                        return False
-                    operation = json.loads(row["details"])
-                    try:
-                        operation = validate_request(db, row, int(self.clock()))
-                        secret_ref = self.secret_refs.get(row["target_id"])
-                        if secret_ref is None:
-                            raise Denied("CAPABILITY_DISABLED")
-                        payload = restart_payload({key: operation[key] for key in
-                                                   ("operation_id", "container_id", "boot_id", "started_at")})
-                    except Denied as error:
-                        self.event(db, row, operation, AC28_EVENTS[2], "CANCELLED_SAFE", error.code)
-                        return True
-                    self.event(db, row, operation, AC28_EVENTS[1], "INTENT_PREPARED")
-            if reconciliation is not None:
-                return self.reconcile_one(reconciliation)
-        except Denied as error:
-            if error.code in ("WRITER_ADMISSION_CLOSED", "WRITER_BARRIER_TIMEOUT"):
+    def reconcile_pending(self):
+        with self.store.write(kind="dispatch") as db:
+            if db.execute("PRAGMA user_version").fetchone()[0] not in (3, 4):
                 return False
-            raise
+            row = self.pending_reconciliation(db)
+        return self.reconcile_one(row) if row is not None else False
 
-        permit = None
-        sent = False
-        try:
-            anchor = self.gate.call("time.anchor", {"plan_id": row["correlation_id"], "revision": operation["revision"]})
-            binding = {"job_id": operation["operation_id"], "plan_id": row["correlation_id"],
-                       "revision": operation["revision"], "plan_digest": operation["plan_hash"],
-                       "approval_id": operation["approval_id"], "actor_id": row["actor_id"],
-                       "target": row["target_id"], "capability": "docker.restart", "scope_digest": operation["scope_digest"],
-                       "time_anchor": anchor, "restart": payload}
-            permit = self.gate.call("permit.admit", binding)
-            with self.store.write(kind="control") as db:
-                if validate_request(db, row, int(self.clock())) != operation:
-                    raise Denied("STALE_BASELINE")
-                # Protect the handoff from a newly archived or revoked plan. The
-                # Broker independently consumes the time-bound permit once.
-                self.event(db, row, operation, AC28_EVENTS[1], "DISPATCHING")
-            sent = True
-            response = self.broker.call("use_for_scoped_ssh", {"permit": permit, "policy_ref": secret_ref})
-            fields(response, ("outcome", "code", "observation", "authority_receipt"))
-            receipt = self.gate.call("attempt.status", {"job_id": operation["operation_id"]})
-            result = {key: response[key] for key in ("outcome", "code", "observation")}
-            outcome, reason = result["outcome"], text(result["code"], r"[A-Z][A-Z0-9_]{1,63}")
-            if (receipt != response["authority_receipt"] or receipt["state"] != outcome
-                    or receipt["result_digest"] != checksum(result) or result["observation"] is not None
-                    or outcome not in ("SUCCEEDED", "FAILED", "UNKNOWN_OUTCOME")):
-                raise Denied("BROKER_RECEIPT_INVALID")
-        except Denied as error:
-            if permit is not None and not sent:
-                try:
-                    self.gate.call("permit.cancel", {"job_id": operation["operation_id"], "nonce": permit["claims"]["nonce"]})
-                except Denied:
-                    pass
-            outcome, reason = ("UNKNOWN_OUTCOME" if sent else "CANCELLED_SAFE"), error.code
-        with self.store.write(kind="control") as db:
-            self.event(db, row, operation, AC28_EVENTS[2], outcome, reason)
-        return True
+    def prepare(self, job):
+        from .runtime.protocol import restart_payload
+
+        with self.store.read() as db:
+            row = self.queue.restart_request(db, job["id"])
+            if row is None:
+                raise Denied("RESTART_REQUEST_NOT_FOUND")
+            operation = validate_request(db, row, int(self.clock()))
+        secret_ref = self.secret_refs.get(job["resource_id"])
+        if secret_ref is None:
+            raise Denied("CAPABILITY_DISABLED")
+        if (job["resource_id"] != row["target_id"] or job["actor_id"] != row["actor_id"]
+                or job["payload_hash"] != operation["plan_hash"] or job["scope_digest"] != operation["scope_digest"]):
+            raise Denied("STALE_SCOPE")
+        payload = restart_payload({key: operation[key] for key in
+                                   ("operation_id", "container_id", "boot_id", "started_at")})
+
+        def revalidate(db):
+            if validate_request(db, row, int(self.clock())) != operation:
+                raise Denied("STALE_BASELINE")
+
+        anchor = self.gate.call("time.anchor", {"plan_id": row["correlation_id"], "revision": operation["revision"]})
+        binding = {"job_id": job["id"], "plan_id": row["correlation_id"], "revision": operation["revision"],
+                   "plan_digest": job["payload_hash"], "approval_id": operation["approval_id"], "actor_id": job["actor_id"],
+                   "target": job["resource_id"], "capability": job["action"], "scope_digest": job["scope_digest"],
+                   "time_anchor": anchor, "restart": payload}
+        return binding, secret_ref, revalidate

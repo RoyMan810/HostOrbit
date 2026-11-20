@@ -187,7 +187,7 @@ class ControllerBackup:
 
     def drained(self):
         with self.store.read() as db:
-            if db.execute("PRAGMA user_version").fetchone()[0] in (2, 3) and db.execute(
+            if db.execute("PRAGMA user_version").fetchone()[0] in (2, 3, 4) and db.execute(
                     "SELECT 1 FROM jobs WHERE claimed_by IS NOT NULL AND status NOT IN ('SUCCEEDED','FAILED','UNKNOWN_OUTCOME','CANCELLED_SAFE') LIMIT 1").fetchone():
                 return False
         with self.gate.connect() as db:
