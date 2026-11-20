@@ -1,4 +1,7 @@
+import multiprocessing
+import os
 from pathlib import Path
+import signal
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -93,3 +96,31 @@ class SupervisedUpdateTests(unittest.TestCase):
             self.apply(candidate, approval, "1.2.0")
         self.authority.recover()
         self.assertEqual(self.state(), "RECOVERY_HOLD")
+
+    def test_process_death_after_switch_keeps_durable_pending_gate(self):
+        base, approval = self.build("1.2.0", "1.1.0")
+        self.apply(base, approval, "1.1.0")
+        candidate, approval = self.build("1.3.0", "1.2.0")
+
+        def update_then_kill():
+            def timed_switch(root, target):
+                select_slot(root, target)
+                os.kill(os.getpid(), signal.SIGKILL)
+
+            with patch("deploy.supervised_update.select_slot", side_effect=timed_switch):
+                self.apply(candidate, approval, "1.2.0")
+
+        process = multiprocessing.get_context("fork").Process(target=update_then_kill)
+        process.start()
+        process.join(10)
+        if process.is_alive():
+            process.kill()
+            process.join(5)
+            self.fail("Timed out before the updater switched")
+        self.assertEqual(process.exitcode, -signal.SIGKILL)
+        self.assertEqual(slot_name(self.slots), "B")
+        self.assertTrue((self.slots / "pending.json").is_file())
+        self.authority.recover()
+        self.assertEqual(self.state(), "RECOVERY_HOLD")
+        with self.assertRaisesRegex(Denied, "UPDATE_RECOVERY_REQUIRED"):
+            self.apply(candidate, approval, "1.2.0")
