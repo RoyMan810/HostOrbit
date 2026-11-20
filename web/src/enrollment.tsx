@@ -6,14 +6,16 @@ export function Enrollment({ t, session, expired, onEnroll, firstVps }: {
   t: Copy; session: Session; firstVps: boolean; expired: () => void; onEnroll: (id: string) => void
 }) {
   const [busy, setBusy] = useState(false)
+  const [expanded, setExpanded] = useState(false)
   const [candidates, setCandidates] = useState<string[] | null>(null)
   useEffect(() => {
+    if (!expanded && !firstVps) return
     const abort = new AbortController()
     request<{ items: string[] }>('/enrollment/candidates', { signal: abort.signal })
       .then(({ items }) => { if (!abort.signal.aborted) setCandidates(items) })
       .catch(error => { if (!abort.signal.aborted && hasApiStatus(error, 401)) expired() })
     return () => abort.abort()
-  }, [expired])
+  }, [expanded, expired, firstVps])
   const [status, setStatus] = useState<'enrollmentSuccess' | 'enrollmentMismatch' | 'enrollmentMissing' | 'enrollmentConflict' | 'requestError' | null>(null)
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -44,7 +46,8 @@ export function Enrollment({ t, session, expired, onEnroll, firstVps }: {
     }
   }
 
-  return <details className="panel enrollment" open={firstVps || undefined}>
+  return <details className="panel enrollment" open={firstVps || undefined}
+    onToggle={event => setExpanded(event.currentTarget.open)}>
     <summary>{t.enroll}</summary>
     <form onSubmit={submit}>
       <p>{t.enrollmentHelp} <a href="https://github.com/RoyMan810/HostOrbit/blob/main/docs/stage1-installation.md#подготовка-vps-по-паролю-или-ssh-ключу">{t.enrollmentGuide}</a></p>

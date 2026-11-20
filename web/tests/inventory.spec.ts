@@ -640,6 +640,7 @@ test('reuses the original request and VPS after the accepted reply is lost', asy
 })
 
 test('resumes reading the accepted job and preserves an unknown outcome', async ({ page }) => {
+  expect((await page.request.post('/__fixture__/reset-api-budget')).status()).toBe(204)
   await signIn(page)
   await page.getByRole('button', { name: new RegExp(fresh) }).click()
   let submissions = 0
