@@ -1,0 +1,39 @@
+name: HostOrbit updater sandbox
+
+on:
+  push:
+    branches: [main]
+    paths: &updater_paths
+      - .github/workflows/updater-self-test.yml
+      - deploy/updater_self_test.py
+      - deploy/supervised_update.py
+      - deploy/update_release.py
+      - tests_runtime/test_updater_self_test.py
+  pull_request:
+    paths: *updater_paths
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sandbox:
+    name: Run updater self-test in native Ubuntu isolation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.15.2"
+      - run: python -m pip install -r requirements-dev.txt
+      - name: Check sandbox restrictions and failing self-test
+        run: |
+          test "$RUNNER_ENVIRONMENT" = github-hosted
+          sudo env HOSTORBIT_NATIVE_UPDATER_TEST=1 "$(command -v python)" -m unittest discover \
+            -s tests_runtime -p test_updater_self_test.py -v
+      - name: Show transient unit diagnostics
+        if: failure()
+        run: sudo journalctl --boot --no-pager -u 'run-*.service' -n 35
