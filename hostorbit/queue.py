@@ -64,6 +64,12 @@ class JobQueue:
             return sorted(catalog.keys() - registered)
 
     def enroll(self, auth, token, csrf, identity, fingerprint, catalog, correlation):
+        return self._enrollment(auth, token, csrf, identity, fingerprint, catalog, correlation, register=True)
+
+    def check_ssh_enrollment(self, auth, token, csrf, identity, fingerprint, catalog, correlation):
+        return self._enrollment(auth, token, csrf, identity, fingerprint, catalog, correlation, register=False)
+
+    def _enrollment(self, auth, token, csrf, identity, fingerprint, catalog, correlation, *, register):
         with self.store.write() as db:
             self._schema(db)
             actor = auth._session(db, token, csrf=csrf, mutating=True)
@@ -73,6 +79,10 @@ class JobQueue:
             if target is None:
                 raise Denied("ENROLLMENT_TARGET_UNAVAILABLE", 404)
             if secrets.compare_digest(target["fingerprint"], fingerprint):
+                if not register:
+                    if db.execute("SELECT 1 FROM resources WHERE id=?", (identity,)).fetchone():
+                        raise Denied("RESOURCE_ALREADY_REGISTERED", 409)
+                    return target
                 self._register(db, identity, target["scope_digest"], target["policy_revision"], actor["id"], correlation)
                 return {"id": identity, "policy_revision": target["policy_revision"]}
             self.store.event(db, at=int(self.clock()), actor=actor["id"], kind="resource.fingerprint_mismatch",

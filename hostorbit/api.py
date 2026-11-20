@@ -26,6 +26,7 @@ from .inventory import Inventory
 from .queue import JobQueue
 from .restart_requests import request_reconciliation, request_restart, restart_timeline
 from .runtime.protocol import ULID
+from .runtime.ssh_enrollment import verify_credentials
 
 
 def failure(code, status, correlation, *, retry_after=None, details=None):
@@ -160,9 +161,20 @@ class Reauthentication(Input):
     plan_hash: Annotated[str, Field(pattern="^[0-9a-f]{64}$")]
 
 
-class EnrollResource(Input):
-    resource_id: Annotated[str, Field(pattern="^" + ULID + "$", max_length=26)]
+class Enrollment(Input):
     fingerprint: Annotated[str, Field(pattern=r"^SHA256:[A-Za-z0-9+/]{43}$", max_length=50)]
+
+
+class EnrollResource(Enrollment):
+    resource_id: Annotated[str, Field(pattern="^" + ULID + "$", max_length=26)]
+
+
+class EnrollSSH(Enrollment):
+    ip: Annotated[str, Field(min_length=2, max_length=45)]
+    port: Annotated[int, Field(ge=1, le=65535)] = 22
+    username: Annotated[str, Field(pattern=r"^[a-z_][a-z0-9_-]{0,63}$")]
+    password: Annotated[SecretStr, Field(min_length=1, max_length=1024)] | None = None
+    private_key: Annotated[SecretStr, Field(min_length=1, max_length=8192)] | None = None
 
 
 class DraftInput(Input):
@@ -190,6 +202,7 @@ def create_app(settings: Settings, *, auth: AuthService | None = None, enrollmen
     queue = JobQueue(service.store, clock=service.clock)
     inventory = Inventory(service.store, clock=service.clock)
     audit_scan = Lock()
+    ssh_enrollment = Lock()
     app = FastAPI(title="HostOrbit API", version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
     app.state.auth = service
     app.add_middleware(SecurityBoundary, settings=settings, auth=service)
@@ -201,7 +214,8 @@ def create_app(settings: Settings, *, auth: AuthService | None = None, enrollmen
     @app.exception_handler(RequestValidationError)
     async def invalid(request, error):
         # FastAPI's default includes input values, which may contain passwords/tokens.
-        known = {"username", "password", "role", "grants", "disabled", "plan_hash", "permission", "resource_id", "after"}
+        known = {"username", "password", "role", "grants", "disabled", "plan_hash", "permission", "resource_id", "after",
+                 "ip", "port", "fingerprint", "private_key"}
         fields = [{"field": ".".join(str(v) for v in e["loc"] if v in known or isinstance(v, int)) or "request",
                    "reason": e["type"]} for e in error.errors()]
         return failure("VALIDATION_FAILED", 422, request.state.correlation_id, details={"fields": fields})
@@ -331,6 +345,39 @@ def create_app(settings: Settings, *, auth: AuthService | None = None, enrollmen
     def enroll_resource(body: EnrollResource, request: Request, response: Response, actor=Depends(principal)):
         result = queue.enroll(service, token(request), csrf(request), body.resource_id, body.fingerprint,
                               enrollment_catalog or {}, request.state.correlation_id)
+        response.headers["Location"] = f'/api/v1/resources/{result["id"]}'
+        return result
+
+    @app.post("/api/v1/enrollment/ssh", status_code=201)
+    def enroll_ssh(body: EnrollSSH, request: Request, response: Response, actor=Depends(principal)):
+        if actor.role != Role.OWNER:
+            raise Denied("FORBIDDEN")
+        if (body.password is None) == (body.private_key is None):
+            raise Denied("SSH_CREDENTIAL_REQUIRED", 422)
+        try:
+            address = ipaddress.ip_address(body.ip)
+            if address.is_loopback or address.is_link_local or address.is_multicast or address.is_unspecified or "%" in body.ip:
+                raise ValueError
+        except ValueError:
+            raise Denied("SSH_ENDPOINT_INVALID", 422) from None
+        catalog = enrollment_catalog or {}
+        matches = [identity for identity, target in catalog.items()
+                   if (target.get("ip"), target.get("port")) == (str(address), body.port) and "host_key" in target]
+        if not matches:
+            raise Denied("ENROLLMENT_TARGET_UNAVAILABLE", 404)
+        if len(matches) != 1:
+            raise Denied("ENROLLMENT_TARGET_AMBIGUOUS", 409)
+        if not ssh_enrollment.acquire(blocking=False):
+            raise Denied("SSH_ENROLLMENT_BUSY", 503, retry_after=2)
+        try:
+            args = (service, token(request), csrf(request), matches[0], body.fingerprint, catalog, request.state.correlation_id)
+            target = queue.check_ssh_enrollment(*args)
+            verify_credentials(target, body.username,
+                               password=body.password.get_secret_value() if body.password is not None else None,
+                               private_key=body.private_key.get_secret_value() if body.private_key is not None else None)
+            result = queue.enroll(*args)
+        finally:
+            ssh_enrollment.release()
         response.headers["Location"] = f'/api/v1/resources/{result["id"]}'
         return result
 

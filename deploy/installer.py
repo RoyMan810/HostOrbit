@@ -384,7 +384,8 @@ def install(args):
                     "--property=UMask=0077", "--property=LoadCredentialEncrypted=broker-dek:" + cfg["vault_credential"],
                     runtime, "--config", CONFIG / "runtime.json", "initialize-broker")
             if args.web_enrollment:
-                cfg["enrollment_catalog"] = json.loads(command(runtime, "--config", CONFIG / "runtime.json", "enrollment-catalog"))
+                cfg["enrollment_catalog"] = json.loads(command(runtime, "--config", CONFIG / "runtime.json",
+                                                               "enrollment-catalog", "--ssh-endpoints"))
             else:
                 command(runtime, "--config", CONFIG / "runtime.json", "register-observations")
         compose = compose_document(cfg, image, args.port)

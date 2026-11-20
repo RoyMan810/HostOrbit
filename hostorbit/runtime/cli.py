@@ -105,7 +105,7 @@ def run(config, command, *, once=False, listener=None, import_args=None):
         return
     policy = Policy.load(config["targets"], owner=0)
     if command == "enrollment-catalog":
-        print(json.dumps(policy.enrollment_catalog()))
+        print(json.dumps(policy.enrollment_catalog(ssh_endpoints=getattr(import_args, "ssh_endpoints", False))))
         return
     if command == "initialize-time-health":
         with Authority(config["supervisor_directory"], policy).journal.connect():
@@ -259,8 +259,10 @@ def main(argv=None):
     parser.add_argument("--config", type=Path, required=True)
     commands = parser.add_subparsers(dest="command", required=True)
     for name in ("initialize-supervisor", "initialize-broker", "initialize-credential", "initialize-writers", "initialize-time-health", "time-health",
-                 "register-observations", "enrollment-catalog", "supervisor", "broker", "api"):
+                 "register-observations", "supervisor", "broker", "api"):
         commands.add_parser(name)
+    catalog = commands.add_parser("enrollment-catalog")
+    catalog.add_argument("--ssh-endpoints", action="store_true")
     worker = commands.add_parser("worker")
     worker.add_argument("--once", action="store_true")
     key = commands.add_parser("import-key")
