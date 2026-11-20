@@ -24,6 +24,13 @@ async function signIn(page: Page, username = 'fixture-owner') {
   await expect(page.getByRole('heading', { name: 'VPS inventory' })).toBeVisible()
 }
 
+test('distinguishes missing dependency data on earlier SSH observations', async ({ page }) => {
+  await signIn(page)
+  const details = page.locator('.docker-list > li').filter({ hasText: 'fixture / web' })
+  await details.getByText('Restart dependencies', { exact: true }).click()
+  await expect(details.getByText('Unavailable in this observation', { exact: true })).toHaveCount(3)
+})
+
 test('checks audit integrity on demand and displays the latest result', async ({ page }) => {
   let checks = 0
   page.on('request', req => {
@@ -825,7 +832,6 @@ test('owner enrolls a prepared VPS with its independent pin and selects it for a
   expect((await (await probe).json()).resource_id).toBe(id)
 })
 
-
 test('first-run help and device time settings are keyboard accessible', async ({ page }) => {
   await signIn(page)
   const help = page.getByRole('button', { name: 'Help', exact: true })
@@ -837,11 +843,4 @@ test('first-run help and device time settings are keyboard accessible', async ({
   await page.reload()
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
   await expect(page.getByLabel('Time zone')).toHaveValue('UTC')
-})
-
-test('distinguishes missing dependency data on earlier SSH observations', async ({ page }) => {
-  await signIn(page)
-  const details = page.locator('.docker-list > li').filter({ hasText: 'fixture / web' })
-  await details.getByText('Restart dependencies', { exact: true }).click()
-  await expect(details.getByText('Unavailable in this observation', { exact: true })).toHaveCount(3)
 })
