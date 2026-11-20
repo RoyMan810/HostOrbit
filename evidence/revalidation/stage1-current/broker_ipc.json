@@ -2,38 +2,38 @@
   "artifacts": [
     {
       "path": "evidence/revalidation/stage1-current/source-manifest.json",
-      "sha256": "bc766ae41d23852d8ccc859bd914deadccf1fef6e1e32cf75f760c9197e4ea5d"
+      "sha256": "c41f50affe29d851bc8ad98c9a3e117a4a8b87307a6c313c17063663339973cb"
     },
     {
       "path": "evidence/revalidation/stage1-current/bundle-manifest.json",
-      "sha256": "05d17cf21e6fa4572587797a521cea1e7f418ba4d9782bb497640d5b2333c59a"
+      "sha256": "9177992ef4fe96734f436d35e8d03a1cf48884d99e833bcb21cc2d0289a9684c"
     },
     {
       "path": "evidence/revalidation/stage1-current/bundle-manifest.sig",
-      "sha256": "55dc8f258ddce0da517879995fbe33289969fabf51a5596af4199560cc750b68"
+      "sha256": "d03321878505534855967be9e8298e21aafb8a5dc72659dd3957bd18a3754138"
     },
     {
       "path": "evidence/revalidation/stage1-current/test-signer.pub",
-      "sha256": "586a376c8e168542542714cacc640a489f49673605275c0c2dbdaafd203557ff"
+      "sha256": "4a7aa9c0aec79179e539e9eade5e385ce48ca5f3ba47289b0d4b619f0b85454b"
     },
     {
       "path": "evidence/revalidation/stage1-current/sbom.cdx.json",
-      "sha256": "e8381ab33dacd04cdb194f9e7da820eb1ab3691fc5343e26ddffae617c591cdb"
+      "sha256": "2acb0661f0cc299bb2a399c13b8ded18d64a27858e6e89b2bdc368b253a0fc61"
     },
     {
       "path": "evidence/revalidation/stage1-current/ci-observations.json",
-      "sha256": "7c8b943c1327817c6884697eaab984372698ce424d954fcbbbca6dffa66ca00e"
+      "sha256": "2fc110c2a25802cd92fbdc1cd94e07b726dbdd55713654fcd891381adf9b69f6"
     }
   ],
-  "build_digest": "05d17cf21e6fa4572587797a521cea1e7f418ba4d9782bb497640d5b2333c59a",
+  "build_digest": "9177992ef4fe96734f436d35e8d03a1cf48884d99e833bcb21cc2d0289a9684c",
   "capability": "broker_ipc",
   "ci_job_ids": [
-    136228656212,
-    136228656336,
-    136228656556
+    136337616257,
+    136337615943,
+    136337616080
   ],
   "environment": "GitHub-hosted Ubuntu 24.04 runners. The signed development bundle uses Python 3.15.2.",
-  "evidence_digest": "b9eae03bfc2b2444a22a41155ad029d26361a4b9b897dbbb16bf7951d5888cbb",
+  "evidence_digest": "4e26f8958ef9654fbd902b26bf6a40578aa5431d30bee51ec5c9d82c57b0303b",
   "fault_injection": "test_permit_replay_and_revoke_before_use_never_repeat_ssh",
   "initial_state": "Clean committed source and disposable GitHub-hosted Ubuntu 24.04 CI runners; development install and ephemeral test signer.",
   "limitations": [
@@ -41,7 +41,7 @@
     "The signed development bundle uses an ephemeral test signer. SBOM scope excludes the complete OS and OCI base image.",
     "Independent disaster recovery, Owner restore attestation and capacity soak require separate validation."
   ],
-  "manifest_digest": "bc766ae41d23852d8ccc859bd914deadccf1fef6e1e32cf75f760c9197e4ea5d",
+  "manifest_digest": "c41f50affe29d851bc8ad98c9a3e117a4a8b87307a6c313c17063663339973cb",
   "negative_checks": [
     "test_permit_replay_and_revoke_before_use_never_repeat_ssh"
   ],
@@ -51,17 +51,17 @@
     "test_committed_job_reaches_broker_without_returning_key_material",
     "Broker peer credentials / Docker integration"
   ],
-  "recorded_at_utc": "2026-11-20T10:26:48.745110+00:00",
+  "recorded_at_utc": "2026-11-20T14:13:02.730927+00:00",
   "revalidation_of": {
     "evidence_digest": "70ed8fba9cb8718e36615c489680f1e122d2bf4aa1d3df0e2c57009125d3d454",
     "path": "evidence/capabilities/stage1/broker_ipc.json",
     "source_commit": "285db2c39c77456e98a7b073b17e1432f62e99f5"
   },
   "reviewer": "Automated revalidation against GitHub CI and the source-bound signed development bundle metadata.",
-  "sbom_digest": "e8381ab33dacd04cdb194f9e7da820eb1ab3691fc5343e26ddffae617c591cdb",
+  "sbom_digest": "2acb0661f0cc299bb2a399c13b8ded18d64a27858e6e89b2bdc368b253a0fc61",
   "scenario": "Foundation: dedicated Broker/Worker identities and socket group, SO_PEERCRED, no API socket/Vault/DEK access, typed scoped signed one-use permit and purpose/target/consumer/revision/AEAD protected Secret Reference use.",
   "scope": "FOUNDATION_ONLY",
-  "source_commit": "092c7b5757a6556bd676a49270c692fb70f46507",
+  "source_commit": "bb55ce7f2affa77c856896e7ffb18908f2979245",
   "source_files": [
     {
       "path": ".github/workflows/checks.yml",
@@ -81,7 +81,7 @@
     },
     {
       "path": "deploy/installer.py",
-      "sha256": "13d85c8324a734a9298bc6c0e399df62633a00c0b79be7f8ded44cef987965a3"
+      "sha256": "eea66ee42b1a3f98056056359c66d0abc1ca3ec8bebabdd11dfdd1d51e2bdfc0"
     },
     {
       "path": "deploy/requirements-build.lock",
@@ -141,7 +141,7 @@
     },
     {
       "path": "hostorbit/api.py",
-      "sha256": "efc382ab009b4d08af3d36185c365b617a59cf29477a1698d9cf73b5f716eaf6"
+      "sha256": "674633d54084b33be7f61d40157ec1b72ce1d9f3454cc9fb3e4fa09f965531a9"
     },
     {
       "path": "hostorbit/audit_plan.py",
@@ -177,7 +177,7 @@
     },
     {
       "path": "hostorbit/queue.py",
-      "sha256": "65af0ba808fd16532e2718ba186ba4c41269c679737c0ad712723f47d2ce9b77"
+      "sha256": "ea61c4f810b6bc337476a709c37369cb30704976821502a6f1ddfbfee49aed8b"
     },
     {
       "path": "hostorbit/release-manifest.json",
@@ -225,7 +225,7 @@
     },
     {
       "path": "hostorbit/runtime/cli.py",
-      "sha256": "faa23bf1fb7f1e2366b5142de75e7bb38a55e41439eadf7f9c93d00a7ef91846"
+      "sha256": "397e3257ed8bd9dca740930335008fddddd3fb9fbebea646eccd7a7f9cbe4a65"
     },
     {
       "path": "hostorbit/runtime/clock.py",
@@ -253,7 +253,7 @@
     },
     {
       "path": "hostorbit/runtime/policy.py",
-      "sha256": "45ed9868a0238cef59fd795a57e8e165b3f7c71c69c821f8f1cea762577e61af"
+      "sha256": "de68cf82726eda2d7e504f0120db32e76f1c8e9ec3aa43c58272812679d9ebfb"
     },
     {
       "path": "hostorbit/runtime/protocol.py",
@@ -493,7 +493,7 @@
     },
     {
       "path": "tests_runtime/test_runtime_cli.py",
-      "sha256": "2de62989e21b94ea8c75acabc177cd3aafe022cbec3d79ff3b8af0d07956046e"
+      "sha256": "6d23313aad50f6fb1b47fcb59fe24d15b51128c871e726015679de605362a5d0"
     },
     {
       "path": "tests_runtime/test_sftp_publication.py",
