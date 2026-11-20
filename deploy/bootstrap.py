@@ -57,6 +57,15 @@ def stage(message):
     print(message, flush=True)
 
 
+def memory_kib():
+    return next(int(line.split()[1]) for line in Path("/proc/meminfo").read_text().splitlines()
+                if line.startswith("MemTotal:"))
+
+
+def python_build_jobs(cpus, memory):
+    return max(1, min(cpus or 1, memory // 1024**2, 4))
+
+
 def platform_and_ports():
     release = platform.freedesktop_os_release()
     if release.get("ID") != "ubuntu" or platform.machine() != "x86_64":
@@ -72,8 +81,7 @@ def platform_and_ports():
             info = path.lstat()
             if not stat.S_ISDIR(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
                 raise ValueError(f"Небезопасные права каталога {path}.")
-    memory = next(int(line.split()[1]) for line in Path("/proc/meminfo").read_text().splitlines()
-                  if line.startswith("MemTotal:"))
+    memory = memory_kib()
     disk = shutil.disk_usage("/var/lib")
     if memory < 1792 * 1024 or disk.free < 6 * 1024**3:
         print("Рекомендация: 2 ГиБ RAM и 6 ГиБ свободного места в /var/lib.", file=sys.stderr)
@@ -181,7 +189,7 @@ def build_python(work, identity, env):
     run("tar", "-xJf", archive, cwd=work, **settings)
     source = work / f"Python-{PYTHON_VERSION}"
     run("./configure", f"--prefix={PYTHON.parent.parent}", cwd=source, **settings)
-    run("make", "-j", str(min(os.cpu_count() or 1, 4)), cwd=source, **settings)
+    run("make", "-j", str(python_build_jobs(os.cpu_count(), memory_kib())), cwd=source, **settings)
     destination = work / "python-install"
     run("make", "install", f"DESTDIR={destination}", cwd=source, **settings)
     shutil.copytree(destination / PYTHON.parent.parent.relative_to("/"), PYTHON.parent.parent, symlinks=True)
