@@ -1,0 +1,31 @@
+[Unit]
+Description=VPN-Orbit versioned API
+After=network.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+ExecStart=/opt/vpn-orbit/venv/bin/vpn-orbit-runtime --config /etc/vpn-orbit/runtime.json api
+User=vpn-orbit-api
+Group=vpn-orbit-app-db
+UMask=0007
+Restart=on-failure
+RestartSec=2
+KillMode=control-group
+NoNewPrivileges=true
+CapabilityBoundingSet=
+LimitCORE=0
+RestrictSUIDSGID=true
+LockPersonality=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/vpn-orbit/app
+InaccessiblePaths=/var/lib/vpn-orbit/vault /var/lib/vpn-orbit/broker /var/lib/vpn-orbit/control-gate /etc/vpn-orbit/credentials /run/vpn-orbit/broker /run/vpn-orbit/supervisor
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,4 +1,4 @@
-# Документация HostOrbit
+# Документация VPN-Orbit
 
 - [План первой версии](first-release.md)
 - [Установка контроллера, HTTPS и вход](stage1-installation.md)

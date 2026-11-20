@@ -22,10 +22,10 @@ App/Vault DB переносятся SQLite Online Backup API с проверко
 
 ```sh
 sudo python3.15 deploy/installer.py install \
-  --bundle /trusted/hostorbit-bundle \
+  --bundle /trusted/vpn-orbit-bundle \
   --trust-key /trusted/release.pub \
-  --development --origin https://hostorbit.example \
-  --recovery-state /var/lib/hostorbit-rescue/request-1 \
+  --development --origin https://vpn-orbit.example \
+  --recovery-state /var/lib/vpn-orbit-rescue/request-1 \
   --check
 ```
 
@@ -33,7 +33,7 @@ sudo python3.15 deploy/installer.py install \
 
 Root-owned persistent writer profile остаётся `READ_ONLY_RECOVERY` при запуске, потере заменяемого latch и restart. API разрешает Auth и чтение Audit; business writes и новые jobs получают `WRITER_ADMISSION_CLOSED`. Worker остаётся живым, но не вызывает startup reconciliation или claim и корректно обрабатывает SIGTERM. Это также позволяет оставить историческую App schema 1 для Auth/Audit без скрытой DDL migration; schema-2 queue endpoints при schema 1 по-прежнему недоступны. Authority не выдаёт и не consumes permits при `activated=0`.
 
-Возвращается `recovery=READ_ONLY_RECOVERY`, `owner_setup=RESTORED_OWNER`. Эти поля не означают active Controller, manual fencing/rotation, restore attestation или Backup Gate. [Локальная Owner activation](stage1-recovery-activation.md) требует отдельного подтверждения изоляции/ротации/quarantine. Независимый DR, ручная приёмка и signed Rescue kit остаются открытыми. Stage1/MVP acceptance не повышается автоматически.
+Возвращается `recovery=READ_ONLY_RECOVERY`, `owner_setup=RESTORED_OWNER`. Эти поля не означают active Controller, manual fencing/rotation, restore attestation или Backup Gate. [Локальная Owner activation](stage1-recovery-activation.md) требует отдельного подтверждения изоляции/ротации/quarantine. Независимый DR, ручная приёмка и signed Rescue kit остаются открытыми.
 
 ## Evidence
 

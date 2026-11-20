@@ -19,9 +19,9 @@ from nacl.signing import SigningKey, VerifyKey
 from .journal import connect_journal, reserve_journal
 
 
-_SOURCE_FORMAT = "hostorbit.stage0.source.v1"
-_RECOVERY_FORMAT = "hostorbit.stage0.recovery.v1"
-_ACTIVATION_FORMAT = "hostorbit.stage0.activation.v1"
+_SOURCE_FORMAT = "vpn-orbit.stage0.source.v1"
+_RECOVERY_FORMAT = "vpn-orbit.stage0.recovery.v1"
+_ACTIVATION_FORMAT = "vpn-orbit.stage0.activation.v1"
 _MAX_PART = 1024 * 1024
 _MAX_BUNDLE = 3 * _MAX_PART
 _MAX_ENVELOPE = 16 * 1024

@@ -28,7 +28,7 @@ def main():
     socket_path = Path(address.path).resolve(strict=True)
     helper = runpy.run_path(str(Path(__file__).resolve().parents[2] / "remote" / "typed-helper"))
     observe = helper["observe_docker"]
-    prefix = "ho-discovery-" + uuid4().hex[:10]
+    prefix = "vpn-orbit-discovery-" + uuid4().hex[:10]
     ids = []
 
     def docker(*values):
@@ -56,7 +56,7 @@ def main():
                  {"id": stopped, "project": prefix, "service": "worker"}]
         # The action's parent directory belongs to the runner. A hard link on
         # the same filesystem exposes the same socket in a root-owned directory.
-        with tempfile.TemporaryDirectory(prefix="ho-docker-", dir=socket_path.parent) as directory:
+        with tempfile.TemporaryDirectory(prefix="vpn-orbit-docker-", dir=socket_path.parent) as directory:
             registry = Path(directory) / "docker-discovery.json"
             protected_socket = Path(directory) / "docker.sock"
             os.link(socket_path, protected_socket)

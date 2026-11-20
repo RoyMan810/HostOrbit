@@ -8,7 +8,7 @@ import sys
 
 
 _REQUEST = b'{"operation":"probe","target":"stage0-fixture","version":1}\n'
-_HELPER = "/usr/local/libexec/hostorbit/typed-helper"
+_HELPER = "/usr/local/libexec/vpn-orbit/typed-helper"
 
 
 def forward(command: str, request: bytes, *, timeout: int = 5) -> int:
@@ -31,7 +31,7 @@ def forward(command: str, request: bytes, *, timeout: int = 5) -> int:
 
 
 def main() -> int:
-    return forward("hostorbit.stage0.probe", _REQUEST)
+    return forward("vpn-orbit.stage0.probe", _REQUEST)
 
 
 if __name__ == "__main__":

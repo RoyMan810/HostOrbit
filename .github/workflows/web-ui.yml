@@ -1,10 +1,10 @@
-name: HostOrbit WebUI
+name: VPN-Orbit WebUI
 
 on:
   pull_request:
     paths: &web_paths
       - 'web/**'
-      - 'hostorbit/**'
+      - 'vpn_orbit/**'
       - 'requirements-*.txt'
       - '.github/workflows/web-ui.yml'
   workflow_dispatch:
@@ -47,12 +47,12 @@ jobs:
         run: |
           browser="$(command -v google-chrome)"
           "$browser" --version
-          HOSTORBIT_CHROMIUM="$browser" npm test
+          VPN_ORBIT_CHROMIUM="$browser" npm test
       - name: Package the tested WebUI
         shell: bash
         run: |
           test -s web/dist/index.html
-          output="$RUNNER_TEMP/hostorbit-webui"
+          output="$RUNNER_TEMP/vpn-orbit-webui"
           mkdir "$output"
           git rev-parse HEAD > "$output/source-commit.txt"
           tar -czf "$output/webui.tar.gz" -C web/dist .
@@ -61,6 +61,6 @@ jobs:
       - name: Publish the WebUI archive
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: hostorbit-webui-${{ github.sha }}
-          path: ${{ runner.temp }}/hostorbit-webui/
+          name: vpn-orbit-webui-${{ github.sha }}
+          path: ${{ runner.temp }}/vpn-orbit-webui/
           if-no-files-found: error

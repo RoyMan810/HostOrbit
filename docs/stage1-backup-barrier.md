@@ -10,7 +10,7 @@
 
 ## Контракт записи
 
-Root владеет постоянным inode `writers.lock` и атомарно заменяемым `state.json` в `/var/lib/hostorbit/writer-admission` (каталог 0755, файлы 0644, без symlink/hardlink). API и Worker получают только read-only bind всего каталога, поэтому видят новые состояния после rename, но не могут заменить lock или latch. Отдельный private control journal находится в `/var/lib/hostorbit/control-gate/snapshots` (0700/0600).
+Root владеет постоянным inode `writers.lock` и атомарно заменяемым `state.json` в `/var/lib/vpn-orbit/writer-admission` (каталог 0755, файлы 0644, без symlink/hardlink). API и Worker получают только read-only bind всего каталога, поэтому видят новые состояния после rename, но не могут заменить lock или latch. Отдельный private control journal находится в `/var/lib/vpn-orbit/control-gate/snapshots` (0700/0600).
 
 Каждый поддержанный SQLite writer получает shared kernel flock **до** открытия транзакции и держит его до commit/rollback. В режиме `CLOSING_ADMISSION`:
 

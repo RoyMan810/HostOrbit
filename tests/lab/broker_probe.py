@@ -4,7 +4,7 @@ import socket
 import sys
 
 
-def request(frame, path="/run/hostorbit-broker/broker.sock"):
+def request(frame, path="/run/vpn-orbit-broker/broker.sock"):
     with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as connection:
         connection.settimeout(5)
         try:

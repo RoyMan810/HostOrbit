@@ -12,18 +12,18 @@ from unittest.mock import patch
 
 from nacl.secret import SecretBox
 
-from hostorbit.admission import Admission
-from hostorbit.auth import AuthService
-from hostorbit.database import Store, identifier
-from hostorbit.errors import Denied
-from hostorbit.runtime.archive_stream import parse_manifest
-from hostorbit.runtime.authority import Authority
-from hostorbit.runtime.coordinator import Coordinator
-from hostorbit.runtime.policy import Policy
-from hostorbit.runtime.protocol import canonical, checksum
-from hostorbit.runtime.recovery_import import RecoveryTarget
-from hostorbit.runtime.rescue import _encrypted_output, prepare_bundle, validate_request, wipe
-from hostorbit.runtime.rescue_payload import database, unpack, verify, write_tar
+from vpn_orbit.admission import Admission
+from vpn_orbit.auth import AuthService
+from vpn_orbit.database import Store, identifier
+from vpn_orbit.errors import Denied
+from vpn_orbit.runtime.archive_stream import parse_manifest
+from vpn_orbit.runtime.authority import Authority
+from vpn_orbit.runtime.coordinator import Coordinator
+from vpn_orbit.runtime.policy import Policy
+from vpn_orbit.runtime.protocol import canonical, checksum
+from vpn_orbit.runtime.recovery_import import RecoveryTarget
+from vpn_orbit.runtime.rescue import _encrypted_output, prepare_bundle, validate_request, wipe
+from vpn_orbit.runtime.rescue_payload import database, unpack, verify, write_tar
 import test_controller_backup as archive_fixture
 from fixtures import PASSWORD
 
@@ -40,13 +40,13 @@ class RescueTests(unittest.TestCase):
         self.box = SecretBox(os.urandom(32))
         # Unit-only substitutes for OS/profile prerequisites. Native CI separately
         # exercises systemd-creds and permissions, never a production bypass flag.
-        self.enterContext(patch("hostorbit.runtime.rescue.offline_profile", return_value={"profile": "unit-fixture"}))
-        self.enterContext(patch("hostorbit.runtime.recovery_import._trusted_path", side_effect=lambda p, **_: Path(p).absolute()))
-        self.enterContext(patch("hostorbit.runtime.recovery_import._identity_credential", side_effect=self.wrap))
+        self.enterContext(patch("vpn_orbit.runtime.rescue.offline_profile", return_value={"profile": "unit-fixture"}))
+        self.enterContext(patch("vpn_orbit.runtime.recovery_import._trusted_path", side_effect=lambda p, **_: Path(p).absolute()))
+        self.enterContext(patch("vpn_orbit.runtime.recovery_import._identity_credential", side_effect=self.wrap))
         def seal(key, path):
-            from hostorbit.runtime.storage import new_private_file
+            from vpn_orbit.runtime.storage import new_private_file
             new_private_file(path, self.box.encrypt(key))
-        self.enterContext(patch("hostorbit.runtime.recovery_import.seal_credential", side_effect=seal))
+        self.enterContext(patch("vpn_orbit.runtime.recovery_import.seal_credential", side_effect=seal))
         (self.root / "tools/age-keygen").write_bytes((archive_fixture.AGE_DIR / "age-keygen").read_bytes())
         (self.root / "tools/age-keygen").chmod(0o755)
         self.request = self.issue("target")
@@ -70,7 +70,7 @@ class RescueTests(unittest.TestCase):
     def test_current_schema_import_keeps_plan_audit_and_removes_active_drafts(self):
         store = self.fixture.store
         resource, draft = identifier(), identifier()
-        from hostorbit.queue import JobQueue
+        from vpn_orbit.queue import JobQueue
         JobQueue(store).register_resource(resource, "a" * 64, 1)
         with store.write() as db:
             db.execute("INSERT INTO change_plan_drafts VALUES(?,1,?,?,'docker.restart','{}',?,1)",
@@ -137,7 +137,7 @@ class RescueTests(unittest.TestCase):
             self.accept(review["bundle_sha256"])
 
     def test_repackaged_bundle_cannot_exceed_target_limit(self):
-        with patch("hostorbit.runtime.rescue.MAX_PAYLOAD", 200):
+        with patch("vpn_orbit.runtime.rescue.MAX_PAYLOAD", 200):
             with self.assertRaisesRegex(Denied, "RESCUE_CIPHERTEXT_SIZE_UNSUPPORTED"):
                 _encrypted_output(self.bundle, self.request["recipient"], {"recovery.json": memoryview(b"fixture")},
                                   age_path=self.age, tool_owner=os.geteuid())
@@ -148,12 +148,12 @@ class RescueTests(unittest.TestCase):
         target_identity = self.wrap(ciphertext=(self.root / "target-state/identity.cred").read_bytes())
         raw = archive_fixture.decrypt_fixture(target_identity, self.bundle).stdout
         members = unpack(bytearray(raw))
-        members["vault/portable-keys.json"] = memoryview(canonical({"v": 1, "type": "hostorbit.portable-keyset",
+        members["vault/portable-keys.json"] = memoryview(canonical({"v": 1, "type": "vpn-orbit.portable-keyset",
             "generations": [{"version": 1, "key": "A" * 43 + "="}]}))
         members["controller/app.sqlite3"] = memoryview(b"attacker replaced DB")
         self.bundle.unlink()
         _encrypted_output(self.bundle, self.request["recipient"], members, age_path=self.age, tool_owner=os.geteuid())
-        with patch("hostorbit.runtime.recovery_import.decrypt", side_effect=AssertionError("must compare hash first")):
+        with patch("vpn_orbit.runtime.recovery_import.decrypt", side_effect=AssertionError("must compare hash first")):
             with self.assertRaisesRegex(Denied, "OWNER_DIGEST_MISMATCH"):
                 self.accept(review["bundle_sha256"])
         self.assertFalse(any((self.root / "target-data").iterdir()))
@@ -200,7 +200,7 @@ class RescueTests(unittest.TestCase):
         self.assertEqual(self.accept(review["bundle_sha256"])["status"], "READ_ONLY_RECOVERY")
 
     def test_source_sessions_and_queued_work_do_not_resume_after_import(self):
-        from hostorbit.queue import JobQueue
+        from vpn_orbit.queue import JobQueue
         from fixtures import TARGET
         auth = AuthService(self.fixture.store)
         tokens, _ = auth.login("roman", PASSWORD, ip="127.0.0.1", correlation="source-login")
@@ -243,20 +243,20 @@ class RescueTests(unittest.TestCase):
 
     def test_failed_or_interrupted_import_is_consumed_fail_closed(self):
         review = self.pack()
-        with patch("hostorbit.runtime.recovery_import.import_data", side_effect=OSError("fixture ENOSPC")):
+        with patch("vpn_orbit.runtime.recovery_import.import_data", side_effect=OSError("fixture ENOSPC")):
             with self.assertRaises(OSError):
                 self.accept(review["bundle_sha256"])
         with self.assertRaisesRegex(Denied, "RECOVERY_REQUEST_CONSUMED"):
             self.accept(review["bundle_sha256"])
 
     def test_wrong_source_anchor_refuses_before_owner_decryption(self):
-        with patch("hostorbit.runtime.rescue.decrypt", side_effect=AssertionError("must verify signature first")):
+        with patch("vpn_orbit.runtime.rescue.decrypt", side_effect=AssertionError("must verify signature first")):
             with self.assertRaisesRegex(Denied, "ARCHIVE_PROVENANCE_INVALID"):
                 prepare_bundle(self.source["ciphertext"], self.envelope, b"x" * 32, self.fixture.identity, self.request,
                                self.bundle, age_path=self.age, tool_owner=os.geteuid())
 
     def test_offline_profile_failure_occurs_before_identity_processing(self):
-        with patch("hostorbit.runtime.rescue.offline_profile", side_effect=Denied("RESCUE_SWAP_ENABLED")):
+        with patch("vpn_orbit.runtime.rescue.offline_profile", side_effect=Denied("RESCUE_SWAP_ENABLED")):
             with self.assertRaisesRegex(Denied, "RESCUE_SWAP_ENABLED"):
                 self.pack()
         self.assertFalse(self.bundle.exists())
@@ -268,7 +268,7 @@ class RescueTests(unittest.TestCase):
                 validate_request({**self.request, **changes})
 
     def test_source_recovery_point_has_no_fifteen_minute_freshness_restriction(self):
-        with patch("hostorbit.runtime.controller_backup.time.time", return_value=time.time() - 86400):
+        with patch("vpn_orbit.runtime.controller_backup.time.time", return_value=time.time() - 86400):
             source = self.fixture.backup.create(self.fixture.recipient)
         self.source = source
         self.envelope = json.loads(Path(source["provenance"]).read_bytes())
@@ -320,8 +320,8 @@ class RescueTests(unittest.TestCase):
 
     def test_historical_schema_one_restores_auth_without_running_a_migration(self):
         from contextlib import closing
-        from hostorbit.migrations import historical_schema
-        from hostorbit.runtime.storage import new_private_file
+        from vpn_orbit.migrations import historical_schema
+        from vpn_orbit.runtime.storage import new_private_file
         legacy = self.root / "legacy"
         legacy.mkdir(mode=0o700)
         path = legacy / "controller.sqlite3"

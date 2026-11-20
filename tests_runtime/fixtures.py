@@ -6,9 +6,9 @@ import subprocess
 import tempfile
 import time
 
-from hostorbit.runtime.policy import Policy
-from hostorbit.errors import Denied
-from hostorbit.runtime.timehealth import TimeHealth
+from vpn_orbit.runtime.policy import Policy
+from vpn_orbit.errors import Denied
+from vpn_orbit.runtime.timehealth import TimeHealth
 
 
 TARGET = "01JCYQZ4T9V8MNVYEH3D2M7Q1A"

@@ -11,11 +11,11 @@ from nacl.signing import VerifyKey
 
 from deploy.artifact import ArtifactError, read_at
 from deploy.build_update_release import signer_from_file
-from hostorbit.errors import Denied
-from hostorbit.runtime.protocol import SHA256, ULID, canonical, decode, fields, integer, text
+from vpn_orbit.errors import Denied
+from vpn_orbit.runtime.protocol import SHA256, ULID, canonical, decode, fields, integer, text
 
 
-KIND = "hostorbit.controller-migration-restore"
+KIND = "vpn-orbit.controller-migration-restore"
 MAX_EVIDENCE = 1024 * 1024
 MAX_AGE = 1800
 CHECKS = ("restored_in_isolation", "sqlite_audit_verified", "owner_login_verified", "independent_storage_verified")
@@ -88,7 +88,7 @@ def main(argv=None):
         sys.stdout.buffer.write(sign_restore(claims, evidence, signer_from_file(args.signing_key)))
     except (Denied, ArtifactError, OSError) as error:
         code = error.code if isinstance(error, Denied) else "CONTROLLER_RESTORE_SIGNING_FAILED"
-        print(f"HostOrbit: {code}", file=sys.stderr)
+        print(f"VPN-Orbit: {code}", file=sys.stderr)
         return 1
     return 0
 

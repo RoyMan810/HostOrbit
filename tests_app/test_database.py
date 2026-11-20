@@ -9,8 +9,8 @@ import sqlite3
 import tempfile
 import unittest
 
-from hostorbit.cli import main
-from hostorbit.database import Store
+from vpn_orbit.cli import main
+from vpn_orbit.database import Store
 
 
 def die_before_commit(path):
@@ -137,4 +137,4 @@ class DatabaseTests(unittest.TestCase):
         with self.store.connect() as db:
             db.execute("DROP TRIGGER audit_no_update")
             db.execute("UPDATE audit SET outcome='FORGED'")
-        self.assertEqual(run(), (1, "", "HostOrbit command failed AUDIT_VERIFICATION_FAILED\n"))
+        self.assertEqual(run(), (1, "", "VPN-Orbit command failed AUDIT_VERIFICATION_FAILED\n"))

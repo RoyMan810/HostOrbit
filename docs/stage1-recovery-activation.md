@@ -2,13 +2,13 @@
 
 [Документация](README.md)
 
-`hostorbit-activate` добавляет переход установленного восстановленного Controller из READ_ONLY_RECOVERY в ACTIVE с устойчивым карантином. Это локальная административная процедура: нет Web/Worker endpoint, provider API, автоматического выключения старого хоста, SSH shell из UI или `force-active`.
+`vpn-orbit-activate` добавляет переход установленного восстановленного Controller из READ_ONLY_RECOVERY в ACTIVE с устойчивым карантином. Это локальная административная процедура: нет Web/Worker endpoint, provider API, автоматического выключения старого хоста, SSH shell из UI или `force-active`.
 
 ## Что подтверждает Owner
 
 Внешний ручной runbook сначала останавливает/маскирует старые Worker/Scheduler, блокирует автозапуск, прекращает опасные прямые и delegated effects либо изолирует старый хост через независимую консоль. Owner отдельно сверяет прежний Controller ID, известный SSH host fingerprint и recovery source hash. SSH timeout, DNS и одиночный скриншот не считаются fencing.
 
-JSON report содержит `v=1`, `type=hostorbit.manual-isolation`, `source_instance`, `target_instance`, `source_backup_hash`, `dependencies_reviewed=true`, `isolation`, `targets`. В `isolation` обязательны:
+JSON report содержит `v=1`, `type=vpn-orbit.manual-isolation`, `source_instance`, `target_instance`, `source_backup_hash`, `dependencies_reviewed=true`, `isolation`, `targets`. В `isolation` обязательны:
 
 - `method`: `verified_local_stop`, `power_off` или `network_isolation`;
 - `console`, `operator`, `old_host_key` в OpenSSH `SHA256:…` формате;
@@ -21,7 +21,7 @@ JSON report содержит `v=1`, `type=hostorbit.manual-isolation`, `source_i
 
 ## Ротация credentials до активации
 
-Старые удалённые `authorized_keys`/права удаляются, новые ограниченные ключи проверяются администратором **вне HostOrbit Jobs**. Локальная копия старого ref должна стать REVOKED. Candidate protected policy сохраняет тот же inventory, адреса, host pins, capabilities и dependency graph; для переводимых целей меняются только `secret_ref` и `policy_revision=old+1`.
+Старые удалённые `authorized_keys`/права удаляются, новые ограниченные ключи проверяются администратором **вне VPN-Orbit Jobs**. Локальная копия старого ref должна стать REVOKED. Candidate protected policy сохраняет тот же inventory, адреса, host pins, capabilities и dependency graph; для переводимых целей меняются только `secret_ref` и `policy_revision=old+1`.
 
 Нативные Broker-UID команды `recovery-import-key` и `recovery-revoke-key` работают только при READ_ONLY_RECOVERY и под системной OS credential. Первая принимает приватный SSH import file Broker ownership/mode, существующий target, новую immutable version и policy revision; вторая отзывает только текущий protected ref указанного target. Это локальное control provisioning, не разрешение отправить SSH. Файл импорта удаляет оператор после успешного импорта. Offline Owner age identity не используется.
 
@@ -34,8 +34,8 @@ JSON report содержит `v=1`, `type=hostorbit.manual-isolation`, `source_i
 Пример формы команды (публичные fingerprints/пути допустимы в argv):
 
 ```sh
-sudo /opt/hostorbit/venv/bin/hostorbit-activate \
-  --state /var/lib/hostorbit-rescue/request-1 \
+sudo /opt/vpn-orbit/venv/bin/vpn-orbit-activate \
+  --state /var/lib/vpn-orbit-rescue/request-1 \
   --old-host-key SHA256:PUBLIC_SOURCE_FINGERPRINT \
   prepare --report /root/manual-isolation.json --policy /root/recovered-targets.json
 ```
@@ -54,4 +54,4 @@ Plan погашается до побочных действий; Root пише�
 
 Unit/fault tests используют разные Ed25519 keys и проверяют false/missing isolation, source fingerprint, inventory, exact confirmation/password/lockout/expiry, изменённый epoch/ключ, AEAD-bound ACL, старый/revoked key, dependency/delegated-effect quarantine, signature corruption и отказ повторного plan. SIGKILL выполняется на CONFIRMED, SERVICES_STOPPED, POLICY_WRITTEN, APP_COMMITTED, GATE_COMMITTED и AUTHORIZED; restart/watchdog не открывает незавершённую activation.
 
-Signed-installation CI запускает установленную local CLI через PTY с отдельным digest и скрытым password, реальным systemd Broker credential helper, остановкой/запуском служб и supervisor restart. В этом fixture inventory пуст, старую installation удалил сам disposable-VM test harness, Owner/runbook представлены явно обозначенной симуляцией. Он подтверждает установленный console/service path, **не человеческую аттестацию, real VPS credential rotation или независимый physical DR**. Эти проверки остаются отдельными; AC/Stage1/MVP, RESTORE_ATTESTED и Backup Gate автоматически не повышаются.
+Signed-installation CI запускает установленную local CLI через PTY с отдельным digest и скрытым password, реальным systemd Broker credential helper, остановкой/запуском служб и supervisor restart. В этом fixture inventory пуст, старую installation удалил сам disposable-VM test harness, Owner/runbook представлены явно обозначенной симуляцией. Он подтверждает установленный console/service path, **не человеческую аттестацию, real VPS credential rotation или независимый physical DR**.

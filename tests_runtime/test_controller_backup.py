@@ -15,25 +15,25 @@ from unittest.mock import patch
 from nacl.secret import Aead
 from nacl.signing import SigningKey
 
-from hostorbit.admission import Admission
-from hostorbit.auth import AuthService
-from hostorbit.database import Store
-from hostorbit.errors import Denied
-from hostorbit.runtime.archive_stream import CONTROLLER_FILES, feed, seal
-from hostorbit.runtime.authority import Authority
-from hostorbit.runtime.broker import Broker
-from hostorbit.runtime.controller_backup import ControllerBackup, Layout, verify_provenance
-from hostorbit.runtime.coordinator import Coordinator
-from hostorbit.runtime.pins import pin_vault
-from hostorbit.runtime.policy import Policy
-from hostorbit.runtime.protocol import canonical
-from hostorbit.runtime.storage import new_private_file
-from hostorbit.runtime.vault import Vault
-from hostorbit.migrations import historical_schema
+from vpn_orbit.admission import Admission
+from vpn_orbit.auth import AuthService
+from vpn_orbit.database import Store
+from vpn_orbit.errors import Denied
+from vpn_orbit.runtime.archive_stream import CONTROLLER_FILES, feed, seal
+from vpn_orbit.runtime.authority import Authority
+from vpn_orbit.runtime.broker import Broker
+from vpn_orbit.runtime.controller_backup import ControllerBackup, Layout, verify_provenance
+from vpn_orbit.runtime.coordinator import Coordinator
+from vpn_orbit.runtime.pins import pin_vault
+from vpn_orbit.runtime.policy import Policy
+from vpn_orbit.runtime.protocol import canonical
+from vpn_orbit.runtime.storage import new_private_file
+from vpn_orbit.runtime.vault import Vault
+from vpn_orbit.migrations import historical_schema
 from fixtures import ACTOR, PASSWORD, SECRET, TARGET, WORKER_UID, private_key
 
 
-AGE_DIR = Path(os.environ.get("HOSTORBIT_TEST_AGE_DIR", str(Path(__file__).resolve().parents[2] / ".hostorbit-tools/age")))
+AGE_DIR = Path(os.environ.get("VPN_ORBIT_TEST_AGE_DIR", str(Path(__file__).resolve().parents[2] / ".vpn-orbit-tools/age")))
 
 
 def fixture_identity():
@@ -171,17 +171,17 @@ class ControllerBackupTests(unittest.TestCase):
             self.assertEqual([r["phase"] for r in db.execute("SELECT phase FROM transitions")][-3:], ["BARRIER_RELEASED", "SEALED", "SIGNED"])
 
     def test_archive_member_count_leaves_room_for_recovery_header(self):
-        with patch("hostorbit.runtime.archive_stream.MAX_RECOVERY_MEMBERS", 1):
+        with patch("vpn_orbit.runtime.archive_stream.MAX_RECOVERY_MEMBERS", 1):
             with self.assertRaisesRegex(Denied, "ARCHIVE_SIZE_UNSUPPORTED"):
                 self.backup.create(self.recipient)
         self.assertFalse(list(self.coordinator.directory.glob("captures/*/provenance.json")))
         self.assertEqual(self.admission.state()["phase"], "OPEN")
 
     def test_unrecoverable_archive_is_rejected_before_signing(self):
-        with patch("hostorbit.runtime.controller_backup.MAX_CONTROLLER_CIPHERTEXT", 1):
+        with patch("vpn_orbit.runtime.controller_backup.MAX_CONTROLLER_CIPHERTEXT", 1):
             with self.assertRaisesRegex(Denied, "ARCHIVE_SIZE_UNSUPPORTED"):
                 self.backup.create(self.recipient)
-        with patch("hostorbit.runtime.controller_backup.digest_file", return_value=("a" * 64, 600 * 1024 * 1024)):
+        with patch("vpn_orbit.runtime.controller_backup.digest_file", return_value=("a" * 64, 600 * 1024 * 1024)):
             with self.assertRaisesRegex(Denied, "ARCHIVE_SIZE_UNSUPPORTED"):
                 self.backup.create(self.recipient)
         with self.coordinator.journal.connect() as db:

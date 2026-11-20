@@ -3,24 +3,24 @@ requires = ["setuptools>=75"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "hostorbit"
+name = "vpn-orbit"
 version = "0.1.0.dev1"
 description = "Self-hosted infrastructure Controller"
 requires-python = ">=3.13"
 dependencies = ["fastapi==0.162.4", "uvicorn==0.54.0", "argon2-cffi==25.1.0", "PyNaCl==1.6.2", "asyncssh==2.24.1"]
 
 [project.scripts]
-hostorbit = "hostorbit.cli:main"
-hostorbit-runtime = "hostorbit.runtime.cli:main"
-hostorbit-backup = "hostorbit.runtime.backup_cli:main"
-hostorbit-rescue = "hostorbit.runtime.rescue_cli:main"
-hostorbit-activate = "hostorbit.runtime.activation_cli:main"
+vpn-orbit = "vpn_orbit.cli:main"
+vpn-orbit-runtime = "vpn_orbit.runtime.cli:main"
+vpn-orbit-backup = "vpn_orbit.runtime.backup_cli:main"
+vpn-orbit-rescue = "vpn_orbit.runtime.rescue_cli:main"
+vpn-orbit-activate = "vpn_orbit.runtime.activation_cli:main"
 
 [tool.setuptools.packages.find]
-include = ["hostorbit*"]
+include = ["vpn_orbit*"]
 
 [tool.setuptools.package-data]
-hostorbit = ["release-manifest.json", "schema_v1.sql"]
+vpn_orbit = ["release-manifest.json", "schema_v1.sql"]
 
 [tool.ruff]
 required-version = "==0.17.4"

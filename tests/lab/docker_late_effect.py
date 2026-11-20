@@ -86,7 +86,7 @@ def compose_fixture(root, image):
     volume = root / "volume"
     volume.mkdir()
     program = Path(__file__).with_name("delayed_container.py").resolve()
-    project = f"hostorbit-stage0-{os.urandom(8).hex()}"
+    project = f"vpn-orbit-stage0-{os.urandom(8).hex()}"
     spec = root / "compose.json"
     common = {"image": image, "read_only": True, "cap_drop": ["ALL"],
               "security_opt": ["no-new-privileges:true"], "userns_mode": "host",
@@ -197,7 +197,7 @@ def exercise_fixture(root, volume, container, topology, launch_restart, stop_rem
 
 
 if __name__ == "__main__":
-    image = os.environ["HOSTORBIT_LAB_PYTHON_IMAGE"]
+    image = os.environ["VPN_ORBIT_LAB_PYTHON_IMAGE"]
     print(docker("version", "--format", "Docker Engine {{.Server.Version}}"))
     docker("pull", "--platform", "linux/amd64", image, timeout=90)
     with TemporaryDirectory() as directory:

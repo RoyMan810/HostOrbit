@@ -6,7 +6,7 @@ import unittest
 
 import httpx
 
-from hostorbit.auth import COOKIE
+from vpn_orbit.auth import COOKIE
 from tools.capacity_controller import FixtureError, Workload, preflight
 
 

@@ -14,11 +14,11 @@ from deploy.artifact import ArtifactError, trusted_key
 from deploy.rehearse_update import select_slot, stage_candidate
 from deploy.update_release import verify_candidate
 from deploy.updater_self_test import run_updater_self_test, zstd_runtime
-from hostorbit.errors import Denied
-from hostorbit.runtime.cli import configuration
-from hostorbit.runtime.ipc import Client
-from hostorbit.runtime.protocol import SHA256, ULID, canonical, decode, fields, integer, text
-from hostorbit.runtime.storage import directory_sync, new_private_file, process_lock, protected_bytes
+from vpn_orbit.errors import Denied
+from vpn_orbit.runtime.cli import configuration
+from vpn_orbit.runtime.ipc import Client
+from vpn_orbit.runtime.protocol import SHA256, ULID, canonical, decode, fields, integer, text
+from vpn_orbit.runtime.storage import directory_sync, new_private_file, process_lock, protected_bytes
 
 
 def private_slots(path):
@@ -149,13 +149,13 @@ def main(argv=None):
     parser.add_argument("--vault-format", type=int, required=True)
     args = parser.parse_args(argv)
     if os.geteuid() != 0:
-        print("HostOrbit: LOCAL_ROOT_REQUIRED", file=sys.stderr)
+        print("VPN-Orbit: LOCAL_ROOT_REQUIRED", file=sys.stderr)
         return 1
     try:
         zstd_runtime()
-        config = configuration(Path("/etc/hostorbit/runtime.json"))
+        config = configuration(Path("/etc/vpn-orbit/runtime.json"))
         gate = Client(config["gate_socket"], server_uids={0})
-        report = select_update(args.directory, Path("/var/lib/hostorbit/update-slots"), trusted_key(args.trust_key),
+        report = select_update(args.directory, Path("/var/lib/vpn-orbit/update-slots"), trusted_key(args.trust_key),
                                gate, decode(protected_bytes(args.approval, owner=0, private=True), canonical_required=False),
                                installed=args.installed, bootstrap=args.bootstrap, minimum_release=args.minimum_release,
                                schema=args.schema, vault_format=args.vault_format)
@@ -166,7 +166,7 @@ def main(argv=None):
             code = error.code
         else:
             code = "UPDATE_UNAVAILABLE"
-        print(f"HostOrbit: {code}", file=sys.stderr)
+        print(f"VPN-Orbit: {code}", file=sys.stderr)
         return 1
     print(json.dumps(report, sort_keys=True))
     return 0

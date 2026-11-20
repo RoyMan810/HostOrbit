@@ -92,11 +92,11 @@ def _encode(data: bytes) -> str:
 
 
 def _dek_context(version: int) -> bytes:
-    return f"hostorbit.stage0.dek/{version}".encode("ascii")
+    return f"vpn-orbit.stage0.dek/{version}".encode("ascii")
 
 
 def secret_context(name: str, version: int) -> bytes:
-    return f"hostorbit.stage0.secret/{version}/{name}".encode("utf-8")
+    return f"vpn-orbit.stage0.secret/{version}/{name}".encode("utf-8")
 
 
 @dataclass(frozen=True, repr=False)

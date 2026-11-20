@@ -62,10 +62,10 @@ def receiver(root, public_key):
     base = root / "sftp-receiver"
     base.mkdir(mode=0o755)
     base.chmod(0o755)
-    namespace, link, peer = "hostorbit-sftp-lab", "ho-sftp-host", "ho-sftp-peer"
+    namespace, link, peer = "vpn-orbit-sftp-lab", "vpn-orbit-sftp-host", "vpn-orbit-sftp-peer"
     if namespace in run("/usr/sbin/ip", "netns", "list").stdout.decode():
         raise RuntimeError("SFTP fixture namespace already exists")
-    account = "ho-sftp-" + secrets.token_hex(3)
+    account = "vpn-orbit-sftp-" + secrets.token_hex(3)
     created, mounted, created_namespace, obj = False, False, False, None
     log = (base / "sshd.log").open("wb")
     try:

@@ -1,4 +1,4 @@
-"""Prepare an Ubuntu VPS for HostOrbit inventory using interactive OpenSSH."""
+"""Prepare an Ubuntu VPS for VPN-Orbit inventory using interactive OpenSSH."""
 
 import argparse
 import base64
@@ -15,12 +15,12 @@ import tempfile
 
 
 ROOT = Path(__file__).resolve().parents[1]
-PROBE_ACCOUNT = "hostorbit-svc"
-PROBE_HOME = "/var/lib/hostorbit-ssh/hostorbit-svc"
-LIBEXEC = "/usr/local/libexec/hostorbit"
-SSH_CONFIG = "/etc/ssh/sshd_config.d/60-hostorbit-probe.conf"
-SUDOERS = "/etc/sudoers.d/hostorbit-probe"
-AUTHORIZED = "/etc/ssh/hostorbit-keys/hostorbit-svc"
+PROBE_ACCOUNT = "vpn-orbit-svc"
+PROBE_HOME = "/var/lib/vpn-orbit-ssh/vpn-orbit-svc"
+LIBEXEC = "/usr/local/libexec/vpn-orbit"
+SSH_CONFIG = "/etc/ssh/sshd_config.d/60-vpn-orbit-probe.conf"
+SUDOERS = "/etc/sudoers.d/vpn-orbit-probe"
+AUTHORIZED = "/etc/ssh/vpn-orbit-keys/vpn-orbit-svc"
 SSH_PROFILE = f"""Match User {PROBE_ACCOUNT}
     AuthorizedKeysFile {AUTHORIZED}
     ForceCommand {LIBEXEC}/ssh-gateway
@@ -92,7 +92,7 @@ if id {PROBE_ACCOUNT} >/dev/null 2>&1; then
 else
     useradd --system --user-group --no-create-home --home-dir {PROBE_HOME} --shell /bin/sh {PROBE_ACCOUNT}
 fi
-install -d -o root -g root -m 0755 {PROBE_HOME} {LIBEXEC} /etc/ssh/hostorbit-keys
+install -d -o root -g root -m 0755 {PROBE_HOME} {LIBEXEC} /etc/ssh/vpn-orbit-keys
 work=$(mktemp -d)
 new_ssh_profile=false
 if [ ! -e {SSH_CONFIG} ] && [ ! -L {SSH_CONFIG} ]; then new_ssh_profile=true; fi
@@ -148,7 +148,7 @@ def main():
             subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", str(key)], check=True)
             target = {**scope, "id": identifier(), "secret_ref": identifier() + ":v1"}
             policy.write_text(json.dumps({"v": 1, "targets": [target]}, indent=2) + "\n")
-        with tempfile.TemporaryDirectory(prefix="hostorbit-ssh-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="vpn-orbit-ssh-") as tmp:
             known_hosts = Path(tmp, "known_hosts")
             host = ip if args.port == 22 else f"[{ip}]:{args.port}"
             known_hosts.write_text(f"{host} {host_key}\n")
@@ -161,17 +161,17 @@ def main():
                 auth = ["-i", str(args.identity), "-o", "IdentitiesOnly=yes",
                         "-o", "PreferredAuthentications=publickey"]
             remote = shlex.join(["sudo", "--", "/bin/sh", "-c",
-                                 provision(key.with_suffix(".pub").read_bytes()), "hostorbit-provision"])
+                                 provision(key.with_suffix(".pub").read_bytes()), "vpn-orbit-provision"])
             remote += ' "${SSH_CONNECTION%% *}"'
             subprocess.run([*ssh, "-t", *auth, f"{args.user}@{ip}", remote], check=True)
             result = subprocess.check_output(
                 [*ssh, "-T", "-i", str(key), "-o", "IdentitiesOnly=yes", "-o", "BatchMode=yes",
-                 f"{PROBE_ACCOUNT}@{ip}", "hostorbit.v8.probe"],
+                 f"{PROBE_ACCOUNT}@{ip}", "vpn-orbit.v8.probe"],
                 input='{"operation":"probe","version":8}\n', text=True,
             )
             observation = json.loads(result)
             if not isinstance(observation, dict) or observation.get("v") != 8 or observation.get("uid") != 0:
-                raise ValueError("Unexpected response from the HostOrbit observation gateway")
+                raise ValueError("Unexpected response from the VPN-Orbit observation gateway")
     except (ValueError, KeyError, TypeError, OSError, subprocess.CalledProcessError) as exc:
         parser.exit(1, f"VPS preparation failed: {exc}\n" if not isinstance(exc, subprocess.CalledProcessError)
                     else f"VPS preparation failed (command exited with status {exc.returncode}).\n")

@@ -16,7 +16,7 @@ class UpdateReleaseTests(unittest.TestCase):
         public = subprocess.check_output(["openssl", "pkey", "-in", self.private, "-pubout", "-outform", "DER"])
         self.public = public[-32:]
         payload = b"updater candidate"
-        self.archive = self.directory / "hostorbit-updater-linux-amd64-1.2.0.tar.zst"
+        self.archive = self.directory / "vpn-orbit-updater-linux-amd64-1.2.0.tar.zst"
         self.archive.write_bytes(payload)
         self.release = {
             "v": 1, "platform": "linux-amd64", "version": "1.2.0", "min_bootstrap_version": "1.0.0",

@@ -13,10 +13,10 @@ import tempfile
 
 FIXED_FILES = {
     "deploy/artifact.py", "deploy/installer.py", "deploy/Controller.Dockerfile",
-    "deploy/sysusers.d/hostorbit.conf", "requirements-install.txt", "sbom.cdx.json",
+    "deploy/sysusers.d/vpn-orbit.conf", "requirements-install.txt", "sbom.cdx.json",
     *("deploy/systemd/" + name for name in (
-        "hostorbit-broker.service", "hostorbit-broker.socket",
-        "hostorbit-supervisor.service", "hostorbit-supervisor.socket")),
+        "vpn-orbit-broker.service", "vpn-orbit-broker.socket",
+        "vpn-orbit-supervisor.service", "vpn-orbit-supervisor.socket")),
 }
 IMAGE = r"docker\.io/library/python@sha256:[0-9a-f]{64}"
 MAX_FILE = 64 * 1024 * 1024
@@ -102,7 +102,7 @@ def trusted_key(path, *, owner=0):
 def verify_signature(data, signature, key):
     if len(signature) != 64 or len(key) != 32:
         raise ArtifactError("ARTIFACT_SIGNATURE_INVALID")
-    with tempfile.TemporaryDirectory(prefix="hostorbit-verify-") as directory:
+    with tempfile.TemporaryDirectory(prefix="vpn-orbit-verify-") as directory:
         root = Path(directory)
         # RFC 8410 SubjectPublicKeyInfo for an Ed25519 public key.
         (root / "key.der").write_bytes(bytes.fromhex("302a300506032b6570032100") + key)
@@ -125,7 +125,7 @@ def manifest(bundle, key, *, allow_development=False):
     expected = {"v", "application", "version", "channel", "source_commit", "python_image", "files",
                 "platform", "python", "sqlite_schema", "remote_mutation_enabled", "signing_key_sha256"}
     if (not isinstance(value, dict) or value.keys() != expected or type(value["v"]) is not int or value["v"] != 1
-            or value["application"] != "HostOrbit" or value["platform"] != "ubuntu-24.04-amd64"
+            or value["application"] != "VPN-Orbit" or value["platform"] != "ubuntu-24.04-amd64"
             or value["python"] not in ("3.13", "3.15") or type(value["sqlite_schema"]) is not int or value["sqlite_schema"] not in (2, 3, 4)
             or value["remote_mutation_enabled"] is not False or value["channel"] != "development"
             or not allow_development or not isinstance(value["version"], str)
@@ -153,8 +153,8 @@ def manifest(bundle, key, *, allow_development=False):
         total += item["size"]
     if not FIXED_FILES.issubset(paths) or total > 384 * 1024 * 1024:
         raise ArtifactError("MANIFEST_FILES_INVALID")
-    app = [p for p in paths if p.startswith("wheelhouse/hostorbit-")]
-    if len(app) != 1 or app[0] != f"wheelhouse/hostorbit-{value['version']}-py3-none-any.whl":
+    app = [p for p in paths if p.startswith("wheelhouse/vpn_orbit-")]
+    if len(app) != 1 or app[0] != f"wheelhouse/vpn_orbit-{value['version']}-py3-none-any.whl":
         raise ArtifactError("APPLICATION_WHEEL_INVALID")
     return value, data, signature
 

@@ -9,10 +9,10 @@ import time
 import unittest
 from unittest.mock import patch
 
-from hostorbit.admission import Admission
-from hostorbit.database import Store, identifier
-from hostorbit.errors import Denied
-from hostorbit.runtime.coordinator import Coordinator
+from vpn_orbit.admission import Admission
+from vpn_orbit.database import Store, identifier
+from vpn_orbit.errors import Denied
+from vpn_orbit.runtime.coordinator import Coordinator
 
 
 def write_child(database, directory, started, committed):
@@ -161,7 +161,7 @@ class WriterBarrierTests(unittest.TestCase):
             if str(name).startswith(".state-"):
                 raise OSError(errno.ENOSPC, "fixture full disk")
             return original(name, *args, **kwargs)
-        with patch("hostorbit.admission.os.open", side_effect=full):
+        with patch("vpn_orbit.admission.os.open", side_effect=full):
             with self.assertRaises(OSError):
                 self.admission.publish("CLOSING_ADMISSION", identifier())
         self.assertFalse((self.admission.directory / "state.json").exists())

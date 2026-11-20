@@ -2,17 +2,17 @@ from unittest.mock import Mock
 
 import asyncssh
 
-from hostorbit.errors import Denied
-from hostorbit.worker import Worker
-from hostorbit.runtime.authority import Authority
-from hostorbit.runtime.broker import Broker
-from hostorbit.runtime.ipc import Peer
-from hostorbit.runtime.policy import Policy
-from hostorbit.runtime.storage import new_private_file
-from hostorbit.runtime.vault import Vault
+from vpn_orbit.errors import Denied
+from vpn_orbit.worker import Worker
+from vpn_orbit.runtime.authority import Authority
+from vpn_orbit.runtime.broker import Broker
+from vpn_orbit.runtime.ipc import Peer
+from vpn_orbit.runtime.policy import Policy
+from vpn_orbit.runtime.storage import new_private_file
+from vpn_orbit.runtime.vault import Vault
 from tests_runtime.fixtures import ACTOR, BROKER_UID, SECRET, TARGET, WORKER_UID, policy, private_key, trusted_time
-from hostorbit.database import identifier
-from hostorbit.queue import JobQueue
+from vpn_orbit.database import identifier
+from vpn_orbit.queue import JobQueue
 from test_auth_api import Fixture, PASSWORD, SCOPE
 
 

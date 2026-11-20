@@ -26,7 +26,7 @@ class UpdateReleaseBuildTests(unittest.TestCase):
     def test_signed_candidate_round_trip_without_private_key(self):
         report = self.build()
         self.assertEqual({file.name for file in self.output.iterdir()},
-                         {"release.json", "release.sig", "hostorbit-updater-linux-amd64-1.2.0.tar.zst"})
+                         {"release.json", "release.sig", "vpn-orbit-updater-linux-amd64-1.2.0.tar.zst"})
         self.assertEqual(report, verify_candidate(self.output, bytes(self.signer.verify_key),
                          installed="1.1.0", bootstrap="1.0.0", minimum_release="1.0.0", schema=3, vault_format=1))
         with self.assertRaisesRegex(ArtifactError, "UPDATE_OUTPUT_EXISTS"):

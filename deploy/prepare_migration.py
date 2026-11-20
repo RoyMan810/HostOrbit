@@ -12,16 +12,16 @@ import time
 from deploy.artifact import ArtifactError, trusted_key
 from deploy.controller_restore_attestation import MAX_EVIDENCE, verify_restore
 from deploy.update_release import verify_candidate
-from hostorbit.database import DataAccess, Store
-from hostorbit.errors import Denied
-from hostorbit.migrations import _source_digest, _verify
-from hostorbit.runtime.authority import verify_host_time
-from hostorbit.runtime.cli import configuration
-from hostorbit.runtime.ipc import Client
-from hostorbit.runtime.migration_backup import check_publication
-from hostorbit.runtime.migration_review import verify_rehearsal
-from hostorbit.runtime.protocol import checksum
-from hostorbit.runtime.storage import protected_bytes
+from vpn_orbit.database import DataAccess, Store
+from vpn_orbit.errors import Denied
+from vpn_orbit.migrations import _source_digest, _verify
+from vpn_orbit.runtime.authority import verify_host_time
+from vpn_orbit.runtime.cli import configuration
+from vpn_orbit.runtime.ipc import Client
+from vpn_orbit.runtime.migration_backup import check_publication
+from vpn_orbit.runtime.migration_review import verify_rehearsal
+from vpn_orbit.runtime.protocol import checksum
+from vpn_orbit.runtime.storage import protected_bytes
 
 
 def verify_current_source(config, schema, review_digest):
@@ -111,7 +111,7 @@ def main(argv=None):
     try:
         if os.geteuid() != 0:
             raise Denied("LOCAL_ROOT_REQUIRED")
-        config = configuration(Path("/etc/hostorbit/runtime.json"))
+        config = configuration(Path("/etc/vpn-orbit/runtime.json"))
         restore = None
         if all(restore_paths):
             restore = {
@@ -132,7 +132,7 @@ def main(argv=None):
             code = error.code
         else:
             code = "MIGRATION_INPUTS_UNAVAILABLE"
-        print(f"HostOrbit: {code}", file=sys.stderr)
+        print(f"VPN-Orbit: {code}", file=sys.stderr)
         return 1
     print(json.dumps(report, sort_keys=True))
     return 0

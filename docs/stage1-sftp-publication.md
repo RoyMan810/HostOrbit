@@ -2,13 +2,13 @@
 
 [Документация](README.md)
 
-`hostorbit-backup publish --snapshot-id <id>` передаёт существующий [локальный подписанный архив](stage1-controller-archive.md) на отдельно настроенный SFTP target. Команда требует локального Root, проверяет исходную подпись/ciphertext и не принимает произвольные local paths, remote paths, URL или Secret Reference из Web/Worker.
+`vpn-orbit-backup publish --snapshot-id <id>` передаёт существующий [локальный подписанный архив](stage1-controller-archive.md) на отдельно настроенный SFTP target. Команда требует локального Root, проверяет исходную подпись/ciphertext и не принимает произвольные local paths, remote paths, URL или Secret Reference из Web/Worker.
 
 Успех `PUBLISHED` означает подтверждённую публикацию на настроенном SSH receiver: ciphertext/provenance/marker прочитаны обратно и совпадают. `off_host=true` относится к настроенному remote target; IP/SSH verification не доказывает независимое питание/диск/гипервизор. `failure_domain_verified=false`, `restore_verified=false`, `backup_gate=DENIED` остаются явными. Независимость хранилища — отдельное требование развёртывания и приёмки, не автоматический вывод из успешного SSH.
 
 ## Защищённая конфигурация и ключ
 
-Новая установка создаёт `/etc/hostorbit/backup-target.json` (root-owned 0644) с `{"v":1,"enabled":false}`. Destination не появляется автоматически из inventory. Root задаёт version/enabled, ULID id, canonical numeric IP, port, allowed CIDRs, полный проверенный Ed25519 host public key, username, absolute directory, Secret Reference и policy revision. DNS, loopback/link-local/metadata, mapped IPv6, plugins, path traversal, неизвестные fields и небезопасные имена отклоняются. Каталог remote prefix должен существовать; каждый компонент проверяется через lstat без symlinks.
+Новая установка создаёт `/etc/vpn-orbit/backup-target.json` (root-owned 0644) с `{"v":1,"enabled":false}`. Destination не появляется автоматически из inventory. Root задаёт version/enabled, ULID id, canonical numeric IP, port, allowed CIDRs, полный проверенный Ed25519 host public key, username, absolute directory, Secret Reference и policy revision. DNS, loopback/link-local/metadata, mapped IPv6, plugins, path traversal, неизвестные fields и небезопасные имена отклоняются. Каталог remote prefix должен существовать; каждый компонент проверяется через lstat без symlinks.
 
 Пример структуры до подстановки проверенных оператором значений:
 
@@ -21,14 +21,14 @@
   "port": 22,
   "allowed_cidrs": ["203.0.113.10/32"],
   "host_key": "ssh-ed25519 <independently-verified-server-public-key>",
-  "username": "hostorbit-backup",
-  "directory": "/store/hostorbit",
+  "username": "vpn-orbit-backup",
+  "directory": "/store/vpn-orbit",
   "secret_ref": "01JCYQZ4T9V8MNVYEH3D2M7Q1E:v1",
   "policy_revision": 1
 }
 ```
 
-Private SSH identity импортируется локальным `hostorbit-runtime import-backup-key` под UID Broker с OS credential. Его AAD имеет отдельные `purpose=backup.sftp`, consumer UID Broker, target ID и policy revision. `host.probe` key, чужой consumer/target/revision и отозванная версия не подходят. Команда не добавляет новый managed-host adapter или secret-return RPC. Root invocation использует тот же `LoadCredentialEncrypted` profile, что и provisioning Vault; исходный private SSH file должен быть Broker-owned 0600. Offline Owner age identity этому процессу не передаётся.
+Private SSH identity импортируется локальным `vpn-orbit-runtime import-backup-key` под UID Broker с OS credential. Его AAD имеет отдельные `purpose=backup.sftp`, consumer UID Broker, target ID и policy revision. `host.probe` key, чужой consumer/target/revision и отозванная версия не подходят. Команда не добавляет новый managed-host adapter или secret-return RPC. Root invocation использует тот же `LoadCredentialEncrypted` profile, что и provisioning Vault; исходный private SSH file должен быть Broker-owned 0600. Offline Owner age identity этому процессу не передаётся.
 
 Transport credential, его ciphertext и metadata входят в следующий Vault pin/age archive; target config тоже захватывается. Старые подписанные snapshots без этого optional config member продолжают проходить provenance verification. Их recovery point не переписывается при публикации. Для скачивания после потери Controller нужен независимо доступный recovery access к SFTP, а не только transport key, находящийся внутри самого архива.
 
@@ -50,21 +50,21 @@ Upload не держит writer barrier. На checkpoint заново прове
 
 ## Проверки и оставшийся объём
 
-Contract tests вводят corruption, ENOSPC, lost final ACK, revoked credential и unsupported fsync. Root tests проверяют durable FAILED/PUBLISHED, отсутствие barrier во время upload, immutable target/source binding, strict receipt и единственный audit event при retry. Signed-installation CI поднимает настоящий OpenSSH в отдельном network namespace/chroot, проверяет установленный Broker-UID path с OS credential, decrypt portable payload из опубликованных bytes, wrong host, outage/retry, реальный ENOSPC на receiver tmpfs, corrupted final и revoke. Физически это одна disposable hosted VM; независимый disaster recovery не аттестован, AC не повышаются до PASS.
+Contract tests вводят corruption, ENOSPC, lost final ACK, revoked credential и unsupported fsync. Root tests проверяют durable FAILED/PUBLISHED, отсутствие barrier во время upload, immutable target/source binding, strict receipt и единственный audit event при retry. Signed-installation CI поднимает настоящий OpenSSH в отдельном network namespace/chroot, проверяет установленный Broker-UID path с OS credential, decrypt portable payload из опубликованных bytes, wrong host, outage/retry, реальный ENOSPC на receiver tmpfs, corrupted final и revoke. Этот стенд использует одну временную VM. Независимое аварийное восстановление требует отдельной проверки.
 
-Следующие gates остаются открытыми: signed TimeHealth freshness для pre-change, lifecycle reconciliation/retention/release pins после restart, независимый DR, manual fencing/activation и restore attestation. [Rescue data import](stage1-rescue.md) реализует preflight, одноразовый challenge, exact Owner digest/auth; [recovery installer](stage1-recovery-installation.md) запускает из этих данных службы в READ_ONLY_RECOVERY. Publication transport не открывает update/migration.
+[Rescue data import](stage1-rescue.md) реализует preflight, одноразовый challenge, exact Owner digest/auth; [recovery installer](stage1-recovery-installation.md) запускает из этих данных службы в READ_ONLY_RECOVERY. Publication transport не открывает update/migration.
 
 [Проверка перед миграцией](stage1-migrations.md#предварительная-проверка-controllerbackup-для-рабочей-миграции) сверяет скачанный комплект с квитанцией и подписанным снимком. Для скачивания используйте отдельный доступ для восстановления.
 
 ### Ручное освобождение локальной копии
 
-Root запускает `hostorbit-backup retention-inventory` для просмотра зарегистрированных ControllerBackup. Статус `HISTORICAL_PUBLICATION_ONLY` означает, что в журнале есть запись о публикации. Для ResourceBackup укажите каталог результата capture и отдельно сохранённый открытый ключ подписи: `--resource-directory /backup/volume-a --resource-trusted-key /etc/hostorbit/resource.pub`. Каталог можно указать несколько раз. CLI проверяет подпись и хеш volume.age. Каждый такой архив защищён: его внешняя публикация и возможность восстановления этим действием не подтверждаются.
+Root запускает `vpn-orbit-backup retention-inventory` для просмотра зарегистрированных ControllerBackup. Статус `HISTORICAL_PUBLICATION_ONLY` означает, что в журнале есть запись о публикации. Для ResourceBackup укажите каталог результата capture и отдельно сохранённый открытый ключ подписи: `--resource-directory /backup/volume-a --resource-trusted-key /etc/vpn-orbit/resource.pub`. Каталог можно указать несколько раз. CLI проверяет подпись и хеш volume.age. Каждый такой архив защищён: его внешняя публикация и возможность восстановления этим действием не подтверждаются.
 
 Для освобождения места можно вручную выбрать один локальный `controller.age`. Нужны два разных опубликованных snapshot одного Controller, schema и age recipient, на одном настроенном SFTP. Сохраняемый snapshot должен быть новее по журналу, охватывать Vault references и поколения ключей старой копии. Оба audit checkpoint проверяются по цепочке. Отсутствующий pin, изменённая квитанция или несовместимая зависимость блокируют процедуру.
 
 1. Владелец проверяет независимость внешнего хранилища, выполняет изолированное восстановление сохраняемого snapshot и проверяет требования к сохранению старого локального файла. Сохраните отчёт root-owned с режимом 0600 или 0400.
-2. Задайте `OLD`, `KEEP` и `REPORT`. Получите claims: `hostorbit-backup retention-review --snapshot-id "$OLD" --keep-id "$KEEP" --evidence "$REPORT"`. Передайте claims владельцу для подписи после проверки идентификаторов и SHA-256 отчёта.
-3. На отдельной машине владельца подпишите канонический UTF-8 JSON claims (ключи отсортированы, разделители без пробелов) независимым ключом Ed25519. Запишите канонический JSON с полями `claims` и `signature` (base64 подписи), без завершающего перевода строки. Доставьте approval как root-owned 0600. Установите заранее проверенные 32 сырых байта открытого ключа в `/etc/hostorbit/retention-owner.pub` с владельцем root, без записи для группы и остальных.
-4. Выполните `hostorbit-backup retire-local --snapshot-id "$OLD" --keep-id "$KEEP" --evidence "$REPORT" --approval "$APPROVAL"`. Команда читает с закреплённого SFTP обе публикации целиком и сверяет состав, подписи, размеры и хеши с локальными квитанциями. После повторной проверки зависимостей сохраняет подписанное решение и удаляет только выбранный локальный ciphertext.
+2. Задайте `OLD`, `KEEP` и `REPORT`. Получите claims: `vpn-orbit-backup retention-review --snapshot-id "$OLD" --keep-id "$KEEP" --evidence "$REPORT"`. Передайте claims владельцу для подписи после проверки идентификаторов и SHA-256 отчёта.
+3. На отдельной машине владельца подпишите канонический UTF-8 JSON claims (ключи отсортированы, разделители без пробелов) независимым ключом Ed25519. Запишите канонический JSON с полями `claims` и `signature` (base64 подписи), без завершающего перевода строки. Доставьте approval как root-owned 0600. Установите заранее проверенные 32 сырых байта открытого ключа в `/etc/vpn-orbit/retention-owner.pub` с владельцем root, без записи для группы и остальных.
+4. Выполните `vpn-orbit-backup retire-local --snapshot-id "$OLD" --keep-id "$KEEP" --evidence "$REPORT" --approval "$APPROVAL"`. Команда читает с закреплённого SFTP обе публикации целиком и сверяет состав, подписи, размеры и хеши с локальными квитанциями. После повторной проверки зависимостей сохраняет подписанное решение и удаляет только выбранный локальный ciphertext.
 
 Обе внешние копии, локальная замена, pin, ключи, provenance, квитанции и audit checkpoints сохраняются. Проверка SFTP удостоверяет состояние на момент чтения. Ответственность за независимость хранилища, восстановление и внешнюю политику удаления остаётся у владельца.

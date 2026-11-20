@@ -12,7 +12,7 @@ import time
 import unittest
 from unittest.mock import patch
 
-from hostorbit.runtime.listener_diagnostics import main
+from vpn_orbit.runtime.listener_diagnostics import main
 
 
 class TlsDiagnosticsTests(unittest.TestCase):

@@ -14,9 +14,9 @@ from unittest.mock import patch
 
 from nacl.signing import SigningKey
 
-from hostorbit.errors import Denied
-from hostorbit.runtime.policy import Policy
-from hostorbit.runtime.storage import _credential_permissions
+from vpn_orbit.errors import Denied
+from vpn_orbit.runtime.policy import Policy
+from vpn_orbit.runtime.storage import _credential_permissions
 
 DEPLOY = Path(__file__).resolve().parents[1] / "deploy"
 sys.path.insert(0, str(DEPLOY))
@@ -92,12 +92,12 @@ class InstallationTests(unittest.TestCase):
         self.private_seed = self.directory / "offline-signing-key"
         self.private_seed.write_bytes(bytes(self.signer))
         self.contents = {path: ("fixture " + path).encode() for path in FIXED_FILES}
-        self.contents["wheelhouse/hostorbit-0.1.0.dev1-py3-none-any.whl"] = b"fixture-wheel"
+        self.contents["wheelhouse/vpn_orbit-0.1.0.dev1-py3-none-any.whl"] = b"fixture-wheel"
         for name, content in self.contents.items():
             p = self.bundle / name
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_bytes(content)
-        self.value = {"v": 1, "application": "HostOrbit", "version": "0.1.0.dev1", "channel": "development",
+        self.value = {"v": 1, "application": "VPN-Orbit", "version": "0.1.0.dev1", "channel": "development",
                       "source_commit": "a" * 40, "python_image": "docker.io/library/python@sha256:" + "b" * 64,
                       "platform": "ubuntu-24.04-amd64", "python": "3.13", "sqlite_schema": 2,
                       "remote_mutation_enabled": False, "signing_key_sha256": hashlib.sha256(self.key).hexdigest(),
@@ -147,7 +147,7 @@ class InstallationTests(unittest.TestCase):
         with self.assertRaisesRegex(ArtifactError, "SIGNATURE_INVALID"):
             manifest(self.bundle, self.key, allow_development=True)
         self.sign()
-        (self.bundle / "wheelhouse/hostorbit-0.1.0.dev1-py3-none-any.whl").write_bytes(b"tampered")
+        (self.bundle / "wheelhouse/vpn_orbit-0.1.0.dev1-py3-none-any.whl").write_bytes(b"tampered")
         with self.assertRaisesRegex(ArtifactError, "DIGEST_MISMATCH"):
             snapshot(self.bundle, self.directory / "bad", self.key, allow_development=True)
 
@@ -184,7 +184,7 @@ class InstallationTests(unittest.TestCase):
             manifest(self.bundle, self.key, allow_development=True)
 
     def test_parent_or_file_symlink_and_hardlinks_are_not_followed(self):
-        wheel = self.bundle / "wheelhouse/hostorbit-0.1.0.dev1-py3-none-any.whl"
+        wheel = self.bundle / "wheelhouse/vpn_orbit-0.1.0.dev1-py3-none-any.whl"
         for kind in ("file", "parent", "hardlink"):
             with self.subTest(kind=kind):
                 if kind == "file":
@@ -214,8 +214,8 @@ class InstallationTests(unittest.TestCase):
 
     def test_compose_separates_public_api_from_networkless_worker_and_private_host_data(self):
         cfg = {"app_uid": 23101, "app_gid": 23201, "worker_uid": 23102, "worker_gid": 23102,
-               "broker_rpc_gid": 23202, "gate_rpc_gid": 23203, "writer_directory": "/var/lib/hostorbit/writer-admission"}
-        doc = compose_document(cfg, "hostorbit/controller:fixture", 18080)
+               "broker_rpc_gid": 23202, "gate_rpc_gid": 23203, "writer_directory": "/var/lib/vpn-orbit/writer-admission"}
+        doc = compose_document(cfg, "vpn-orbit/controller:fixture", 18080)
         api, worker = doc["services"]["api"], doc["services"]["worker"]
         self.assertEqual(api["ports"], [{"target": 8000, "published": "18080", "host_ip": "127.0.0.1", "protocol": "tcp"}])
         self.assertEqual(worker["network_mode"], "none")
@@ -238,14 +238,14 @@ class InstallationTests(unittest.TestCase):
                 self.assertNotIn("control-gate", volume["source"])
                 self.assertNotIn("vault", volume["source"])
                 self.assertNotIn("docker.sock", volume["source"])
-        self.assertFalse(any("/run/hostorbit/" in p["source"] for p in api["volumes"]))
+        self.assertFalse(any("/run/vpn-orbit/" in p["source"] for p in api["volumes"]))
 
     def test_fresh_empty_policy_has_no_capability_and_origin_must_remain_https(self):
         policy = Policy([])
         self.assertEqual(policy.targets, {})
         with self.assertRaisesRegex(Denied, "CAPABILITY_DISABLED"):
             policy.target("unregistered", "host.probe", "a" * 64)
-        self.assertEqual(origin("https://hostorbit.test"), "https://hostorbit.test")
-        for invalid in ("http://hostorbit.test", "https://hostorbit.test/", "https://a:b@hostorbit.test", "https://hostorbit.test:443"):
+        self.assertEqual(origin("https://vpn-orbit.test"), "https://vpn-orbit.test")
+        for invalid in ("http://vpn-orbit.test", "https://vpn-orbit.test/", "https://a:b@vpn-orbit.test", "https://vpn-orbit.test:443"):
             with self.subTest(origin=invalid), self.assertRaises(ArtifactError):
                 origin(invalid)

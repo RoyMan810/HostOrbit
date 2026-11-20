@@ -8,9 +8,9 @@ import unittest
 from urllib.parse import parse_qs, urlsplit
 from unittest.mock import patch
 
-from hostorbit.errors import Denied
-from hostorbit.runtime.protocol import canonical
-from hostorbit.runtime.ssh import parse_probe
+from vpn_orbit.errors import Denied
+from vpn_orbit.runtime.protocol import canonical
+from vpn_orbit.runtime.ssh import parse_probe
 
 
 TARGET = "a" * 64

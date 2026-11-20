@@ -176,13 +176,13 @@ export function Audit({ t, lang, expired }: { t: Copy; lang: Language; expired: 
   const after = cursors[cursors.length - 1]
   const entries = items?.map(item => ({ ...item, planRevision: savedPlanRevision(item.event) })) ?? []
   const categories = items && [
-    { id: 'ssh', label: t.auditSshExportLabel, scope: t.auditExportScope, filename: 'hostorbit-ssh-audit.json',
+    { id: 'ssh', label: t.auditSshExportLabel, scope: t.auditExportScope, filename: 'vpn-orbit-ssh-audit.json',
       json: sshAuditExport(items, t.probeStatus) },
-    { id: 'auth', label: t.auditAuthExportLabel, scope: t.auditAuthExportScope, filename: 'hostorbit-auth-audit.json',
+    { id: 'auth', label: t.auditAuthExportLabel, scope: t.auditAuthExportScope, filename: 'vpn-orbit-auth-audit.json',
       json: auditOutcomeExport(items, authOutcomes) },
-    { id: 'access', label: t.auditAccessExportLabel, scope: t.auditAccessExportScope, filename: 'hostorbit-access-audit.json',
+    { id: 'access', label: t.auditAccessExportLabel, scope: t.auditAccessExportScope, filename: 'vpn-orbit-access-audit.json',
       json: auditOutcomeExport(items, accessOutcomes) },
-    { id: 'plans', label: t.auditPlanExportLabel, scope: t.auditPlanExportScope, filename: 'hostorbit-change-plan-audit.json',
+    { id: 'plans', label: t.auditPlanExportLabel, scope: t.auditPlanExportScope, filename: 'vpn-orbit-change-plan-audit.json',
       json: planAuditExport(entries) },
   ]
 

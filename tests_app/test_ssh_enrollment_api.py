@@ -5,10 +5,10 @@ from unittest.mock import patch
 import asyncssh
 from fastapi.testclient import TestClient
 
-from hostorbit.api import create_app
-from hostorbit.config import Settings
-from hostorbit.database import identifier
-from hostorbit.runtime.policy import Policy
+from vpn_orbit.api import create_app
+from vpn_orbit.config import Settings
+from vpn_orbit.database import identifier
+from vpn_orbit.runtime.policy import Policy
 from test_auth_api import Fixture, ORIGIN, OTHER, SCOPE
 
 
@@ -71,7 +71,7 @@ class SSHEnrollmentTests(Fixture, unittest.IsolatedAsyncioTestCase):
             self.assertEqual(port, self.port)
             return connect("127.0.0.1", port=port, **options)
 
-        self.enterContext(patch("hostorbit.runtime.ssh_enrollment.asyncssh.connect", loopback_connect))
+        self.enterContext(patch("vpn_orbit.runtime.ssh_enrollment.asyncssh.connect", loopback_connect))
 
     async def enroll(self, *, client=None, headers=None, **values):
         body = {"ip": IP, "port": self.port, "username": "ubuntu", "fingerprint": self.host_pin, **values}

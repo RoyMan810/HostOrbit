@@ -13,15 +13,15 @@ import uvicorn
 from fastapi import HTTPException
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from hostorbit.api import create_app
-from hostorbit.auth import AuthService
-from hostorbit.config import Settings
-from hostorbit.database import Store, identifier
-from hostorbit.queue import JobQueue
+from vpn_orbit.api import create_app
+from vpn_orbit.auth import AuthService
+from vpn_orbit.config import Settings
+from vpn_orbit.database import Store, identifier
+from vpn_orbit.queue import JobQueue
 
 
 ORIGIN = "https://127.0.0.1:4173"
-PASSWORD = "HostOrbit fixture password!"
+PASSWORD = "VPN-Orbit fixture password!"
 TARGETS = ["01JCYQZ4T9V8MNVYEH3D2M7Q1" + suffix for suffix in "ABC"]
 
 
@@ -126,7 +126,7 @@ def fixture(directory):
 
 
 if __name__ == "__main__":
-    with tempfile.TemporaryDirectory(prefix="hostorbit-web-test-") as directory:
+    with tempfile.TemporaryDirectory(prefix="vpn-orbit-web-test-") as directory:
         root = Path(directory)
         key, cert = root / "key.pem", root / "cert.pem"
         subprocess.run(["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",

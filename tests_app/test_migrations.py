@@ -12,11 +12,11 @@ import time
 import unittest
 from unittest.mock import patch
 
-from hostorbit.auth import AuthService
-from hostorbit.database import Store, identifier
-from hostorbit.errors import Denied
-from hostorbit.migrations import expected_schema, historical_schema, rehearse, schema_rows
-from hostorbit.queue import JobQueue
+from vpn_orbit.auth import AuthService
+from vpn_orbit.database import Store, identifier
+from vpn_orbit.errors import Denied
+from vpn_orbit.migrations import expected_schema, historical_schema, rehearse, schema_rows
+from vpn_orbit.queue import JobQueue
 
 
 def kill_during_migration(path, output):
@@ -27,7 +27,7 @@ def kill_during_migration(path, output):
 
 
 def kill_after_commit(path, output):
-    from hostorbit import migrations
+    from vpn_orbit import migrations
     migrate = migrations._migrate_snapshot
     def commit_then_kill(*args, **kwargs):
         migrate(*args, **kwargs)
@@ -265,7 +265,7 @@ class PlanDraftMigrationTests(unittest.TestCase):
         self.output = self.root / "schema-three"
 
     def test_operation_schema_preserves_existing_jobs_and_foreign_keys(self):
-        from hostorbit.runtime.migration_review import verify_rehearsal
+        from vpn_orbit.runtime.migration_review import verify_rehearsal
 
         rehearse(self.store, self.output, to_schema=3)
         source = Store(self.output / "migrated.sqlite3")

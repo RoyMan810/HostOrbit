@@ -1,0 +1,30 @@
+[Unit]
+Description=VPN-Orbit scoped Secrets and SSH Broker
+Requires=vpn-orbit-broker.socket vpn-orbit-supervisor.socket
+After=vpn-orbit-broker.socket vpn-orbit-supervisor.socket
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+ExecStart=/opt/vpn-orbit/venv/bin/vpn-orbit-runtime --config /etc/vpn-orbit/runtime.json broker
+User=vpn-orbit-broker
+Group=vpn-orbit-broker
+SupplementaryGroups=vpn-orbit-gate-rpc
+LoadCredentialEncrypted=broker-dek:/etc/vpn-orbit/credentials/broker-dek.cred
+UMask=0077
+Restart=on-failure
+RestartSec=2
+KillMode=control-group
+NoNewPrivileges=true
+CapabilityBoundingSet=
+LimitCORE=0
+RestrictSUIDSGID=true
+LockPersonality=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/var/lib/vpn-orbit/broker /var/lib/vpn-orbit/vault
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true

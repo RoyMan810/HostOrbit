@@ -23,7 +23,7 @@ else:
 
 @contextmanager
 def committed_source(root, commit):
-    with tempfile.TemporaryDirectory(prefix="hostorbit-source-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="vpn-orbit-source-") as temporary:
         directory = Path(temporary)
         archive = directory / "source.tar"
         tree = directory / "tree"
@@ -70,7 +70,7 @@ def main(argv=None):
     if subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=no"], cwd=root).strip():
         parser.error("Build from a committed source revision")
     with committed_source(root, source) as tree:
-        sqlite_schema = json.loads((tree / "hostorbit/release-manifest.json").read_text())["sqlite_schema"]
+        sqlite_schema = json.loads((tree / "vpn_orbit/release-manifest.json").read_text())["sqlite_schema"]
         version = tomllib.loads((tree / "pyproject.toml").read_text())["project"]["version"]
         try:
             requirements = wheel_lock(tree)
@@ -106,8 +106,8 @@ def main(argv=None):
                            "hashes": [{"alg": "SHA-256", "content": digest}]})
     (output / "requirements-install.txt").write_text("\n".join(locked) + "\n", encoding="utf-8")
     sbom = {"bomFormat": "CycloneDX", "specVersion": "1.6", "version": 1,
-            "metadata": {"component": {"type": "application", "name": "HostOrbit", "version": version},
-                         "properties": [{"name": "hostorbit:scope", "value": "Installed Python wheels plus the pinned OCI base; excludes full OS/base image inventory"}]},
+            "metadata": {"component": {"type": "application", "name": "VPN-Orbit", "version": version},
+                         "properties": [{"name": "vpn-orbit:scope", "value": "Installed Python wheels plus the pinned OCI base; excludes full OS/base image inventory"}]},
             "components": components + [{"type": "container", "name": args.python_image},
                                          {"type": "application", "name": "age", "version": AGE_VERSION,
                                           "hashes": [{"alg": "SHA-256", "content": AGE_SHA256}]}]}
@@ -115,7 +115,7 @@ def main(argv=None):
     files = [{"path": str(path.relative_to(output)), "size": path.stat().st_size,
               "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
              for path in sorted(output.rglob("*")) if path.is_file()]
-    value = {"v": 1, "application": "HostOrbit", "version": version, "channel": "development",
+    value = {"v": 1, "application": "VPN-Orbit", "version": version, "channel": "development",
              "source_commit": source, "python_image": args.python_image, "platform": "ubuntu-24.04-amd64",
              "python": "3.15", "sqlite_schema": sqlite_schema, "remote_mutation_enabled": False, "files": files,
              "signing_key_sha256": hashlib.sha256(bytes(signer.verify_key)).hexdigest()}

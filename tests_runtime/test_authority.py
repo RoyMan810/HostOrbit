@@ -5,11 +5,11 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from hostorbit.database import identifier
-from hostorbit.errors import Denied
-from hostorbit.runtime.authority import Authority, verify_permit
-from hostorbit.runtime.ipc import Peer
-from hostorbit.runtime.policy import CAPABILITIES, Capability
+from vpn_orbit.database import identifier
+from vpn_orbit.errors import Denied
+from vpn_orbit.runtime.authority import Authority, verify_permit
+from vpn_orbit.runtime.ipc import Peer
+from vpn_orbit.runtime.policy import CAPABILITIES, Capability
 from fixtures import ACTOR, BROKER_UID, TARGET, WORKER_UID, binding, policy, trusted_time
 
 

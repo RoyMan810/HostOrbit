@@ -8,9 +8,9 @@ from unittest.mock import patch
 
 import asyncssh
 
-from hostorbit.errors import Denied
-from hostorbit.runtime.protocol import canonical
-from hostorbit.runtime.ssh import exchange, exchange_restart, parse_probe
+from vpn_orbit.errors import Denied
+from vpn_orbit.runtime.protocol import canonical
+from vpn_orbit.runtime.ssh import exchange, exchange_restart, parse_probe
 
 
 BOOT = '12345678-1234-1234-1234-123456789abc'
@@ -59,7 +59,7 @@ class ProbeNegotiationTests(unittest.IsolatedAsyncioTestCase):
         self.client_key = asyncssh.generate_private_key('ssh-ed25519')
         directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
         self.known_hosts = directory / 'known_hosts'
-        self.known_hosts.write_bytes(b'ho-discovery ' + key.export_public_key())
+        self.known_hosts.write_bytes(b'vpn-orbit-discovery ' + key.export_public_key())
 
         class Server(asyncssh.SSHServer):
             def begin_auth(self, username):
@@ -82,16 +82,16 @@ class ProbeNegotiationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_v8_uses_one_fixed_request(self):
         self.assertEqual(await self.probe(), (8, b'probe'))
-        self.assertEqual(self.requests, [('hostorbit.v8.probe', b'{"operation":"probe","version":8}\n')])
+        self.assertEqual(self.requests, [('vpn-orbit.v8.probe', b'{"operation":"probe","version":8}\n')])
 
     async def test_silent_unsupported_probe_versions_fall_back(self):
         for version in (7, 6, 5, 4, 3, 2, 1):
             with self.subTest(version=version):
                 self.requests.clear()
-                self.reply = lambda command: (0, b'legacy') if command == f'hostorbit.v{version}.probe' else (65, b'')
+                self.reply = lambda command: (0, b'legacy') if command == f'vpn-orbit.v{version}.probe' else (65, b'')
                 self.assertEqual(await self.probe(), (version, b'legacy'))
                 self.assertEqual([r[0] for r in self.requests],
-                                 [f'hostorbit.v{step}.probe' for step in range(8, version - 1, -1)])
+                                 [f'vpn-orbit.v{step}.probe' for step in range(8, version - 1, -1)])
 
     async def test_failed_or_noisy_probe_does_not_fall_back(self):
         for status, data in ((65, b'canary'), (1, b'')):
@@ -110,7 +110,7 @@ class ProbeNegotiationTests(unittest.IsolatedAsyncioTestCase):
         self.reply = lambda _: (0, canonical(result))
         output = await exchange_restart(self.target, self.client_key, self.known_hosts, request)
         self.assertEqual(output, result)
-        self.assertEqual(self.requests, [("hostorbit.v1.docker-restart", canonical(request) + b"\n")])
+        self.assertEqual(self.requests, [("vpn-orbit.v1.docker-restart", canonical(request) + b"\n")])
         self.requests.clear()
         self.reply = lambda _: (70, canonical(result))
         with self.assertRaisesRegex(Denied, "SSH_RESTART_REPLY_INVALID"):

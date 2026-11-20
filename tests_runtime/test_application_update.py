@@ -13,12 +13,12 @@ from deploy.application_update import apply_update
 from deploy.build_update_release import build_release
 from deploy.controller_restore_attestation import CHECKS, KIND, sign_restore
 from deploy.prepare_migration import prepare_migration
-from hostorbit.admission import Admission
-from hostorbit.database import Store, identifier
-from hostorbit.errors import Denied
-from hostorbit.migrations import rehearse
-from hostorbit.runtime.authority import Authority
-from hostorbit.runtime.ipc import Peer
+from vpn_orbit.admission import Admission
+from vpn_orbit.database import Store, identifier
+from vpn_orbit.errors import Denied
+from vpn_orbit.migrations import rehearse
+from vpn_orbit.runtime.authority import Authority
+from vpn_orbit.runtime.ipc import Peer
 from fixtures import policy, trusted_time
 
 
@@ -48,7 +48,7 @@ class ApplicationUpdateTests(unittest.TestCase):
         self.digests = {name: "sha256:" + "a" * 64 for name in ("web", "api", "worker")}
         build_release(self.release, archive, signer, release_version="1.2.0", schema_to=3,
                       images=self.digests, **self.compatibility)
-        self.images = {name: "registry.example.test/hostorbit/" + name + "@" + self.digests[name]
+        self.images = {name: "registry.example.test/vpn-orbit/" + name + "@" + self.digests[name]
                        for name in ("api", "worker")}
         snapshot = identifier()
         owner = SigningKey.generate()

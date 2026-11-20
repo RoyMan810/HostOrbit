@@ -1,8 +1,8 @@
-# Offline Rescue и импорт данных Stage1
+# Offline Rescue и импорт данных
 
 [Документация](README.md)
 
-`hostorbit-rescue` проверяет ControllerBackup на offline workstation, перепаковывает на одноразовый recipient новой машины и импортирует данные в новый приватный каталог. Результат — **данные в READ_ONLY_RECOVERY**, с новым Gate signer/instance/epoch и новым host-bound OS seal для переносимого DEK. Службы устанавливаются отдельным [signed recovery installer](stage1-recovery-installation.md), с сохранением read-only profile. [Локальная Owner activation](stage1-recovery-activation.md) реализована отдельно; независимый DR-прогон и ручная приёмка fencing/rotation остаются открытыми.
+`vpn-orbit-rescue` проверяет ControllerBackup на offline workstation, перепаковывает на одноразовый recipient новой машины и импортирует данные в новый приватный каталог. Результат — **данные в READ_ONLY_RECOVERY**, с новым Gate signer/instance/epoch и новым host-bound OS seal для переносимого DEK. Службы устанавливаются отдельным [signed recovery installer](stage1-recovery-installation.md), с сохранением read-only profile. [Локальная Owner activation](stage1-recovery-activation.md) реализована отдельно; независимый DR-прогон и ручная приёмка fencing/rotation остаются открытыми.
 
 ## Доверенная workstation
 
@@ -24,14 +24,14 @@
 Пример имён путей (без secrets в shell):
 
 ```sh
-sudo install -d -m 0700 /var/lib/hostorbit-rescue
-sudo hostorbit-rescue request \
-  --state /var/lib/hostorbit-rescue/request-1 \
-  --destination /var/lib/hostorbit-rescue/recovered-1 \
+sudo install -d -m 0700 /var/lib/vpn-orbit-rescue
+sudo vpn-orbit-rescue request \
+  --state /var/lib/vpn-orbit-rescue/request-1 \
+  --destination /var/lib/vpn-orbit-rescue/recovered-1 \
   --source-envelope-sha256 <independently-verified-envelope-sha256>
 ```
 
-На workstation `sudo unshare --net hostorbit-rescue preflight` должен пройти **до** ввода Owner identity. `repackage` принимает только пути к ciphertext, provenance, отдельно сохранённому public anchor, публичному request и новому output. Identity вводится скрыто с терминала и передаётся age через anonymous pipe; она не доставляется на target. На target `hostorbit-rescue import --state ... --bundle ...` интерактивно запрашивает независимый digest и затем Owner username/password.
+На workstation `sudo unshare --net vpn-orbit-rescue preflight` должен пройти **до** ввода Owner identity. `repackage` принимает только пути к ciphertext, provenance, отдельно сохранённому public anchor, публичному request и новому output. Identity вводится скрыто с терминала и передаётся age через anonymous pipe; она не доставляется на target. На target `vpn-orbit-rescue import --state ... --bundle ...` интерактивно запрашивает независимый digest и затем Owner username/password.
 
 ## Состояние после импорта
 
@@ -45,14 +45,14 @@ Writer admission получает отдельный устойчивый `recov
 
 Unit/fault tests проверяют точный Owner digest при подменённых DB/DEK с правильными внешними полями, чужой target/challenge, replay, expiry, Owner auth/lockout, непустую цель, ENOSPC и погашение failed import, старую recovery point, malformed tar, corrupted scope/generation, отзыв исходных sessions/jobs и durable read-only после restart/утраты latch. Отдельно проверяются отказы workstation profile и неинтерактивной консоли.
 
-Signed-installation CI запускает код из установленного wheel, настоящий pinned age/keygen и systemd-creds на временной GitHub-hosted Ubuntu VM. Проверяются native import/new credential/Vault decryption/new signer, Auth, отказ business writes, replay и watchdog. Положительная процедура использует явно обозначенную **CI profile fixture**; production preflight обязан отклонить уже установленный Controller. Этот прогон **не удостоверяет** реальную offline workstation, новую независимую физическую машину, полный service restore или manual restore attestation. AC статусы и общий Stage1/MVP gate не повышаются автоматически.
+Signed-installation CI запускает код из установленного wheel, настоящий pinned age/keygen и systemd-creds на временной GitHub-hosted Ubuntu VM. Проверяются native import/new credential/Vault decryption/new signer, Auth, отказ business writes, replay и watchdog. Положительная процедура использует явно обозначенную **CI profile fixture**; production preflight обязан отклонить уже установленный Controller. Этот прогон **не удостоверяет** реальную offline workstation, новую независимую физическую машину, полный service restore или manual restore attestation.
 
 ## Создание архива Docker-тома
 
 На исходном хосте остановите потребителей тома и на время копирования исключите запуск контейнеров, запись с хоста и пересоздание тома. Поддерживается локальный драйвер без опций, каталог Docker `/var/lib/docker` и сокет `/run/docker.sock` владельца root с правами `0600`. Сверьте имя и `CreatedAt` с импортированным ресурсом. Подготовьте приватный родительский каталог root с правами `0700` и отдельный 32-байтовый seed Ed25519 с правами `0400` или `0600`.
 
 ```bash
-sudo /path/to/hostorbit/bin/python -m hostorbit.runtime.resource_capture \
+sudo /path/to/vpn-orbit/bin/python -m vpn_orbit.runtime.resource_capture \
   --volume "$VOLUME" --created-at "$CREATED_AT" --source-host "$HOST_ULID" \
   --application-schema "$APP_SCHEMA" --recipient "$AGE_RECIPIENT" \
   --signing-key /root/archive.seed --destination /root/backups/capture-001
@@ -60,19 +60,19 @@ sudo /path/to/hostorbit/bin/python -m hostorbit.runtime.resource_capture \
 
 Команда создаёт новый каталог с `volume.age` и `volume.provenance.json`. Для проверки сохраните открытый ключ подписи отдельно. Содержимое тома обрабатывается в памяти. Поддерживаются архивы до 512 МиБ с учётом упаковки и шифрования и до 8192 записей.
 
-## Проверка архива ресурса Stage2
+## Проверка архива ресурса
 
-`hostorbit-rescue verify-resource-archive` проверяет один формат архива остановленного тестового Docker named volume на той же изолированной workstation. Укажите `--ciphertext`, `--provenance`, отдельно сохранённый открытый 32-байтовый ключ Ed25519 `--trusted-key` и ожидаемую версию приложения `--application-schema`. Секретный ключ age вводится скрыто через локальный терминал.
+`vpn-orbit-rescue verify-resource-archive` проверяет один формат архива остановленного тестового Docker named volume на той же изолированной workstation. Укажите `--ciphertext`, `--provenance`, отдельно сохранённый открытый 32-байтовый ключ Ed25519 `--trusted-key` и ожидаемую версию приложения `--application-schema`. Секретный ключ age вводится скрыто через локальный терминал.
 
 Подпись внешнего envelope связывает версию схемы, SHA-256 и длину ciphertext и SHA-256 внутреннего манифеста. Пути файлов и их метаданные остаются внутри шифротекста. Проверка принимает только обычные файлы и каталоги с явно заданными UID, GID и правами. Ссылки, специальные файлы и расширенные метаданные не входят в формат. Время создания возвращается как точка восстановления. Вчерашний архив проходит те же проверки, что и свежий.
 
 Успех CLI возвращает `INTEGRITY_VERIFIED` и `restore_eligibility=NOT_EVALUATED`. Остановка сервиса, UID, GID, права и получатель age описаны подписавшей стороной. Проверка подтверждает целостность этих сведений и расшифровку предоставленным ключом.
 
-Компонент [проверки аттестации](../hostorbit/runtime/resource_restore_attestation.py) проверяет канонический JSON с подписью Ed25519 от отдельно доверенного ключа Owner. Запись фиксирует схему приложения, SHA-256 версии процедуры, время ручного теста, хеш тестового архива и хеш файла доказательств. Подписанные проверки включают новую пустую цель, данные и метаданные, проверку приложения и отказ на занятой цели. Проверка принимает время от доверенного вызывающего кода и отклоняет запись с момента истечения 90 дней.
+Компонент [проверки аттестации](../vpn_orbit/runtime/resource_restore_attestation.py) проверяет канонический JSON с подписью Ed25519 от отдельно доверенного ключа Owner. Запись фиксирует схему приложения, SHA-256 версии процедуры, время ручного теста, хеш тестового архива и хеш файла доказательств. Подписанные проверки включают новую пустую цель, данные и метаданные, проверку приложения и отказ на занятой цели. Проверка принимает время от доверенного вызывающего кода и отклоняет запись с момента истечения 90 дней.
 
 `verify_restore_source` проверяет выбранный архив и аттестацию процедуры вместе. Тестовый архив в аттестации может отличаться от выбранной точки восстановления. Результат сохраняет `restore_eligibility=NOT_EVALUATED`. Проверка подписи подтверждает происхождение заявления Owner и целостность доказательства.
 
-На целевом Linux-хосте [`check_restore_target`](../hostorbit/runtime/resource_restore_target.py) сверяет имя и ожидаемый `CreatedAt` заранее выбранного тома с локальным Docker Engine. Проверка принимает только стандартный локальный том без параметров монтирования. Она проверяет пустоту каталога, свободные байты и inode по переданному бюджету и отсутствие ссылок от контейнеров по данным Docker. Каталог открывается без перехода по ссылкам и через границы монтирования внутри каталога данных Docker.
+На целевом Linux-хосте [`check_restore_target`](../vpn_orbit/runtime/resource_restore_target.py) сверяет имя и ожидаемый `CreatedAt` заранее выбранного тома с локальным Docker Engine. Проверка принимает только стандартный локальный том без параметров монтирования. Она проверяет пустоту каталога, свободные байты и inode по переданному бюджету и отсутствие ссылок от контейнеров по данным Docker. Каталог открывается без перехода по ссылкам и через границы монтирования внутри каталога данных Docker.
 
 Команда дважды проверяет каталог, до и после запроса Docker о ссылках от контейнеров. `target_fingerprint` связывает метаданные тома с устройством, inode, временем изменения каталога, текущей загрузкой хоста и запрошенной ёмкостью. Передайте его как `expected_fingerprint` при повторной проверке. Замена пустого каталога с прежним именем и временем создания или изменение бюджета даёт `RESTORE_TARGET_CHANGED`.
 
@@ -83,11 +83,11 @@ sudo /path/to/hostorbit/bin/python -m hostorbit.runtime.resource_capture \
 На доверенной workstation подготовьте отдельный каталог владельца с правами `0700`. Из доверенного пакета запустите модуль через Python окружения Rescue, в той же локальной консоли и изолированном network namespace.
 
 ```sh
-sudo unshare --net /path/to/rescue/bin/python -m hostorbit.runtime.resource_restore_cli \
+sudo unshare --net /path/to/rescue/bin/python -m vpn_orbit.runtime.resource_restore_cli \
   --ciphertext volume.age --provenance volume-provenance.json --trusted-key archive.pub \
   --owner-key owner.pub --attestation restore-attestation.json --evidence restore-evidence.json \
   --application-schema my-app-v1 --procedure-sha256 "$verified_procedure_sha256" \
-  --destination /var/lib/hostorbit-rescue/resource-rehearsal-1
+  --destination /var/lib/vpn-orbit-rescue/resource-rehearsal-1
 ```
 
 Консоль покажет цель. Введите независимо проверенный SHA-256 шифротекста и затем ключ age. После проверки источника и аттестации команда резервирует новый приватный каталог и сохраняет проверенные файлы с исходными UID, GID и правами. Готовое дерево публикуется как `data/` после записи и fsync. Любая существующая цель, включая пустую, отклоняется. После сбоя используйте новое имя. Незавершённый `pending/` может содержать расшифрованные данные и остаётся в приватном каталоге.
@@ -98,6 +98,6 @@ sudo unshare --net /path/to/rescue/bin/python -m hostorbit.runtime.resource_rest
 
 Добавьте к команде `--docker-volume <новое-имя>` и после SHA-256 введите показанное имя тома. Режим предназначен для выделенной офлайн-машины Rescue с Docker. Владелец заранее обеспечивает эксклюзивный доступ к daemon, без других Docker-клиентов и слушателей. Команда требует root-owned сокет `/run/docker.sock` с режимом `0600`, стандартный каталог данных `/var/lib/docker` и заранее загруженный образ `docker.io/library/python@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928`. Для каталога staging используются ASCII-буквы, цифры и символы `/`, `_`, `.`, `-`.
 
-HostOrbit под локальной блокировкой создаёт том с уникальной меткой и подключает к нему остановленный контейнер. Перед запуском сверяются метка, отпечаток, пустота, место, срок аттестации и отсутствие других контейнеров у тома. Контейнер копирует данные из read-only staging с сохранением UID, GID и прав, без сети и скачивания образа. Существующее имя отклоняется, включая пустой том.
+VPN-Orbit под локальной блокировкой создаёт том с уникальной меткой и подключает к нему остановленный контейнер. Перед запуском сверяются метка, отпечаток, пустота, место, срок аттестации и отсутствие других контейнеров у тома. Контейнер копирует данные из read-only staging с сохранением UID, GID и прав, без сети и скачивания образа. Существующее имя отклоняется, включая пустой том.
 
-`RESTORE_WRITTEN` подтверждает запись. Владелец проверяет приложение и фиксирует результат для AC-B05. После сбоя или неопределённого исхода сохраните том и проверьте контейнер по метке резервирования. Команда сохраняет приватный staging и оставляет существующее имя недоступным для повторной записи.
+`RESTORE_WRITTEN` подтверждает запись. Владелец проверяет приложение и фиксирует результат проверки. После сбоя или неопределённого исхода сохраните том и проверьте контейнер по метке резервирования. Команда сохраняет приватный staging и оставляет существующее имя недоступным для повторной записи.

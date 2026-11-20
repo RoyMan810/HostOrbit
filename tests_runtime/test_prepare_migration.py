@@ -9,11 +9,11 @@ from nacl.signing import SigningKey
 from deploy.build_update_release import build_release
 from deploy.controller_restore_attestation import CHECKS, KIND, sign_restore
 from deploy.prepare_migration import prepare_migration
-from hostorbit.database import Store, identifier
-from hostorbit.errors import Denied
-from hostorbit.migrations import rehearse
-from hostorbit.runtime.authority import Authority
-from hostorbit.runtime.protocol import checksum
+from vpn_orbit.database import Store, identifier
+from vpn_orbit.errors import Denied
+from vpn_orbit.migrations import rehearse
+from vpn_orbit.runtime.authority import Authority
+from vpn_orbit.runtime.protocol import checksum
 from fixtures import policy, trusted_time
 
 

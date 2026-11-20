@@ -1,4 +1,4 @@
-name: HostOrbit updater sandbox
+name: VPN-Orbit updater sandbox
 
 on:
   push:
@@ -32,7 +32,7 @@ jobs:
       - name: Check sandbox restrictions and failing self-test
         run: |
           test "$RUNNER_ENVIRONMENT" = github-hosted
-          sudo env HOSTORBIT_NATIVE_UPDATER_TEST=1 "$(command -v python)" -m unittest discover \
+          sudo env VPN_ORBIT_NATIVE_UPDATER_TEST=1 "$(command -v python)" -m unittest discover \
             -s tests_runtime -p test_updater_self_test.py -v
       - name: Show transient unit diagnostics
         if: failure()

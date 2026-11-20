@@ -4,26 +4,26 @@
 
 Публикация созданного архива теперь доступна отдельным [SFTP transport](stage1-sftp-publication.md); `create` по-прежнему заканчивается локальным `SIGNED` и не выполняет сеть. Restore/freshness gates остаются закрытыми.
 
-`hostorbit-backup create` собирает согласованный снимок поддержанного Controller/Vault, экспортирует working DEK прямо в age encryption stream и подписывает ciphertext вместе с canonical data manifest. Результат — `LOCAL_SIGNED_ONLY`. SFTP publication, [Rescue import](stage1-rescue.md), [установка восстановленного Controller](stage1-recovery-installation.md) и [локальная activation](stage1-recovery-activation.md) выполняются отдельно. Независимая restore attestation и Backup Gate остаются открытыми. Наличие архива не разрешает migration/update.
+`vpn-orbit-backup create` собирает согласованный снимок поддержанного Controller/Vault, экспортирует working DEK прямо в age encryption stream и подписывает ciphertext вместе с canonical data manifest. Результат — `LOCAL_SIGNED_ONLY`. SFTP publication, [Rescue import](stage1-rescue.md), [установка восстановленного Controller](stage1-recovery-installation.md) и [локальная activation](stage1-recovery-activation.md) выполняются отдельно. Независимая restore attestation и Backup Gate остаются открытыми. Наличие архива не разрешает migration/update.
 
 ## Создание и проверка происхождения
 
 На Controller локальный Root задаёт **публичный** native age/X25519 recipient владельца. Приватная Owner identity этой команде не передаётся:
 
 ```bash
-sudo /opt/hostorbit/venv/bin/hostorbit-backup create --recipient age1...
+sudo /opt/vpn-orbit/venv/bin/vpn-orbit-backup create --recipient age1...
 ```
 
 Root-private capture directory содержит `controller.age`, `provenance.json`, Controller staging files и manifest. Каталоги 0700, файлы 0600. Команда возвращает пути/дайджесты и явные `off_host=false`, `restore_verified=false`, `backup_gate=DENIED`. Working ciphertext и данные не перезаписывают предыдущий snapshot.
 
-Владелец должен независимо сохранить public signing anchor из `/etc/hostorbit/gate.pub` до доверия к архиву. Проверка использует именно этот сохранённый ключ; ключ внутри самого архива не подставляется автоматически:
+Владелец должен независимо сохранить public signing anchor из `/etc/vpn-orbit/gate.pub` до доверия к архиву. Проверка использует именно этот сохранённый ключ; ключ внутри самого архива не подставляется автоматически:
 
 ```bash
-hostorbit-backup verify --ciphertext controller.age \
+vpn-orbit-backup verify --ciphertext controller.age \
   --provenance provenance.json --trusted-key independent-controller.pub
 ```
 
-Проверяются Ed25519 signature, protocol domain, exact ciphertext digest/length, manifest и выбранный recipient. Ответ `PROVENANCE_VERIFIED` явно сохраняет `payload_integrity=NOT_DECRYPTED`: это не проверка расшифрованного payload и не restore test. Root Gate signing identity используется с отдельным строгим domain `hostorbit.controller-backup`; существующие Worker/Broker RPC не предоставляют generic signing/export.
+Проверяются Ed25519 signature, protocol domain, exact ciphertext digest/length, manifest и выбранный recipient. Ответ `PROVENANCE_VERIFIED` явно сохраняет `payload_integrity=NOT_DECRYPTED`: это не проверка расшифрованного payload и не restore test. Root Gate signing identity используется с отдельным строгим domain `vpn-orbit.controller-backup`; существующие Worker/Broker RPC не предоставляют generic signing/export.
 
 ## Согласованная точка
 
@@ -43,4 +43,4 @@ Working Vault пока имеет только DEK generation 1. Она пере
 
 Capture time записывается с `time_trusted=false`. Данные пригодны для проверки выбранной recovery point, но не являются `PRECHANGE_BACKUP_FRESH`. [Rescue data import](stage1-rescue.md) добавляет строгий workstation preflight, memory-only verification/repackage и exact Owner digest/auth; [recovery installer](stage1-recovery-installation.md) запускает новый read-only Controller. Остаются signed TimeHealth freshness binding, lifecycle recovery/retention, независимый DR, manual fencing/activation и restore attestation. Update/schema migration и Backup Gate остаются закрытыми.
 
-Unit tests расшифровывают fixture archive, открывают оба Vault objects переносимым DEK, сверяют Owner/audit/state и проверяют запись после barrier, историческую schema 1, wrong anchor/recipient, changed ciphertext/key/config, truncated input и path expansion. Signed-installation CI выполняет тот же native path под реальными UID/systemd credentials, с public anchor, сохранённым до создания. Fixture Owner identity остаётся в памяти внешнего CI driver; age-keygen не устанавливается в Controller. Физически это одна disposable Ubuntu VM: тест не является независимым off-host disaster recovery, production Rescue preflight или Owner attestation и не переводит AC в PASS.
+Unit tests расшифровывают fixture archive, открывают оба Vault objects переносимым DEK, сверяют Owner/audit/state и проверяют запись после barrier, историческую schema 1, wrong anchor/recipient, changed ciphertext/key/config, truncated input и path expansion. Signed-installation CI выполняет тот же native path под реальными UID/systemd credentials, с public anchor, сохранённым до создания. Fixture Owner identity остаётся в памяти внешнего CI driver; age-keygen не устанавливается в Controller. Физически это одна disposable Ubuntu VM: тест не является независимым off-host disaster recovery, production Rescue preflight или Owner attestation.

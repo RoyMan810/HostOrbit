@@ -10,7 +10,7 @@ from threading import Event, Thread
 import unittest
 
 from deploy.updater_self_test import EXECUTABLE, unpack_updater
-from hostorbit.errors import Denied
+from vpn_orbit.errors import Denied
 
 
 VERSION = "1.2.0"
@@ -21,7 +21,7 @@ class UpdaterSelfTestTests(unittest.TestCase):
         self.root = Path(self.enterContext(tempfile.TemporaryDirectory()))
         self.package = self.root / "package"
         self.package.mkdir()
-        self.archive = self.package / f"hostorbit-updater-linux-amd64-{VERSION}.tar.zst"
+        self.archive = self.package / f"vpn-orbit-updater-linux-amd64-{VERSION}.tar.zst"
 
     def pack(self, data, *, name=EXECUTABLE, mode=0o755, extra=False):
         buffer = io.BytesIO()
@@ -48,15 +48,15 @@ class UpdaterSelfTestTests(unittest.TestCase):
                 unpack_updater(self.package, VERSION, self.root / f"invalid-{index}")
         self.assertFalse((self.root / "outside").exists())
 
-    @unittest.skipUnless(os.environ.get("HOSTORBIT_NATIVE_UPDATER_TEST") == "1", "requires dedicated Ubuntu systemd runner")
+    @unittest.skipUnless(os.environ.get("VPN_ORBIT_NATIVE_UPDATER_TEST") == "1", "requires dedicated Ubuntu systemd runner")
     def test_real_systemd_sandbox_drops_root_and_blocks_host_files_and_sockets(self):
         from nacl.signing import SigningKey
 
         from deploy.build_update_release import build_release
         from deploy.supervised_update import select_update, slot_name
-        from hostorbit.database import identifier
-        from hostorbit.runtime.authority import Authority
-        from hostorbit.runtime.ipc import Client, handle
+        from vpn_orbit.database import identifier
+        from vpn_orbit.runtime.authority import Authority
+        from vpn_orbit.runtime.ipc import Client, handle
         from fixtures import policy, trusted_time
 
         self.assertEqual(os.geteuid(), 0)

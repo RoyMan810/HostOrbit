@@ -26,14 +26,14 @@ from urllib.request import urlopen
 from artifact import AGE_FILE, ArtifactError, canonical, snapshot, trusted_key
 
 
-APP = Path("/opt/hostorbit")
-CONFIG = Path("/etc/hostorbit")
-DATA = Path("/var/lib/hostorbit")
-RUN = Path("/run/hostorbit")
+APP = Path("/opt/vpn-orbit")
+CONFIG = Path("/etc/vpn-orbit")
+DATA = Path("/var/lib/vpn-orbit")
+RUN = Path("/run/vpn-orbit")
 UNITS = Path("/etc/systemd/system")
-HOST_UNITS = ("hostorbit-supervisor.socket", "hostorbit-supervisor.service",
-              "hostorbit-broker.socket", "hostorbit-broker.service")
-COMPOSE_UNIT = "hostorbit-compose.service"
+HOST_UNITS = ("vpn-orbit-supervisor.socket", "vpn-orbit-supervisor.service",
+              "vpn-orbit-broker.socket", "vpn-orbit-broker.service")
+COMPOSE_UNIT = "vpn-orbit-compose.service"
 DOCKER = "/usr/bin/docker"
 
 
@@ -51,7 +51,7 @@ def write(path, data, *, mode=0o644, uid=0, gid=0, replace=False):
     if not replace:
         fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, mode)
     else:
-        fd, temporary = tempfile.mkstemp(prefix=".hostorbit-", dir=path.parent)
+        fd, temporary = tempfile.mkstemp(prefix=".vpn-orbit-", dir=path.parent)
     try:
         os.fchmod(fd, mode)
         os.fchown(fd, uid, gid)
@@ -136,7 +136,7 @@ def supported_compose(version):
 def advise_capacity(cpus, memory, disk):
     # A 2 GiB VPS exposes less MemTotal after kernel and hardware reservations.
     if (cpus or 0) < 1 or memory < 1792 * 1024**2 or disk.free < 2 * 1024**3:
-        print("HostOrbit: recommended 1 vCPU, 2 GiB RAM and 2 GiB free in /var/lib.", file=sys.stderr)
+        print("VPN-Orbit: recommended 1 vCPU, 2 GiB RAM and 2 GiB free in /var/lib.", file=sys.stderr)
 
 
 def preflight(args):
@@ -166,19 +166,19 @@ def preflight(args):
             listener.bind(("127.0.0.1", args.port))
         except OSError:
             raise ArtifactError("LISTENER_OCCUPIED") from None
-    for path in (APP, CONFIG, DATA, RUN, Path("/etc/tmpfiles.d/hostorbit.conf"), Path("/etc/sysusers.d/hostorbit.conf"),
+    for path in (APP, CONFIG, DATA, RUN, Path("/etc/tmpfiles.d/vpn-orbit.conf"), Path("/etc/sysusers.d/vpn-orbit.conf"),
                  *(UNITS / unit for unit in (*HOST_UNITS, COMPOSE_UNIT,
-                                                                 "hostorbit-api.service", "hostorbit-worker.service"))):
+                                                                 "vpn-orbit-api.service", "vpn-orbit-worker.service"))):
         if path.exists() or path.is_symlink():
             raise ArtifactError("EXISTING_INSTALLATION_REQUIRES_MAINTENANCE")
-    for name in ("ho-api", "ho-worker", "ho-broker"):
+    for name in ("vpn-orbit-api", "vpn-orbit-worker", "vpn-orbit-broker"):
         try:
             pwd.getpwnam(name)
         except KeyError:
             pass
         else:
             raise ArtifactError("SERVICE_IDENTITY_ALREADY_EXISTS")
-    for name in ("ho-api", "ho-worker", "ho-broker", "ho-app-db", "ho-broker-rpc", "ho-gate-rpc"):
+    for name in ("vpn-orbit-api", "vpn-orbit-worker", "vpn-orbit-broker", "vpn-orbit-app-db", "vpn-orbit-broker-rpc", "vpn-orbit-gate-rpc"):
         try:
             grp.getgrnam(name)
         except KeyError:
@@ -195,9 +195,9 @@ def preflight(args):
     if any("rootless" in option or "userns" in option for option in info):
         # Numeric host/container identities must be the ones authenticated by SO_PEERCRED.
         raise ArtifactError("EXPLICIT_ROOTFUL_UID_MAPPING_REQUIRED")
-    if docker(args.docker_host, "ps", "--all", "--quiet", "--filter", "label=com.docker.compose.project=hostorbit"):
+    if docker(args.docker_host, "ps", "--all", "--quiet", "--filter", "label=com.docker.compose.project=vpn-orbit"):
         raise ArtifactError("COMPOSE_PROJECT_ALREADY_EXISTS")
-    if docker(args.docker_host, "network", "ls", "--quiet", "--filter", "name=^hostorbit_api$"):
+    if docker(args.docker_host, "network", "ls", "--quiet", "--filter", "name=^vpn-orbit_api$"):
         raise ArtifactError("COMPOSE_NETWORK_ALREADY_EXISTS")
     # A host-native interpreter remains outside the replaceable API/Worker image.
     interpreter = Path(sys.executable).resolve()
@@ -205,11 +205,11 @@ def preflight(args):
         raise ArtifactError("HOST_INTERPRETER_PATH_INVALID")
     if not Path("/run/systemd/system").is_dir():
         raise ArtifactError("SYSTEMD_HOST_REQUIRED")
-    for unit in (*HOST_UNITS, COMPOSE_UNIT, "hostorbit-api.service", "hostorbit-worker.service"):
+    for unit in (*HOST_UNITS, COMPOSE_UNIT, "vpn-orbit-api.service", "vpn-orbit-worker.service"):
         result = subprocess.run(["/usr/bin/systemctl", "show", "--property=LoadState", "--value", unit],
                                 capture_output=True, timeout=10)
         if result.stdout.strip() != b"not-found":
-            raise ArtifactError("EXISTING_HOSTORBIT_UNIT")
+            raise ArtifactError("EXISTING_VPN_ORBIT_UNIT")
     return interpreter
 
 
@@ -228,7 +228,7 @@ def compose_document(config, image, port):
     mounts = [bind(CONFIG / "runtime.json", CONFIG / "runtime.json"),
               bind(config["writer_directory"], config["writer_directory"]),
               bind(DATA / "app", DATA / "app", read_only=False)]
-    return {"name": "hostorbit", "services": {
+    return {"name": "vpn-orbit", "services": {
         "api": {**common, "user": f"{config['app_uid']}:{config['app_gid']}", "command": ["api"],
                 "networks": ["api"], "ports": [{"target": 8000, "published": str(port), "host_ip": "127.0.0.1", "protocol": "tcp"}],
                 "volumes": mounts,
@@ -249,9 +249,9 @@ def load_installation():
     if not stat.S_ISREG(info.st_mode) or info.st_uid != 0 or stat.S_IMODE(info.st_mode) != 0o600:
         raise ArtifactError("INSTALLATION_METADATA_INVALID")
     value = json.loads(path.read_bytes())
-    if (not isinstance(value, dict) or value.get("v") != 1 or value.get("project") != "hostorbit"
+    if (not isinstance(value, dict) or value.get("v") != 1 or value.get("project") != "vpn-orbit"
             or re.fullmatch(r"sha256:[0-9a-f]{64}", value.get("image_id", "")) is None
-            or re.fullmatch(r"hostorbit/controller:dev-[0-9a-f]{24}", value.get("image", "")) is None):
+            or re.fullmatch(r"vpn-orbit/controller:dev-[0-9a-f]{24}", value.get("image", "")) is None):
         raise ArtifactError("INSTALLATION_METADATA_INVALID")
     daemon(value["docker_host"])
     return value
@@ -265,14 +265,14 @@ def verify_image():
 
 def create_owner(username):
     # This command runs with the host venv, never inside the public API.
-    from hostorbit.auth import AuthService
-    from hostorbit.database import DataAccess, Store
-    from hostorbit.runtime.cli import configuration
+    from vpn_orbit.auth import AuthService
+    from vpn_orbit.database import DataAccess, Store
+    from vpn_orbit.runtime.cli import configuration
     cfg = configuration(CONFIG / "runtime.json")
     password = getpass.getpass("Owner password: ")
     if password != getpass.getpass("Confirm password: "):
         raise ArtifactError("PASSWORD_CONFIRMATION_MISMATCH")
-    from hostorbit.admission import Admission
+    from vpn_orbit.admission import Admission
     service = AuthService(Store(cfg["database"], access=DataAccess(cfg["app_uid"], cfg["app_gid"]),
                                 writers=Admission(cfg["writer_directory"])))
     token = service.issue_bootstrap()
@@ -289,7 +289,7 @@ def install(args):
     key = trusted_key(args.trust_key)
     # A copied/authenticated staging tree is the only source used below. No
     # network package index or mutable input directory is executed by root.
-    with tempfile.TemporaryDirectory(prefix="hostorbit-install-", dir="/var/tmp") as temporary:
+    with tempfile.TemporaryDirectory(prefix="vpn-orbit-install-", dir="/var/tmp") as temporary:
         stage = Path(temporary) / "bundle"
         manifest, digest = snapshot(args.bundle, stage, key, allow_development=args.development)
         if manifest["python"] != f"{sys.version_info.major}.{sys.version_info.minor}":
@@ -308,7 +308,7 @@ def install(args):
             command(interpreter, "-m", "venv", check_venv)
             command(check_venv / "bin/python", "-m", "pip", "install", "--no-index", "--find-links", stage / "wheelhouse",
                     "--require-hashes", "-r", stage / "requirements-install.txt", timeout=180)
-            recovery = json.loads(command(check_venv / "bin/python", "-m", "hostorbit.runtime.recovery_install", "check",
+            recovery = json.loads(command(check_venv / "bin/python", "-m", "vpn_orbit.runtime.recovery_install", "check",
                                           "--state", args.recovery_state, timeout=90))
             if recovery["status"] != "RECOVERY_INSTALLATION_ELIGIBLE" or recovery["mode"] != "READ_ONLY_RECOVERY":
                 raise ArtifactError("RECOVERY_DATA_NOT_ELIGIBLE")
@@ -316,7 +316,7 @@ def install(args):
             print(json.dumps({"preflight": "PASS", "manifest_sha256": digest, "channel": "development",
                               "recovery": recovery["mode"] if recovery else "NOT_READY"}))
             return
-        image = "hostorbit/controller:dev-" + digest[:24]
+        image = "vpn-orbit/controller:dev-" + digest[:24]
         docker(args.docker_host, "pull", "--platform", "linux/amd64", manifest["python_image"], timeout=180)
         docker(args.docker_host, "build", "--network=none", "--pull=false", "--build-arg", "PYTHON_IMAGE=" + manifest["python_image"],
                "--tag", image, "--file", str(stage / "deploy/Controller.Dockerfile"), str(stage), timeout=240)
@@ -339,8 +339,8 @@ def install(args):
             if not path.is_symlink():
                 path.chmod(0o755 if path.is_dir() or path.stat().st_mode & 0o111 else 0o644)
         (APP / "venv").chmod(0o755)
-        command(python, "-c", "from hostorbit.runtime.policy import CAPABILITIES; from hostorbit.database import SCHEMA_VERSION; import sys; assert SCHEMA_VERSION == int(sys.argv[1]); assert set(CAPABILITIES)=={'host.probe','docker.restart'}", manifest["sqlite_schema"])
-        command("/usr/bin/systemd-sysusers", bundle / "deploy/sysusers.d/hostorbit.conf")
+        command(python, "-c", "from vpn_orbit.runtime.policy import CAPABILITIES; from vpn_orbit.database import SCHEMA_VERSION; import sys; assert SCHEMA_VERSION == int(sys.argv[1]); assert set(CAPABILITIES)=={'host.probe','docker.restart'}", manifest["sqlite_schema"])
+        command("/usr/bin/systemd-sysusers", bundle / "deploy/sysusers.d/vpn-orbit.conf")
         cfg = {"v": 1, "database": str(DATA / "app/controller.sqlite3"), "public_origin": args.origin,
                "trusted_proxies": ["127.0.0.1/32"], "api_port": 8000, "api_bind": "0.0.0.0",
                "targets": str(CONFIG / "targets.json"), "supervisor_directory": str(DATA / "control-gate"),
@@ -348,10 +348,10 @@ def install(args):
                "writer_directory": str(DATA / "writer-admission"),
                "vault_credential": str(CONFIG / "credentials/broker-dek.cred"), "public_verify_key": str(CONFIG / "gate.pub"),
                "gate_socket": str(RUN / "supervisor/gate.sock"), "broker_socket": str(RUN / "broker/broker.sock")}
-        for role, name in (("app", "ho-api"), ("worker", "ho-worker"), ("broker", "ho-broker")):
+        for role, name in (("app", "vpn-orbit-api"), ("worker", "vpn-orbit-worker"), ("broker", "vpn-orbit-broker")):
             user = pwd.getpwnam(name)
             cfg[role + "_uid"], cfg[role + "_gid"] = user.pw_uid, user.pw_gid
-        for key_name, name in (("app_gid", "ho-app-db"), ("broker_rpc_gid", "ho-broker-rpc"), ("gate_rpc_gid", "ho-gate-rpc")):
+        for key_name, name in (("app_gid", "vpn-orbit-app-db"), ("broker_rpc_gid", "vpn-orbit-broker-rpc"), ("gate_rpc_gid", "vpn-orbit-gate-rpc")):
             cfg[key_name] = grp.getgrnam(name).gr_gid
         folder(CONFIG, 0o755)
         folder(CONFIG / "credentials", 0o700)
@@ -368,19 +368,19 @@ def install(args):
         write(CONFIG / "backup-target.json", canonical({"v": 1, "enabled": False}))
         write(CONFIG / "runtime.json", canonical(cfg))
         write(CONFIG / "release-trust.pub", key)
-        runtime = APP / "venv/bin/hostorbit-runtime"
+        runtime = APP / "venv/bin/vpn-orbit-runtime"
         if recovery:
-            command(python, "-m", "hostorbit.runtime.recovery_install", "apply", "--state", args.recovery_state,
+            command(python, "-m", "vpn_orbit.runtime.recovery_install", "apply", "--state", args.recovery_state,
                     "--config", CONFIG / "runtime.json", "--artifact-sha256", digest, timeout=120)
         else:
             command(runtime, "--config", CONFIG / "runtime.json", "initialize-credential")
             command(runtime, "--config", CONFIG / "runtime.json", "initialize-writers")
-            command(APP / "venv/bin/hostorbit", "--database", cfg["database"], "--database-owner", cfg["app_uid"],
+            command(APP / "venv/bin/vpn-orbit", "--database", cfg["database"], "--database-owner", cfg["app_uid"],
                     "--database-group", cfg["app_gid"], "init")
             command(runtime, "--config", CONFIG / "runtime.json", "initialize-supervisor")
             # systemd gives just this UID a private copy of the OS credential.
-            command("/usr/bin/systemd-run", "--unit=hostorbit-vault-initialize", "--quiet", "--wait", "--collect", "--property=User=ho-broker",
-                    "--property=Group=ho-broker", "--property=SupplementaryGroups=ho-gate-rpc",
+            command("/usr/bin/systemd-run", "--unit=vpn-orbit-vault-initialize", "--quiet", "--wait", "--collect", "--property=User=vpn-orbit-broker",
+                    "--property=Group=vpn-orbit-broker", "--property=SupplementaryGroups=vpn-orbit-gate-rpc",
                     "--property=UMask=0077", "--property=LoadCredentialEncrypted=broker-dek:" + cfg["vault_credential"],
                     runtime, "--config", CONFIG / "runtime.json", "initialize-broker")
             if args.web_enrollment:
@@ -390,17 +390,17 @@ def install(args):
                 command(runtime, "--config", CONFIG / "runtime.json", "register-observations")
         compose = compose_document(cfg, image, args.port)
         write(CONFIG / "compose.json", canonical(compose))
-        prefix = ("compose", "--project-name", "hostorbit", "--project-directory", str(APP), "--file", str(CONFIG / "compose.json"))
+        prefix = ("compose", "--project-name", "vpn-orbit", "--project-directory", str(APP), "--file", str(CONFIG / "compose.json"))
         docker(args.docker_host, *prefix, "create", "--no-build")
-        network, = json.loads(docker(args.docker_host, "network", "inspect", "hostorbit_api"))
-        if network["Labels"].get("com.docker.compose.project") != "hostorbit" or network["Internal"]:
+        network, = json.loads(docker(args.docker_host, "network", "inspect", "vpn-orbit_api"))
+        if network["Labels"].get("com.docker.compose.project") != "vpn-orbit" or network["Internal"]:
             raise ArtifactError("COMPOSE_NETWORK_BINDING_INVALID")
         gateway = ipaddress.ip_address(network["IPAM"]["Config"][0]["Gateway"])
         if gateway.version != 4 or not gateway.is_private:
             raise ArtifactError("COMPOSE_GATEWAY_INVALID")
         cfg["trusted_proxies"].append(str(gateway) + "/32")
         write(CONFIG / "runtime.json", canonical(cfg), replace=True)
-        metadata = {"v": 1, "project": "hostorbit", "image": image, "image_id": image_id, "docker_host": args.docker_host,
+        metadata = {"v": 1, "project": "vpn-orbit", "image": image, "image_id": image_id, "docker_host": args.docker_host,
                     "manifest_sha256": digest, "source_commit": manifest["source_commit"], "version": manifest["version"],
                     "channel": "development", "remote_mutation_enabled": False, "recovery": recovery["mode"] if recovery else "NOT_READY", "port": args.port}
         write(APP / "installation.json", canonical(metadata), mode=0o600)
@@ -408,14 +408,14 @@ def install(args):
             system_config_directory(path)
         for name in HOST_UNITS:
             write(UNITS / name, (bundle / "deploy/systemd" / name).read_bytes())
-        write(Path("/etc/sysusers.d/hostorbit.conf"), (bundle / "deploy/sysusers.d/hostorbit.conf").read_bytes())
+        write(Path("/etc/sysusers.d/vpn-orbit.conf"), (bundle / "deploy/sysusers.d/vpn-orbit.conf").read_bytes())
         # Recreate the narrowly owned socket directories after /run is cleared.
-        tmpfiles = (f"d {RUN} 0755 root root -\nd {RUN}/broker 0710 root ho-broker-rpc -\n"
-                    f"d {RUN}/supervisor 0710 root ho-gate-rpc -\n")
-        write(Path("/etc/tmpfiles.d/hostorbit.conf"), tmpfiles.encode())
-        cli = f"{DOCKER} --host {args.docker_host} compose --project-name hostorbit --project-directory {APP} --file {CONFIG}/compose.json"
-        unit = ("[Unit]\nDescription=HostOrbit API and Worker containers\nRequires=hostorbit-broker.socket hostorbit-supervisor.socket\n"
-                "After=docker.service hostorbit-broker.socket hostorbit-supervisor.socket\n\n[Service]\nType=oneshot\nRemainAfterExit=yes\n"
+        tmpfiles = (f"d {RUN} 0755 root root -\nd {RUN}/broker 0710 root vpn-orbit-broker-rpc -\n"
+                    f"d {RUN}/supervisor 0710 root vpn-orbit-gate-rpc -\n")
+        write(Path("/etc/tmpfiles.d/vpn-orbit.conf"), tmpfiles.encode())
+        cli = f"{DOCKER} --host {args.docker_host} compose --project-name vpn-orbit --project-directory {APP} --file {CONFIG}/compose.json"
+        unit = ("[Unit]\nDescription=VPN-Orbit API and Worker containers\nRequires=vpn-orbit-broker.socket vpn-orbit-supervisor.socket\n"
+                "After=docker.service vpn-orbit-broker.socket vpn-orbit-supervisor.socket\n\n[Service]\nType=oneshot\nRemainAfterExit=yes\n"
                 f"ExecStartPre={python} {bundle}/deploy/installer.py verify-image\n"
                 f"ExecStart={cli} up --detach --no-build --wait\nExecStop={cli} stop --timeout 60\n"
                 "TimeoutStartSec=120\nTimeoutStopSec=75\nUser=root\nGroup=root\nUMask=0077\nNoNewPrivileges=true\n"
@@ -424,18 +424,18 @@ def install(args):
         admin = f"#!/bin/sh\nexec {python} {bundle}/deploy/installer.py \"$@\"\n"
         write(APP / "admin", admin.encode(), mode=0o755)
         command("/usr/bin/systemctl", "daemon-reload")
-        command("/usr/bin/systemctl", "enable", "--now", "hostorbit-supervisor.socket", "hostorbit-broker.socket")
-        command("/usr/bin/systemctl", "start", "hostorbit-supervisor.service", "hostorbit-broker.service")
+        command("/usr/bin/systemctl", "enable", "--now", "vpn-orbit-supervisor.socket", "vpn-orbit-broker.socket")
+        command("/usr/bin/systemctl", "start", "vpn-orbit-supervisor.service", "vpn-orbit-broker.service")
         command("/usr/bin/systemctl", "enable", "--now", COMPOSE_UNIT, timeout=150)
         with urlopen(f"http://127.0.0.1:{args.port}/healthz", timeout=5) as response:
             if json.load(response).get("status") != "alive":
                 raise ArtifactError("INSTALLATION_SMOKE_FAILED")
         if recovery:
-            command(python, "-m", "hostorbit.runtime.recovery_install", "finish", "--state", args.recovery_state,
+            command(python, "-m", "vpn_orbit.runtime.recovery_install", "finish", "--state", args.recovery_state,
                     "--artifact-sha256", digest)
         write(APP / "install-state.json", canonical({"v": 1, "phase": "COMPLETE", "manifest_sha256": digest}), mode=0o600, replace=True)
         print(json.dumps({"installed": True, "channel": "development", "endpoint": f"http://127.0.0.1:{args.port}",
-                          "owner_setup": "RESTORED_OWNER" if recovery else "/opt/hostorbit/admin create-owner --username <name>",
+                          "owner_setup": "RESTORED_OWNER" if recovery else "/opt/vpn-orbit/admin create-owner --username <name>",
                           "recovery": recovery["mode"] if recovery else "NOT_READY"}))
 
 
@@ -470,7 +470,7 @@ def main(argv=None):
         # Keep arbitrary subprocess, filesystem, validation and secret values out of output.
         from_code = getattr(error, "code", None)
         code = str(error) if isinstance(error, ArtifactError) else from_code or "INSTALLATION_UNAVAILABLE"
-        print("HostOrbit: " + code, file=sys.stderr)
+        print("VPN-Orbit: " + code, file=sys.stderr)
         if code == "INSTALLATION_UNAVAILABLE":
             # Code locations and exception classes help diagnose installation
             # failures without forwarding exception messages or local values.

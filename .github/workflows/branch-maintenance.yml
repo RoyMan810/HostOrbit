@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   prune:
-    if: github.repository == 'RoyMan810/HostOrbit' && github.ref == 'refs/heads/main'
+    if: github.repository == 'RoyMan810/VPN-Orbit' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:

@@ -15,7 +15,7 @@ import time
 from urllib.parse import urlencode
 
 
-DOCKER_SCOPE = Path("/etc/hostorbit/docker-discovery.json")
+DOCKER_SCOPE = Path("/etc/vpn-orbit/docker-discovery.json")
 DOCKER_SOCKET = Path("/run/docker.sock")
 MAX_CONTAINERS = 8
 MAX_PUBLISHED_PORTS = 8

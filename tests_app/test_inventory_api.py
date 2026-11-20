@@ -2,9 +2,9 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-from hostorbit.database import identifier
-from hostorbit.queue import JobQueue
-from hostorbit.runtime.protocol import checksum
+from vpn_orbit.database import identifier
+from vpn_orbit.queue import JobQueue
+from vpn_orbit.runtime.protocol import checksum
 from test_auth_api import Fixture, OTHER, SCOPE
 
 
@@ -165,7 +165,7 @@ class InventoryTests(Fixture):
             response = self.client.get("/api/v1/resources?" + query)
             self.assertEqual(response.status_code, 422)
             self.assertNotIn("secret-canary", response.text)
-        with TestClient(self.client.app, base_url="https://hostorbit.test") as anonymous:
+        with TestClient(self.client.app, base_url="https://vpn-orbit.test") as anonymous:
             for url in ("/api/v1/resources", f"/api/v1/resources/{SCOPE}"):
                 self.assertEqual(anonymous.get(url).status_code, 401)
 
@@ -224,7 +224,7 @@ class InventoryTests(Fixture):
         self.assertEqual(disabled["observation"]["reason"], "RESOURCE_DISABLED")
 
     def test_query_limits_resources_before_reading_audit_history(self):
-        from hostorbit.inventory import _SELECT
+        from vpn_orbit.inventory import _SELECT
         with self.store.read() as db:
             plan = ' '.join(str(row[3]) for row in db.execute('EXPLAIN QUERY PLAN ' + _SELECT,
                                                               ('', None, None, 1, self.owner, 26)))
@@ -241,7 +241,7 @@ class InventoryTests(Fixture):
             self.assertEqual(db.execute("PRAGMA user_version").fetchone()[0], 1)
 
     def test_equal_creation_times_use_completion_order_for_latest_and_last_success(self):
-        with patch('hostorbit.queue.identifier', side_effect=[OTHER, SCOPE]):
+        with patch('vpn_orbit.queue.identifier', side_effect=[OTHER, SCOPE]):
             self.complete(docker=RUNNING_DOCKER)
             self.now -= 1
             self.complete('FAILED', 'SSH_TIMEOUT')
@@ -250,7 +250,7 @@ class InventoryTests(Fixture):
         self.assertIsNotNone(observation['last_success'])
         self.assertEqual(self.restart_preview().status_code, 409)
 
-        with patch('hostorbit.queue.identifier', side_effect=['01JCYQZ4T9V8MNVYEH3D2M7Q1D', '01JCYQZ4T9V8MNVYEH3D2M7Q1C']):
+        with patch('vpn_orbit.queue.identifier', side_effect=['01JCYQZ4T9V8MNVYEH3D2M7Q1D', '01JCYQZ4T9V8MNVYEH3D2M7Q1C']):
             self.complete(docker=RUNNING_DOCKER)
             self.now -= 1
             self.complete(docker={'status': 'UNAVAILABLE', 'containers': []})
