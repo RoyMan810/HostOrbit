@@ -75,8 +75,8 @@ def platform_and_ports():
     memory = next(int(line.split()[1]) for line in Path("/proc/meminfo").read_text().splitlines()
                   if line.startswith("MemTotal:"))
     disk = shutil.disk_usage("/var/lib")
-    if memory < 1792 * 1024 or disk.total < 40 * 1024**3 or disk.free < 6 * 1024**3:
-        raise ValueError("Требуется VPS с 2 ГиБ RAM, диском 40 ГиБ и 6 ГиБ свободного места.")
+    if memory < 1792 * 1024 or disk.free < 6 * 1024**3:
+        print("Рекомендация: 2 ГиБ RAM и 6 ГиБ свободного места в /var/lib.", file=sys.stderr)
     for port in (API_PORT, WEB_PORT):
         with socket.socket() as listener:
             try:
