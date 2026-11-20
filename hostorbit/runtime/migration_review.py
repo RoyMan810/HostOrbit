@@ -12,7 +12,7 @@ import time
 
 from ..database import Store
 from ..errors import Denied
-from ..migrations import _QUEUE_TABLES, _source_digest, _verify, _verify_copy_connection
+from ..migrations import _source_digest, _verify, _verify_copy_connection, migration_script
 from .pins import _private_directory
 from .protocol import canonical, decode
 from .storage import protected_bytes
@@ -30,7 +30,7 @@ def verify_rehearsal(directory):
     before, after = report.get("schema_before"), report.get("schema_after")
     if (type(report.get("v")) is not int or report["v"] != 1 or report.get("status") != "REHEARSAL_PASSED"
             or report.get("applied_to_source") is not False or report.get("live_apply") != "BLOCKED"
-            or type(before) is not int or type(after) is not int or before not in (1, 2) or after != before + 1):
+            or type(before) is not int or type(after) is not int or before not in (1, 2, 3) or after != before + 1):
         raise Denied("MIGRATION_REVIEW_REPORT_INVALID")
 
     deadline = time.monotonic() + 30
@@ -66,7 +66,7 @@ def verify_rehearsal(directory):
                 ("local-root", "database.schema_migrated", "controller", "SUCCEEDED", expected_details)
                 or (migrated_rows, migrated_counts) != (source_rows, counts)):
             raise Denied("MIGRATION_REVIEW_MISMATCH")
-        new_tables = _QUEUE_TABLES if after == 2 else ("change_plan_drafts",)
+        _, new_tables = migration_script(after)
         for name in new_tables:
             if db.execute(f'SELECT 1 FROM "{name}" LIMIT 1').fetchone():
                 raise Denied("MIGRATION_REVIEW_MISMATCH")

@@ -17,9 +17,9 @@ from deploy.prepare_migration import prepare_migration
 from deploy.supervised_update import check_gate, enter_maintenance, private_slots
 from deploy.update_release import verify_candidate
 from hostorbit.admission import Admission
-from hostorbit.database import DataAccess, Store, _PLAN_SCHEMA, _SCHEMA
+from hostorbit.database import DataAccess, Store
 from hostorbit.errors import Denied
-from hostorbit.migrations import _QUEUE_TABLES, _source_digest, _statements, _verify
+from hostorbit.migrations import _source_digest, _statements, _verify, migration_script
 from hostorbit.runtime.activation import atomic
 from hostorbit.runtime.cli import configuration
 from hostorbit.runtime.ipc import Client
@@ -116,11 +116,9 @@ class ComposeServices:
 
 def migrate_database(store, plan, deadline):
     before, after = plan["schema_before"], plan["schema_after"]
-    scripts = {2: (_SCHEMA[_SCHEMA.index("CREATE TABLE resources"):], _QUEUE_TABLES),
-               3: (_PLAN_SCHEMA, ("change_plan_drafts",))}
-    if after not in scripts or after != before + 1:
+    if after not in (2, 3, 4) or after != before + 1:
         raise Denied("MIGRATION_SCHEMA_UNSUPPORTED")
-    script, new_tables = scripts[after]
+    script, new_tables = migration_script(after)
     expected = plan["source_rows_sha256"]
     with store.write() as db:
         db.set_progress_handler(lambda: int(time.monotonic() >= deadline), 1000)

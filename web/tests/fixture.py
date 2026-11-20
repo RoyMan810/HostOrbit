@@ -108,16 +108,18 @@ def fixture(directory):
 
     @app.post("/__fixture__/restarts/{draft_id}/unknown", status_code=204)
     def report_unknown_restart(draft_id: str):
-        with store.write() as db:
-            row = db.execute("""SELECT * FROM audit WHERE correlation_id=?
+        with store.read() as db:
+            row = db.execute("""SELECT details FROM audit WHERE correlation_id=?
                 AND event='change_plan.restart_requested' ORDER BY seq DESC LIMIT 1""", (draft_id,)).fetchone()
             if row is None:
                 raise HTTPException(404)
-            operation = json.loads(row["details"])
-            Store.event(db, at=int(time.time()), actor=row["actor_id"], target=row["target_id"],
-                        correlation=draft_id, kind="change_plan.restart_finished", outcome="UNKNOWN_OUTCOME",
-                        details={"operation_id": operation["operation_id"], "revision": operation["revision"],
-                                 "reason": "SSH_RESTART_UNCONFIRMED"})
+        claimed = queue.claim(identifier())
+        if claimed is None or claimed[1]["id"] != json.loads(row["details"])["operation_id"]:
+            raise HTTPException(409)
+        claim, job = claimed
+        queue.advance(claim, "INTENT_PREPARED", permit={"claims": queue.binding(job)})
+        queue.advance(claim, "DISPATCHING")
+        queue.finish(claim, "UNKNOWN_OUTCOME", "SSH_RESTART_UNCONFIRMED")
 
     app.mount("/", StaticFiles(directory=Path(__file__).resolve().parents[1] / "dist", html=True))
     return app

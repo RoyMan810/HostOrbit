@@ -11,7 +11,7 @@ from hostorbit.api import create_app
 from hostorbit.auth import ABSOLUTE_SECONDS, COOKIE, IDLE_SECONDS, AuthService
 from hostorbit.cli import main
 from hostorbit.config import Settings
-from hostorbit.database import Store
+from hostorbit.database import SCHEMA_VERSION, Store
 from hostorbit.errors import Denied
 
 
@@ -22,7 +22,7 @@ OTHER = "01JCYQZ4T9V8MNVYEH3D2M7Q1B"
 
 
 class Fixture(unittest.TestCase):
-    schema = 3
+    schema = SCHEMA_VERSION
 
     def setUp(self):
         self.directory = Path(self.enterContext(tempfile.TemporaryDirectory()))

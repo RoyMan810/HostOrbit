@@ -1,4 +1,4 @@
-"""Durable observation jobs. Infrastructure mutation is not an enqueue capability."""
+"""Durable jobs for observations and approved changes."""
 
 from dataclasses import dataclass
 import json
@@ -29,13 +29,45 @@ class JobQueue:
 
     @staticmethod
     def _schema(db):
-        if db.execute("PRAGMA user_version").fetchone()[0] not in (2, 3):
+        if db.execute("PRAGMA user_version").fetchone()[0] not in (2, 3, 4):
             raise Denied("QUEUE_SCHEMA_REQUIRES_VERIFIED_MIGRATION", 503)
+
+    @staticmethod
+    def restart_request(db, job_id):
+        return db.execute("""SELECT request.* FROM audit approval JOIN audit request
+            ON request.correlation_id=approval.correlation_id AND request.target_id=approval.target_id
+            WHERE approval.id=? AND approval.event='change_plan.approval_recorded'
+            AND request.event='change_plan.restart_requested'
+            AND json_extract(request.details,'$.operation_id')=approval.id""", (job_id,)).fetchone()
+
+    def enqueue_restart(self, db, job_id, actor, target, scope, policy_revision, plan_hash):
+        if db.execute("PRAGMA user_version").fetchone()[0] != 4:
+            raise Denied("QUEUE_SCHEMA_REQUIRES_VERIFIED_MIGRATION", 503)
+        now = int(self.clock())
+        db.execute("""INSERT INTO jobs(id,actor_id,resource_id,action,payload_hash,scope_digest,policy_revision,status,created_at,updated_at)
+                      VALUES(?,?,?,'docker.restart',?,?,?,'QUEUED',?,?)""",
+                   (job_id, actor, target, plan_hash, scope, policy_revision, now, now))
+        self._event(db, db.execute("SELECT * FROM jobs WHERE id=?", (job_id,)).fetchone(), "job.accepted")
 
     def _event(self, db, row, event, *, reason=None):
         self.store.event(db, at=int(self.clock()), actor=row["actor_id"], kind=event,
                          target=row["resource_id"], outcome=row["status"], correlation=row["id"],
                          details={"job_id": row["id"], "revision": row["revision"], "reason": reason})
+
+        if row["action"] != "docker.restart":
+            return
+        if event == "job.finished":
+            plan_event = "change_plan.restart_finished"
+        elif row["status"] in ("INTENT_PREPARED", "DISPATCHING"):
+            plan_event = "change_plan.restart_prepared"
+        else:
+            return
+        request = self.restart_request(db, row["id"])
+        if request is not None:
+            self.store.event(db, at=int(self.clock()), actor=row["actor_id"], kind=plan_event,
+                             target=row["resource_id"], outcome=row["status"], correlation=request["correlation_id"],
+                             details={"operation_id": row["id"], "revision": json.loads(request["details"])["revision"],
+                                      "reason": reason})
 
     def register_resource(self, identity, scope_digest, policy_revision):
         """Local provisioning from an independently installed protected policy summary."""
@@ -95,6 +127,10 @@ class JobQueue:
         if row is None:
             raise Denied("ACTOR_REVOKED")
         AuthService.require(db, row, permission, resource)
+
+    def _authorize_job(self, db, row):
+        permission = "vps:restart" if row["action"] == "docker.restart" else "vps:probe"
+        self._actor(db, row["actor_id"], row["resource_id"], permission)
 
     @staticmethod
     def _public(row):
@@ -215,9 +251,9 @@ class JobQueue:
         text(worker_id, ULID)
         with self.store.write(kind="dispatch") as db:
             self._schema(db)
-            for row in db.execute("SELECT * FROM jobs WHERE status='QUEUED' AND claimed_by IS NULL ORDER BY created_at,id LIMIT 100").fetchall():
+            for row in db.execute("SELECT * FROM jobs WHERE status='QUEUED' AND claimed_by IS NULL ORDER BY created_at,rowid LIMIT 100").fetchall():
                 try:
-                    self._actor(db, row["actor_id"], row["resource_id"])
+                    self._authorize_job(db, row)
                 except Denied:
                     self._finish(db, row, "CANCELLED_SAFE", "ACTOR_REVOKED")
                     continue
@@ -243,17 +279,20 @@ class JobQueue:
             raise Denied("JOB_CLAIM_INVALID")
         return row
 
-    def advance(self, claim, state, *, permit=None):
+    def advance(self, claim, state, *, permit=None, binding=None, validate=None):
         with self.store.write(kind="control") as db:
             row = self._claimed(db, claim)
             if _NEXT.get(row["status"]) != state or state == "SUCCEEDED":
                 raise Denied("JOB_TRANSITION_DENIED")
-            self._actor(db, row["actor_id"], row["resource_id"])
+            self._authorize_job(db, row)
             target = db.execute("SELECT scope_digest,policy_revision,enabled FROM resources WHERE id=?", (row["resource_id"],)).fetchone()
             if not target["enabled"] or target["scope_digest"] != row["scope_digest"] or target["policy_revision"] != row["policy_revision"]:
                 raise Denied("STALE_SCOPE")
+            if validate is not None:
+                validate(db)
             if state == "INTENT_PREPARED":
-                if permit is None or permit.get("claims") is None or any(permit["claims"].get(k) != v for k, v in self.binding(row).items()):
+                expected = binding if binding is not None else self.binding(row)
+                if permit is None or permit.get("claims") is None or any(permit["claims"].get(k) != v for k, v in expected.items()):
                     raise Denied("PERMIT_BINDING_INVALID")
             db.execute("UPDATE jobs SET status=?,revision=revision+1,permit=coalesce(?,permit),updated_at=? WHERE id=?",
                        (state, canonical(permit).decode() if permit else None, int(self.clock()), row["id"]))

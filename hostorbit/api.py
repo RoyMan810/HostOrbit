@@ -453,7 +453,7 @@ def create_app(settings: Settings, *, auth: AuthService | None = None, enrollmen
     def enqueue_restart(draft_id: str, body: DraftExecution, request: Request, response: Response, actor=Depends(principal)):
         with service.store.write() as db, service.store.connect(readonly=True) as evidence:
             evidence.execute("BEGIN")
-            result = request_restart(db, evidence, service, token(request), csrf(request), draft_id,
+            result = request_restart(db, evidence, queue, service, token(request), csrf(request), draft_id,
                                      if_match=request.headers.get("if-match"), **body.model_dump())
         response.headers["Location"] = f"/api/v1/change-plans/{draft_id}/execution-timeline"
         return result

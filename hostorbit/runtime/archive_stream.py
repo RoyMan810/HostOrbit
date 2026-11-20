@@ -96,7 +96,7 @@ def validate_source(value, snapshot_id):
     text(value["boot_id"], r"[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}")
     for name in ("gate_epoch", "audit_sequence", "monotonic_ns", "captured_utc"):
         integer(value[name], 0, 2**63 - 1)
-    integer(value["schema"], 1, 3)
+    integer(value["schema"], 1, 4)
     if not isinstance(value["files"], list) or not len(CONTROLLER_FILES) <= len(value["files"]) <= len(CONTROLLER_FILES | OPTIONAL_CONTROLLER_FILES):
         raise Denied("ARCHIVE_MANIFEST_INVALID")
     names = set()

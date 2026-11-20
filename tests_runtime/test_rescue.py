@@ -67,7 +67,7 @@ class RescueTests(unittest.TestCase):
         return RecoveryTarget(self.root / "target-state", owner=os.geteuid(), age_path=self.age).accept(
             self.bundle, owner_digest=digest, username="roman", password=PASSWORD, **kwargs)
 
-    def test_schema_three_import_keeps_plan_audit_and_removes_active_drafts(self):
+    def test_current_schema_import_keeps_plan_audit_and_removes_active_drafts(self):
         store = self.fixture.store
         resource, draft = identifier(), identifier()
         from hostorbit.queue import JobQueue
@@ -79,7 +79,7 @@ class RescueTests(unittest.TestCase):
                         outcome="SUCCEEDED", correlation=draft, details={"revision": 1, "plan_hash": "b" * 64})
         self.source = self.fixture.backup.create(self.fixture.recipient)
         self.envelope = json.loads(Path(self.source["provenance"]).read_bytes())
-        self.assertEqual(self.envelope["claims"]["manifest"]["schema"], 3)
+        self.assertEqual(self.envelope["claims"]["manifest"]["schema"], 4)
         request = self.issue("drafts")
         review = self.pack(request)
         RecoveryTarget(self.root / "drafts-state", owner=os.geteuid(), age_path=self.age).accept(

@@ -176,7 +176,7 @@ python -m hostorbit.runtime.listener_diagnostics --resolve site.example --expect
 
 `record_draft_approval` повторяет preflight для последней ревизии по ETag. Owner подтверждает ровно тот probe, для которого на репетиционной копии уже записан успешный Backup Gate. Одноразовая повторная аутентификация должна относиться к той же сессии и хешу плана. Её погашение и событие `change_plan.approval_recorded` в Audit/Outbox входят в одну транзакцию. Запись связывает approval ID, ревизию, хеш, probe и номер события Backup Gate. Повторное подтверждение той же ревизии отклоняется. `check_draft_approval` сверяет записанный approval ID с текущими ревизией, probe и решением Backup Gate в транзакции чтения. Подмена ID, новая ревизия или новое наблюдение блокируют проверку.
 
-Подтверждение помечается `REHEARSAL_RECORDED` и оставляет `execution=BLOCKED`. На чистой установке схемы 3 доступны защищённые HTTP-маршруты для черновика, preflight, Backup Gate и подтверждения. Чтобы запросить исполнительную операцию, используйте отдельный маршрут из процедуры стенда AC‑28.
+Подтверждение помечается `REHEARSAL_RECORDED` и оставляет `execution=BLOCKED`. На свежей установке доступны защищённые HTTP-маршруты для черновика, preflight, Backup Gate и подтверждения. Чтобы запросить исполнительную операцию, используйте отдельный маршрут из процедуры стенда AC‑28.
 
 
 ### Проверка Change Plan на чистом стенде
@@ -192,7 +192,7 @@ python -m hostorbit.runtime.listener_diagnostics --resolve site.example --expect
 | `POST /api/v1/change-plans/{id}/backup-decision` | С `If-Match` и телом `{probe_id, request_key}` записывает решение для probe и исходного ключа preflight. |
 | `POST /api/v1/change-plans/{id}/approval` | Получите одноразовый `reauth_id` через `POST /api/v1/auth/reauth` для хеша плана. Передайте его с теми же `probe_id`, `request_key` и `If-Match`. |
 
-В текущей сборке подтверждение возвращает `REHEARSAL_RECORDED` и `execution: BLOCKED`. Для стендового перезапуска ещё требуется подключить исполнение через Worker, Broker и host authority.
+Подтверждение плана само по себе не ставит перезапуск в очередь. Отправка подтверждённого плана создаёт задание в общей очереди. Worker повторно проверяет условия выполнения перед отправкой через Broker и Authority.
 
 ### Локальный исполнитель перезапуска
 

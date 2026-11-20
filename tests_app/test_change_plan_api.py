@@ -3,7 +3,7 @@ from unittest.mock import Mock
 import asyncssh
 
 from hostorbit.errors import Denied
-from hostorbit.restart_requests import RestartWorker
+from hostorbit.worker import Worker
 from hostorbit.runtime.authority import Authority
 from hostorbit.runtime.broker import Broker
 from hostorbit.runtime.ipc import Peer
@@ -122,10 +122,10 @@ class ChangePlanAPITests(Fixture):
         broker = Broker(directory / "broker", p, vault, broker_gate, bytes(gate.key.verify_key), worker_uid=WORKER_UID,
                         clock=lambda: self.now, execute_restart=execute)
         worker_peer = Peer(1, WORKER_UID, WORKER_UID)
-        worker = RestartWorker(self.store,
-                               Mock(call=lambda name, args: gate.dispatch("worker", worker_peer, name, args)),
-                               Mock(call=lambda name, args: broker.dispatch("worker", worker_peer, name, args)),
-                               lambda: self.now, {SCOPE: restart_secret + ":v1"})
+        worker = Worker(JobQueue(self.store, clock=lambda: self.now),
+                        Mock(call=lambda name, args: gate.dispatch("worker", worker_peer, name, args)),
+                        Mock(call=lambda name, args: broker.dispatch("worker", worker_peer, name, args)),
+                        secret_refs={SCOPE: SECRET + ":v1"}, restart_refs={SCOPE: restart_ref})
 
         def queue_restart():
             draft = self.draft()
@@ -157,9 +157,21 @@ class ChangePlanAPITests(Fixture):
 
         request = queue_restart()
         self.assertEqual(states(request), ["QUEUED"])
+        job_url = "/api/v1/jobs/" + request.json()["id"]
+        self.assertEqual(self.client.get(job_url).json()["action"], "docker.restart")
+        self.assertEqual(self.client.get(job_url).json()["status"], "QUEUED")
+        later_probe = self.client.post(f"/api/v1/resources/{SCOPE}/observations", json={},
+                                       headers=self.headers(**{"Idempotency-Key": identifier()})).json()["id"]
         self.assertTrue(worker.run_one())
+        self.assertEqual(self.client.get(f"/api/v1/jobs/{later_probe}").json()["status"], "QUEUED")
+        self.complete_probe(later_probe)
         self.assertFalse(worker.run_one())
         self.assertEqual(states(request), ["QUEUED", "INTENT_PREPARED", "DISPATCHING", "SUCCEEDED"])
+        self.assertEqual(self.client.get(job_url).json()["status"], "SUCCEEDED")
+        history = self.client.get(job_url + "/timeline").json()["items"]
+        self.assertEqual([item["status"] for item in history],
+                         ["QUEUED", "INTENT_PREPARED", "DISPATCHING", "EXECUTING", "VERIFYING", "SUCCEEDED"])
+        self.assertEqual(self.client.get(f"/api/v1/resources/{SCOPE}").json()["observation"]["status"], "REACHABLE")
         plan_id = request.headers["location"].split("/")[-2]
         detail = self.client.get(f"/api/v1/audit/change-plans/{plan_id}/revisions/1")
         self.assertEqual(detail.status_code, 200, detail.text)
@@ -180,6 +192,8 @@ class ChangePlanAPITests(Fixture):
         def lose_reply(name, args):
             value = normal_call(name, args)
             if name == "use_for_scoped_ssh":
+                if crash:
+                    raise RuntimeError("worker stopped after dispatch")
                 raise Denied("RPC_UNAVAILABLE")
             return value
 
@@ -187,8 +201,18 @@ class ChangePlanAPITests(Fixture):
         for saved, expected in (({"outcome": "SUCCEEDED", "code": "DOCKER_RESTART_VERIFIED"}, "RECONCILED_SUCCEEDED"),
                                 ({"outcome": "DENIED", "code": "STALE_BASELINE"}, "RECONCILED_FAILED")):
             execute.return_value = saved
+            crash = saved["outcome"] == "SUCCEEDED"
             confirmed = queue_restart()
-            self.assertTrue(worker.run_one())
+            if crash:
+                with self.assertRaisesRegex(RuntimeError, "worker stopped after dispatch"):
+                    worker.run_one()
+                operation_url = "/api/v1/jobs/" + confirmed.json()["id"]
+                self.assertEqual(self.client.get(operation_url).json()["status"], "DISPATCHING")
+                before = execute.call_count
+                self.assertFalse(worker.run(once=True))
+                self.assertEqual(execute.call_count, before)
+            else:
+                self.assertTrue(worker.run_one())
             self.assertEqual(states(confirmed)[-1], "UNKNOWN_OUTCOME")
             forbidden = reconcile(confirmed, headers={"Origin": self.headers()["Origin"]})
             self.assertEqual(forbidden.status_code, 403)
@@ -203,13 +227,15 @@ class ChangePlanAPITests(Fixture):
             self.assertEqual(reconcile(confirmed).json()["status"], expected)
             self.assertEqual(reconcile(confirmed, 2).status_code, 409)
             self.assertEqual(execute.call_count, before)
+            with self.store.read() as db:
+                self.assertIsNone(db.execute("SELECT 1 FROM job_incidents WHERE job_id=?", (confirmed.json()["id"],)).fetchone())
 
         worker.broker.call = normal_call
         self.now += 900  # Start the next scenario after the Owner reauthentication limit window.
         execute.side_effect = Denied("SSH_RESTART_UNCONFIRMED")
         lost = queue_restart()
         self.assertTrue(worker.run_one())
-        worker.recover()
+        self.assertFalse(worker.run(once=True))
         self.assertFalse(worker.run_one())
         self.assertEqual(states(lost)[-1], "UNKNOWN_OUTCOME")
         for number in (1, 2, 3):

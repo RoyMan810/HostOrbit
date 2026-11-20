@@ -26,7 +26,7 @@ def main(argv=None):
     owner.add_argument("--username", required=True)
     rehearsal = commands.add_parser("migration-rehearsal", help="Verify adjacent schema changes on private copies")
     rehearsal.add_argument("--output", type=Path, required=True, help="New private directory for snapshots and report")
-    rehearsal.add_argument("--to-schema", type=int, choices=(2, 3), default=2,
+    rehearsal.add_argument("--to-schema", type=int, choices=(2, 3, 4), default=2,
                            help="Target version for the copy (default: 2)")
     serve = commands.add_parser("serve", help="Serve the foundation API on loopback behind a configured HTTPS proxy")
     serve.add_argument("--origin", required=True)

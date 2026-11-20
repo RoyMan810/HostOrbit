@@ -12,7 +12,7 @@ import time
 from dataclasses import dataclass
 
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 _ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 _SCHEMA = """
 CREATE TABLE users (
@@ -113,6 +113,29 @@ PRAGMA user_version = 3;
 """
 
 
+_OPERATION_SCHEMA = """
+ALTER TABLE request_keys RENAME TO old_request_keys;
+ALTER TABLE job_incidents RENAME TO old_job_incidents;
+ALTER TABLE jobs RENAME TO old_jobs;
+DROP INDEX job_queue;
+DROP INDEX jobs_resource_time;
+""" + _SCHEMA[_SCHEMA.index("CREATE TABLE jobs"):].removesuffix("PRAGMA user_version = 2;\n").replace(
+    "CHECK(action='host.probe')", "CHECK(action IN ('host.probe','docker.restart'))"
+) + """
+INSERT INTO jobs SELECT * FROM old_jobs;
+INSERT INTO request_keys SELECT * FROM old_request_keys;
+INSERT INTO job_incidents SELECT * FROM old_job_incidents;
+DROP TABLE old_request_keys;
+DROP TABLE old_job_incidents;
+DROP TABLE old_jobs;
+PRAGMA user_version = 4;
+"""
+
+
+def application_schema(version):
+    return _SCHEMA + (_PLAN_SCHEMA if version >= 3 else "") + (_OPERATION_SCHEMA if version >= 4 else "")
+
+
 def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)
 
@@ -155,7 +178,7 @@ class Store:
 
     @classmethod
     def initialize(cls, path: Path, *, access: DataAccess | None = None, schema=SCHEMA_VERSION):
-        if type(schema) is not int or schema not in (2, SCHEMA_VERSION):
+        if type(schema) is not int or schema not in (2, 3, SCHEMA_VERSION):
             raise RuntimeError("DATABASE_CONTRACT_MISMATCH")
         store = cls(path, access=access)
         shared = store.access.shared_gid is not None
@@ -175,7 +198,7 @@ class Store:
         os.chown(store.path.parent, store.access.owner_uid, store.access.shared_gid if shared else -1)
         store.path.parent.chmod(0o2770 if shared else 0o700)
         with store.connect(initializing=True) as db:
-            db.executescript("BEGIN IMMEDIATE;\n" + _SCHEMA + (_PLAN_SCHEMA if schema == 3 else ""))
+            db.executescript("BEGIN IMMEDIATE;\n" + application_schema(schema))
             db.execute("COMMIT")
         return store
 
@@ -197,7 +220,7 @@ class Store:
             for name, expected in {"journal_mode": "wal", "synchronous": 2, "foreign_keys": 1, "busy_timeout": 5000,
                                    "user_version": 0 if initializing else SCHEMA_VERSION}.items():
                 actual = db.execute(f"PRAGMA {name}").fetchone()[0]
-                if actual != expected and not (name == "user_version" and not initializing and actual in (1, 2)):
+                if actual != expected and not (name == "user_version" and not initializing and actual in (1, 2, 3)):
                     raise RuntimeError("DATABASE_CONTRACT_MISMATCH")
             try:
                 yield db

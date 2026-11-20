@@ -5,7 +5,7 @@ from threading import Event
 from .database import identifier
 from .errors import Denied
 from .queue import JobQueue
-from .restart_requests import RestartWorker
+from .restart_requests import RestartOperations
 from .runtime.protocol import checksum, docker_summary, fields, integer, software_summary, text
 from .runtime.storage import process_lock
 
@@ -14,7 +14,7 @@ class Worker:
     def __init__(self, queue: JobQueue, gate, broker, *, secret_refs, observe=None, restart_refs=None):
         self.queue, self.gate, self.broker = queue, gate, broker
         self.secret_refs = secret_refs
-        self.restart = RestartWorker(queue.store, gate, broker, queue.clock, restart_refs) if restart_refs is not None else None
+        self.restart = RestartOperations(queue, gate, broker, restart_refs if restart_refs is not None else {})
         self.id = identifier()
         self.observe = observe or (lambda _: None)
 
@@ -34,9 +34,9 @@ class Worker:
         return "UNKNOWN_OUTCOME"
 
     def run_one(self):
-        if self.restart is not None and self.restart.run_one():
-            return True
         try:
+            if self.restart.reconcile_pending():
+                return True
             claimed = self.queue.claim(self.id)
         except Denied as error:
             if error.code in {"WRITER_ADMISSION_CLOSED", "WRITER_BARRIER_TIMEOUT"}:
@@ -48,14 +48,19 @@ class Worker:
         sent = False
         permit = None
         try:
-            permit = self.gate.call("permit.admit", self.queue.binding(row))
-            self.queue.advance(claim, "INTENT_PREPARED", permit=permit)
+            restart = row["action"] == "docker.restart"
+            if restart:
+                binding, secret_ref, revalidate = self.restart.prepare(row)
+            else:
+                binding, secret_ref, revalidate = self.queue.binding(row), self.secret_refs[row["resource_id"]], None
+            permit = self.gate.call("permit.admit", binding)
+            self.queue.advance(claim, "INTENT_PREPARED", permit=permit, binding=binding)
             self.observe("INTENT_PREPARED")
             # This commit must precede even entering the Broker dispatch path.
-            self.queue.advance(claim, "DISPATCHING")
-            self.observe("DISPATCHING")
+            self.queue.advance(claim, "DISPATCHING", validate=revalidate)
             sent = True
-            response = self.broker.call("use_for_scoped_ssh", {"permit": permit, "policy_ref": self.secret_refs[row["resource_id"]]})
+            self.observe("DISPATCHING")
+            response = self.broker.call("use_for_scoped_ssh", {"permit": permit, "policy_ref": secret_ref})
             self.queue.advance(claim, "EXECUTING")
             self.queue.advance(claim, "VERIFYING")
             self.observe("VERIFYING")
@@ -66,7 +71,11 @@ class Worker:
                     or receipt["result_digest"] != checksum(result)):
                 raise Denied("BROKER_RECEIPT_INVALID")
             text(response["code"], r"[A-Z][A-Z0-9_]{1,63}")
-            if response["outcome"] == "SUCCEEDED":
+            if restart:
+                if response["outcome"] not in ("SUCCEEDED", "FAILED", "UNKNOWN_OUTCOME") or response["observation"] is not None:
+                    raise Denied("BROKER_RECEIPT_INVALID")
+                self.queue.finish(claim, response["outcome"], response["code"])
+            elif response["outcome"] == "SUCCEEDED":
                 value = response["observation"]
                 names = ("status", "source", "observed_at", "boot_id")
                 if isinstance(value, dict) and "docker" in value:
@@ -89,7 +98,11 @@ class Worker:
                 raise Denied("BROKER_OBSERVATION_INVALID")
         except Denied as error:
             if not sent and permit is not None:
-                self.gate.call("permit.cancel", {"job_id": row["id"], "nonce": permit["claims"]["nonce"]})
+                try:
+                    self.gate.call("permit.cancel", {"job_id": row["id"], "nonce": permit["claims"]["nonce"]})
+                except Denied:
+                    self.queue.finish(claim, "UNKNOWN_OUTCOME", error.code)
+                    return True
             # A lost reply after dispatch never becomes success and never causes an automatic retry.
             self.queue.finish(claim, "UNKNOWN_OUTCOME" if sent else "CANCELLED_SAFE", error.code)
         return True
@@ -106,8 +119,7 @@ class Worker:
             # them against a fresh authority or require schema-2 queue tables.
             if not recovery_profile():
                 self.queue.recover(self._recover_result)
-                if self.restart is not None:
-                    self.restart.recover()
+                self.restart.recover_legacy_requests()
             while not stop.is_set():
                 found = False if recovery_profile() else self.run_one()
                 if once:
