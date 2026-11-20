@@ -1276,7 +1276,8 @@
       ],
       "owner": "Auth/Bootstrap",
       "stage": "Stage1",
-      "status": "NOT_RUN"
+      "status": "NOT_RUN",
+      "verification_path": "evidence/verification/stage3-local.json"
     },
     {
       "assertion": "Operator вне назначенного scope получает отказ API на изменение чужой VPS, даже если запрос сконструирован вручную.",
@@ -1289,7 +1290,8 @@
       ],
       "owner": "RBAC/Policy",
       "stage": "Stage1",
-      "status": "NOT_RUN"
+      "status": "NOT_RUN",
+      "verification_path": "evidence/verification/stage3-local.json"
     },
     {
       "assertion": "Подмена SSH host fingerprint приводит к блокировке подключения и событию безопасности.",
@@ -1314,7 +1316,8 @@
       ],
       "owner": "Secrets Broker",
       "stage": "Stage1",
-      "status": "NOT_RUN"
+      "status": "NOT_RUN",
+      "verification_path": "evidence/verification/stage3-local.json"
     },
     {
       "assertion": "Попытка изменить ресурс, принадлежащий внешнему приложению/API (например, Panel-owned), через файл или чужой менеджер блокируется; система объясняет авторитетный источник.",
@@ -1600,7 +1603,8 @@
       ],
       "owner": "Frontend",
       "stage": "Stage2",
-      "status": "NOT_RUN"
+      "status": "NOT_RUN",
+      "verification_path": "evidence/verification/stage3-local.json"
     },
     {
       "assertion": "Нарушение локальной цепочки Integrity после появления независимой контрольной точки обнаруживается проверкой.",
@@ -1832,7 +1836,8 @@
       ],
       "owner": "Diagnostics Log Sanitizer",
       "stage": "Stage1",
-      "status": "NOT_RUN"
+      "status": "NOT_RUN",
+      "verification_path": "evidence/verification/stage3-local.json"
     },
     {
       "assertion": "Подтверждённая ручная изоляция старого Controller + отзыв старых credentials допускают отдельную активацию новой VPS. При повторном запуске старого Worker с отозванными SSH credentials он не может выполнять mutating операции на доступных тестовых VPS; недоступные при ротации VPS остаются `QUARANTINED`.",
@@ -2180,7 +2185,8 @@
       ],
       "owner": "Architecture/QA",
       "stage": "Stage2",
-      "status": "NOT_RUN"
+      "status": "NOT_RUN",
+      "verification_path": "evidence/verification/stage3-local.json"
     },
     {
       "assertion": "Artificially delay daemon restart after typed helper receipt; kill SSH/helper/systemd; verify late daemon effect cannot produce false quiescence, and closure stays blocked until proven completion/manual isolation.",
