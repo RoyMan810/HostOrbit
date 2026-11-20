@@ -61,6 +61,7 @@ def run_updater_self_test(package, version):
             "--property=ProtectProc=invisible", "--property=ProcSubset=pid",
             "--property=SystemCallArchitectures=native",
             "--property=SystemCallFilter=~@network-io @mount @privileged",
+            "--property=SystemCallErrorNumber=EPERM",
             "--property=RestrictSUIDSGID=yes", "--property=TasksMax=16",
             "--property=MemoryMax=64M", "--property=RuntimeMaxSec=10s",
             "--property=TimeoutStartSec=10s", "--property=TimeoutStopSec=2s",

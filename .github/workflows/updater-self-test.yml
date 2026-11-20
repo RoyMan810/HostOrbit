@@ -33,3 +33,6 @@ jobs:
           test "$RUNNER_ENVIRONMENT" = github-hosted
           sudo env HOSTORBIT_NATIVE_UPDATER_TEST=1 "$(command -v python)" -m unittest discover \
             -s tests_runtime -p test_updater_self_test.py -v
+      - name: Show transient unit diagnostics
+        if: failure()
+        run: sudo journalctl --boot --no-pager -u 'run-*.service' -n 35
