@@ -21,7 +21,7 @@ from hostorbit.runtime.storage import _credential_permissions
 DEPLOY = Path(__file__).resolve().parents[1] / "deploy"
 sys.path.insert(0, str(DEPLOY))
 from artifact import AGE_SHA256, ArtifactError, FIXED_FILES, canonical, manifest, snapshot, trusted_key
-from installer import check_buildx, check_capacity, compose_document, install, origin, supported_compose, supported_ubuntu
+from installer import check_buildx, advise_capacity, compose_document, install, origin, supported_compose, supported_ubuntu
 
 
 class InstallationTests(unittest.TestCase):
@@ -46,18 +46,20 @@ class InstallationTests(unittest.TestCase):
             with self.assertRaisesRegex(ArtifactError, "DOCKER_BUILDX_REQUIRED"):
                 check_buildx("unix:///var/run/docker.sock")
 
-    def test_controller_capacity_bounds_include_two_gib_vps_kernel_reservation(self):
+    def test_controller_capacity_is_advisory_and_ignores_total_disk_size(self):
+        from contextlib import redirect_stderr
+        from io import StringIO
+
         memory = 1792 * 1024**2
-        disk = SimpleNamespace(total=40 * 1024**3, free=2 * 1024**3)
-        check_capacity(1, memory, disk)
-        for cpus, available, total, free in ((0, memory, disk.total, disk.free),
-                                             (None, memory, disk.total, disk.free),
-                                             (1, memory - 1, disk.total, disk.free),
-                                             (1, memory, disk.total - 1, disk.free),
-                                             (1, memory, disk.total, disk.free - 1)):
-            with self.subTest(cpus=cpus, memory=available, total=total, free=free):
-                with self.assertRaisesRegex(ArtifactError, "CONTROLLER_CAPACITY_UNSUPPORTED"):
-                    check_capacity(cpus, available, SimpleNamespace(total=total, free=free))
+        disk = SimpleNamespace(total=12 * 1024**3, free=2 * 1024**3)
+        with redirect_stderr(StringIO()) as output:
+            advise_capacity(1, memory, disk)
+        self.assertEqual(output.getvalue(), "")
+        for cpus, available, free in ((0, memory, disk.free), (None, memory, disk.free),
+                                      (1, memory - 1, disk.free), (1, memory, disk.free - 1)):
+            with self.subTest(cpus=cpus, memory=available, free=free), redirect_stderr(StringIO()) as output:
+                advise_capacity(cpus, available, SimpleNamespace(free=free))
+                self.assertIn("recommended", output.getvalue())
 
     def test_systemd_credential_allows_only_readonly_exact_broker_acl_or_owner_fallback(self):
         owner = 23103
