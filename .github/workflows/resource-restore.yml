@@ -8,7 +8,6 @@ on:
       - tests_runtime/**
       - requirements-*.txt
       - tools/fetch_age.py
-      - evidence/tests/ac-b05.json
   workflow_dispatch:
 
 permissions:

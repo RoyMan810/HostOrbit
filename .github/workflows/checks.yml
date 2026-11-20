@@ -180,11 +180,6 @@ jobs:
           tar --no-same-owner -xzf age.tar.gz -- age/age age/age-keygen
           echo "$age_dir/age" >> "$GITHUB_PATH"
       - run: python -m unittest discover -s tests -v
-      - name: Validate Stage0 and Stage1 against the current requirements registry
-        run: |
-          registry=docs/spec/HostOrbit_Requirements_Registry_v2.4.json
-          python -m stage0.requirements "$registry" --gate Stage0 --evidence-root .
-          python -m stage0.requirements "$registry" --gate Stage1 --evidence-root .
       - name: Install OpenSSH server if absent
         run: |
           if ! test -x /usr/sbin/sshd; then

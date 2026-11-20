@@ -1,8 +1,8 @@
 # Foundation Controller
 
-[Документация](README.md) · [Требования v2.4](spec/HostOrbit_Technical_Spec_v2.4.md)
+[Документация](README.md)
 
-Пакет `hostorbit` реализует прикладной Stage1 Foundation. Его [приёмка по шести capabilities §40](../evidence/acceptance/stage1-2026-11-08/decision.json) зафиксирована отдельно от полного MVP. Он предоставляет локальное создание Owner, серверную аутентификацию, scope RBAC, SQLite, Audit/Outbox и версионированный HTTP API. Лабораторный `stage0` остаётся самостоятельным набором доказательных прототипов.
+Пакет `hostorbit` реализует аутентификацию, локальную активацию владельца, хранение состояния и аудит контроллера.
 
 ## Установка для разработки
 
@@ -63,5 +63,3 @@ hostorbit --database "$database_path" --database-owner "$database_uid" --databas
 ```
 
 Тесты включают гонку bootstrap, реальный SIGKILL до commit, ошибку записи Outbox, конкурентные ETag updates, обход RBAC, отзыв сессий, CSRF, лимиты и подмену proxy headers. В CI выделен отдельный Python 3.15 job.
-
-[Runtime contour](stage1-runtime.md) добавляет фиксированный read-only SSH probe через очередь, отдельные Worker/Broker и host authority. Browser получает только нормализованное наблюдение. [Development-установка](stage1-installation.md) разворачивает проверенный подписанный bundle; [репетиция миграции](stage1-migrations.md) работает с приватными копиями. Docker mutations, обновления и generic decrypt не входят в installed registry. Stage2 Change Plan/UI, live schema migration, полноценный production release и полные MVP AC остаются открытыми. Историческая приёмка Foundation сохранена; [повторная автоматическая проверка](../evidence/revalidation/stage1-current/README.md) ограничена указанной ревизией и не заменяет полный CI или MVP acceptance.

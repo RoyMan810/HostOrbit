@@ -1,6 +1,6 @@
 # Публикация Controller archive по SFTP
 
-[Документация](README.md) · [Требования v2.4](spec/HostOrbit_Technical_Spec_v2.4.md)
+[Документация](README.md)
 
 `hostorbit-backup publish --snapshot-id <id>` передаёт существующий [локальный подписанный архив](stage1-controller-archive.md) на отдельно настроенный SFTP target. Команда требует локального Root, проверяет исходную подпись/ciphertext и не принимает произвольные local paths, remote paths, URL или Secret Reference из Web/Worker.
 

@@ -1,6 +1,6 @@
 # Offline Rescue и импорт данных Stage1
 
-[Документация](README.md) · [Требования v2.4](spec/HostOrbit_Technical_Spec_v2.4.md)
+[Документация](README.md)
 
 `hostorbit-rescue` проверяет ControllerBackup на offline workstation, перепаковывает на одноразовый recipient новой машины и импортирует данные в новый приватный каталог. Результат — **данные в READ_ONLY_RECOVERY**, с новым Gate signer/instance/epoch и новым host-bound OS seal для переносимого DEK. Службы устанавливаются отдельным [signed recovery installer](stage1-recovery-installation.md), с сохранением read-only profile. [Локальная Owner activation](stage1-recovery-activation.md) реализована отдельно; независимый DR-прогон и ручная приёмка fencing/rotation остаются открытыми.
 

@@ -1,6 +1,6 @@
-# Установка Foundation Stage1
+# Установка контроллера
 
-[Документация](README.md) · [Требования v2.4](spec/HostOrbit_Technical_Spec_v2.4.md)
+[Документация](README.md)
 
 ## Установка одной командой
 
@@ -11,9 +11,9 @@ git clone https://github.com/RoyMan810/HostOrbit.git
 sudo ./HostOrbit/install
 ```
 
-Для bootstrap требуется интернет. Для сборки рекомендуется 2 ГиБ RAM и 6 ГиБ свободного места в `/var/lib`. При меньшем объёме установщик выводит предупреждение и продолжает работу. Число параллельных задач при сборке Python зависит от объёма памяти и числа CPU. В APT должен быть доступен репозиторий Ubuntu `universe` для пакета Caddy. Установка собирает Python 3.15.2 из официального архива по закреплённому SHA-256. Если Docker отсутствует, установка добавляет подписанный репозиторий Docker и ставит Engine 29.x, Compose и Buildx. Существующий Docker должен поддерживать тот же профиль. Конфликтующие пакеты и установки HostOrbit остаются на месте, а операция останавливается.
+Для bootstrap требуется интернет. Для сборки рекомендуется 2 ГиБ RAM и 6 ГиБ свободного места в `/var/lib`. При меньшем объёме установщик выводит предупреждение и продолжает работу. Число параллельных задач при сборке Python зависит от объёма памяти и числа CPU. Установка собирает Python 3.15.2 из официального архива по закреплённому SHA-256. Если Docker отсутствует, установка добавляет подписанный репозиторий Docker и ставит Engine 29.x, Compose и Buildx. Существующий Docker должен поддерживать тот же профиль. Конфликтующие пакеты и установки HostOrbit остаются на месте, а операция останавливается.
 
-Controller и WebUI собираются из коммита текущего checkout. Изменения в отслеживаемых файлах приводят к отказу. Сборка Controller использует закреплённые хеши Python-зависимостей и OCI digest. Одноразовый локальный подписант development-комплекта удаляется после сборки. Источник доверия здесь — выбранный вами checkout и закреплённые в нём зависимости. Ручной сценарий ниже принимает комплект с независимо доставленным ключом издателя. Node.js нужен только для сборки статики из npm lock. При установке регистрируются host-native Broker и Supervisor через systemd, API и Worker через Compose и отдельный HTTPS reverse proxy Caddy.
+Controller и WebUI собираются из коммита текущего checkout. Изменения в отслеживаемых файлах приводят к отказу. Сборка Controller использует закреплённые хеши Python-зависимостей и OCI digest. Одноразовый локальный подписант development-комплекта удаляется после сборки. Источник доверия здесь — выбранный вами checkout и закреплённые в нём зависимости. Ручной сценарий ниже принимает комплект с независимо доставленным ключом издателя. Node.js нужен только для сборки статики из npm lock. При установке регистрируются host-native Broker и Supervisor через systemd, API и Worker через Compose и отдельный HTTPS reverse proxy Nginx. Установщик извлекает Nginx из пакетов Ubuntu и запускает собственную службу на loopback.
 
 В интерактивном терминале установка предлагает задать пароль Owner. По умолчанию используется имя `admin`. Для другого имени укажите `--owner roman`. Для запуска без терминала или повтора ввода после ошибки используйте `sudo /opt/hostorbit/admin create-owner --username admin`.
 
@@ -24,7 +24,20 @@ scp ubuntu@CONTROLLER:/opt/hostorbit-bootstrap/web-ca.pem .
 ssh -N -L 127.0.0.1:18443:127.0.0.1:18443 ubuntu@CONTROLLER
 ```
 
-Откройте [https://127.0.0.1:18443](https://127.0.0.1:18443) и войдите как Owner. Замените `ubuntu@CONTROLLER` на вашу учётную запись и адрес. Локальный сертификат действует 397 дней. Caddy слушает только `127.0.0.1:18443`, а API — `127.0.0.1:18080`. Docker при запуске устанавливает стандартные сетевые правила для своих контейнеров. При ошибке сборки можно повторить команду. Если Controller уже начал установку, проверьте `/opt/hostorbit/install-state.json` и журналы systemd. Повторная установка потребует отдельного обслуживания.
+Откройте [https://127.0.0.1:18443](https://127.0.0.1:18443) и войдите как Owner. Замените `ubuntu@CONTROLLER` на вашу учётную запись и адрес. Локальный сертификат действует 397 дней. Nginx слушает только `127.0.0.1:18443`, а API — `127.0.0.1:18080`. Docker при запуске устанавливает стандартные сетевые правила для своих контейнеров. При ошибке сборки можно повторить команду. Если Controller уже начал установку, проверьте `/opt/hostorbit/install-state.json` и журналы systemd. Повторная установка потребует отдельного обслуживания.
+
+### Публичный HTTPS
+
+Если контроллеру нужен публичный адрес, направьте A-запись домена на VPS и заранее выпустите сертификат Certbot с именем домена. Пример для VPS со свободными TCP 80 и 443:
+
+```sh
+sudo apt install certbot
+sudo certbot certonly --standalone --cert-name orbit.example.org -d orbit.example.org \
+  --deploy-hook 'systemctl try-restart hostorbit-web.service'
+sudo ./HostOrbit/install --public-domain orbit.example.org
+```
+
+Режим `--public-domain` проверяет сертификат и ключ до установки. Nginx слушает IPv4 TCP 443, а API остаётся на `127.0.0.1:18080`. Начальный Owner создаётся локально на VPS. Для продления через standalone TCP 80 должен быть доступен Certbot. Deploy hook перезапускает выделенный Nginx, чтобы systemd перечитал сертификат и ключ. Системный Nginx и занятые порты требуют отдельного согласования конфигурации.
 
 Для завершённого локального Rescue import доступен отдельный [recovery installation](stage1-recovery-installation.md) через `--recovery-state`; он сохраняет READ_ONLY_RECOVERY и не открывает повторный Owner bootstrap.
 
@@ -83,7 +96,7 @@ sudo /opt/hostorbit/admin create-owner --username roman
 
 Пароль вводится скрыто и не передаётся в argv, env или install logs. Внутренний одноразовый bootstrap token потребляется этим локальным действием; первый Web-посетитель не создаёт Owner. `admin verify-image` используется systemd для проверки образа.
 
-Существующие DNS, system Nginx/Caddy, certificates, firewall и listeners 80/443 не изменяются. Для Web API владелец подключает свой HTTPS reverse proxy к loopback endpoint, сохраняет публичный `Host`, устанавливает `X-Forwarded-Proto: https` и заменяет `X-Forwarded-For` фактическим адресом клиента. Root configuration доверяет только loopback и обнаруженному gateway отдельной Compose-сети. HTTP healthz сообщает liveness; он не удостоверяет remote health или DR readiness. Recovery остаётся `NOT_READY` до полного backup/restore workflow.
+Существующие DNS, системный Nginx, certificates, firewall и listeners 80/443 не изменяются. Для Web API владелец подключает свой HTTPS reverse proxy к loopback endpoint, сохраняет публичный `Host`, устанавливает `X-Forwarded-Proto: https` и заменяет `X-Forwarded-For` фактическим адресом клиента. Root configuration доверяет только loopback и обнаруженному gateway отдельной Compose-сети. HTTP healthz сообщает liveness; он не удостоверяет remote health или DR readiness. Recovery остаётся `NOT_READY` до полного backup/restore workflow.
 
 ## Проверки
 

@@ -1,8 +1,8 @@
-# Stage2: инвентарь зарегистрированных VPS
+# Инвентарь зарегистрированных VPS
 
-Первый компонент Stage2 по FR-006/FR-018 из [ТЗ v2.4](spec/HostOrbit_Technical_Spec_v2.4.md): список и карточка уже локально зарегистрированных ресурсов. Существующие Auth, SQLite схем 2 и 3 и очередь наблюдений остаются источниками истины. Реализация использует FastAPI и стандартную библиотеку без новых зависимостей.
+Руководство по подключению заранее подготовленной VPS, просмотру наблюдений и стендовому перезапуску контейнера.
 
-Выбран read model поверх существующей очереди: новый постоянный snapshot потребовал бы миграции и второго источника состояния. Регистрация через Web и обнаружение Docker/Nginx требуют отдельных контрактов и сюда не входят. Stage2/AC-28 этим компонентом не принимаются.
+API показывает последние наблюдения из существующей очереди. Подключение через веб-интерфейс доступно для заранее внесённых SSH-целей.
 
 ## Контракт
 
@@ -170,7 +170,7 @@ python -m hostorbit.runtime.listener_diagnostics --resolve site.example --expect
 
 В репетиции только Owner может сохранить черновик с `confirm_stateless_test=True`. Это подтверждение, что выбранный импортированный контейнер тестовый, не хранит эксплуатационные данные в writable layer, не зависит от сохранения состояния процесса и не затрагивает эксплуатационные внешние сервисы при restart. Подтверждение включается в хеш конкретной ревизии и записывается с актором в Audit/Outbox. Для следующей ревизии требуется новое явное подтверждение.
 
-После успешного `check_draft_probe` совпадение baseline и решение Backup Gate выводятся отдельно. Без подтверждения возвращается `RESTART_OWNER_CONFIRMATION_REQUIRED`. При неполных данных о mounts возвращается `RESTART_MOUNT_OBSERVATION_REQUIRED`, для цели с mounts — `RESTART_MOUNTS_PRESENT`. При подтверждённом отсутствии mounts preflight различает `RESTART_NETWORK_OBSERVATION_REQUIRED` для неизвестной сети и `RESTART_NETWORK_NOT_ISOLATED` для неизолированной цели. Цель в изолированной сети получает `RESTART_DEPENDENCY_SCOPE_REQUIRED` при неполных сведениях о зависимостях и `RESTART_DEPENDENCY_SCOPE_UNSUPPORTED` вне проверяемого профиля. Подтверждённый профиль с явным подтверждением Owner даёт `BACKUP_NOT_REQUIRED` для класса `RESTART_STATELESS_TEST_CONTAINER` в репетиции. Во всех случаях исполнение остаётся `BLOCKED`. Approval точного плана и допуск к исполнению остаются отдельными условиями [ТЗ v2.4](spec/HostOrbit_Technical_Spec_v2.4.md#backup-gate-для-docker-restart).
+После успешного `check_draft_probe` совпадение baseline и решение Backup Gate выводятся отдельно. Без подтверждения возвращается `RESTART_OWNER_CONFIRMATION_REQUIRED`. При неполных данных о mounts возвращается `RESTART_MOUNT_OBSERVATION_REQUIRED`, для цели с mounts — `RESTART_MOUNTS_PRESENT`. При подтверждённом отсутствии mounts preflight различает `RESTART_NETWORK_OBSERVATION_REQUIRED` для неизвестной сети и `RESTART_NETWORK_NOT_ISOLATED` для неизолированной цели. Цель в изолированной сети получает `RESTART_DEPENDENCY_SCOPE_REQUIRED` при неполных сведениях о зависимостях и `RESTART_DEPENDENCY_SCOPE_UNSUPPORTED` вне проверяемого профиля. Подтверждённый профиль с явным подтверждением Owner даёт `BACKUP_NOT_REQUIRED` для класса `RESTART_STATELESS_TEST_CONTAINER` в репетиции. Во всех случаях исполнение остаётся `BLOCKED`. Approval точного плана и допуск к исполнению остаются отдельными условиями ТЗ v2.4.
 
 Для фиксации результата `record_draft_backup_decision` повторяет проверку в транзакции `BEGIN IMMEDIATE` на копии БД, с CSRF и действующими правами. Событие `change_plan.backup_evaluated` содержит актор, цель, ID плана, ревизию, хеш плана, ID проверенного наблюдения и причину решения. Audit и Outbox записываются вместе. Повтор того же запроса возвращает прежнюю запись, пока ревизия и наблюдение остаются применимыми. Событие помечено `rehearsal: true`. Approval и разрешение на исполнение выдаются отдельным контуром.
 
