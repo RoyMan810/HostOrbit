@@ -88,10 +88,25 @@ python -m deploy.controller_restore_attestation \
 
 Передайте в `deploy.prepare_migration` параметры `--restore-attestation`, `--restore-evidence` и `--owner-verify-key`. Файлы подписи и свидетельства хранятся у root с правами `0600`. Публичный ключ владельца доверяется отдельно от ключей Controller и выпуска. Проверка привязывает подпись к снимку, квитанции, схеме и данным отчёта. При проверке используется подписанное время Supervisor. Принимаются свидетельства возрастом до 30 минут.
 
-`OWNER_RESTORE_ATTESTATION_VERIFIED` подтверждает подпись владельца и совпадение данных. Изоляцию и независимость площадки подтверждает владелец фактическим прогоном. Идентификатор подписанного свидетельства входит в SHA-256 плана. Рабочая миграция остаётся заблокированной до реализации применения под допуском Supervisor.
+`OWNER_RESTORE_ATTESTATION_VERIFIED` подтверждает подпись владельца и совпадение данных. Изоляцию и независимость площадки подтверждает владелец фактическим прогоном. Идентификатор подписанного свидетельства входит в SHA-256 плана. Используйте этот SHA-256 для локального утверждения плана.
 
-## Граница текущего блока
+## Применение обновления API и Worker
 
-Команды live apply пока нет. Успешная репетиция не выдаёт maintenance permit, не подтверждает Vault/DEK portability, `RESTORE_ATTESTED` или DR readiness. Для применения к рабочей БД требуется связать утверждённый update plan и подписанный совместимый release с независимым host authority, согласованной off-host ControllerBackup ≤30 минут, проверенной restore-процедурой и host TimeHealth. [Host TimeHealth](stage1-time-health.md) уже проверяется независимым supervisor; его привязка к live migration остаётся частью следующего updater workflow. Эти предусловия не заменяются boolean-флагами или `--force`.
+Запускайте на Controller из доверенного checkout с Python установленного HostOrbit. Подготовьте подписанный выпуск, совместимые образы API и Worker, свежий опубликованный снимок и подписанный отчёт владельца о проверке восстановления. Заранее загрузите образы в Docker по полным OCI-ссылкам с `@sha256:`. Их дайджесты должны совпадать с манифестом. После просмотра preflight сохраните root-файл `0600` с полями `plan_id`, `revision`, `approval_id`, `plan_sha256`. Поля идентификаторов принимают ULID, ревизия начинается с 1, SHA-256 берётся из preflight с тем же свидетельством владельца.
 
-Тесты проверяют реальную схему 1, committed WAL, параллельного writer, сохранение Auth/session и целостности аудита, schema drift, broken FK/Audit, отказ Outbox и `SIGKILL` до/после commit. Отдельный installation job выполняет CLI из установленного подписанного wheel на временной Ubuntu VM. [Действующая проверка Foundation](../evidence/revalidation/stage1-current/README.md); live migration и полный MVP release gate остаются открытыми.
+```sh
+sudo /opt/hostorbit/venv/bin/python -m deploy.application_update ./release-1.2.0 \
+  --trust-key /etc/hostorbit/release.pub --approval /root/update-approval.json \
+  --installed 1.1.0 --bootstrap 1.0.0 --minimum-release 1.1.0 \
+  --schema 2 --vault-format 1 --review /var/tmp/hostorbit-migration-review-001 \
+  --snapshot-id ID_СНИМКА --downloaded-copy /var/tmp/hostorbit-backup-check \
+  --restore-attestation /root/restore-attestation.json \
+  --restore-evidence /root/restore-report.txt --owner-verify-key /root/owner-restore.pub \
+  --api-image "$API_IMAGE_REF" --worker-image "$WORKER_IMAGE_REF"
+```
+
+Supervisor переводит Controller в обслуживание. Команда останавливает Compose, блокирует автоматический запуск через systemd и повторно сверяет выпуск, состояние БД и бэкап. Схема и аудит обновляются в одной SQLite-транзакции. После её фиксации команда меняет ссылки на образы, запускает службы и ждёт успешного старта до снятия режима обслуживания. Поддерживаются переходы 1 → 2 и 2 → 3. Статический WebUI и хостовые службы обновляются отдельно.
+
+При отказе до COMMIT команда проверяет версию схемы и может запустить прежние службы под ограничениями Supervisor. После COMMIT прежняя версия служб может оказаться несовместимой со схемой, поэтому при ошибке команда блокирует запуск и сохраняет БД в её текущем виде. Если остался `/var/lib/hostorbit/application-update/pending.json`, проверьте фазу, реальную версию SQLite, текущие образы и состояние Supervisor перед восстановлением. Повторный запуск блокируется. При проверке статуса после SIGKILL используйте схему в БД как источник истины для факта COMMIT.
+
+Тесты репетиции покрывают committed WAL, параллельную запись, сохранение Auth/session и целостности аудита. Тесты применения используют реальную SQLite и Supervisor с адаптером служб для проверки COMMIT, отката и SIGKILL. Прогон с реальными systemd и Docker Compose для применения обновления предстоит на чистом Controller со снимком и отдельным восстановлением. [Действующая проверка Foundation](../evidence/revalidation/stage1-current/README.md).

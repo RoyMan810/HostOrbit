@@ -61,6 +61,17 @@ def check_gate(gate, operation, ticket, state):
         raise Denied("UPDATE_GATE_RESPONSE_INVALID")
 
 
+def enter_maintenance(gate, request):
+    ticket = gate.call("update.quiesce", request)
+    fields(ticket, (*request, "epoch", "nonce"))
+    integer(ticket["epoch"], 1, 2**63 - 1)
+    text(ticket["nonce"], SHA256)
+    if any(ticket[field] != value for field, value in request.items()):
+        raise Denied("UPDATE_GATE_RESPONSE_INVALID")
+    check_gate(gate, "update.maintenance", ticket, "MAINTENANCE")
+    return ticket
+
+
 def select_update(source, root, key, gate, approval, *, installed, bootstrap, schema, vault_format, minimum_release,
                   self_test=run_updater_self_test):
     approval_fields(approval)
@@ -96,13 +107,7 @@ def select_update(source, root, key, gate, approval, *, installed, bootstrap, sc
                        "approval_id": approval["approval_id"], "time_anchor": gate.call("time.anchor", identity)}
             new_private_file(pending, canonical({"v": 1, "previous_slot": previous, "candidate_slot": target,
                                                 "release_sha256": candidate["release_sha256"], **identity}))
-            ticket = gate.call("update.quiesce", request)
-            fields(ticket, (*request, "epoch", "nonce"))
-            integer(ticket["epoch"], 1, 2**63 - 1)
-            text(ticket["nonce"], SHA256)
-            if any(ticket[field] != value for field, value in request.items()):
-                raise Denied("UPDATE_GATE_RESPONSE_INVALID")
-            check_gate(gate, "update.maintenance", ticket, "MAINTENANCE")
+            ticket = enter_maintenance(gate, request)
 
             destination = root / target
             if os.path.lexists(destination):
