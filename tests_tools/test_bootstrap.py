@@ -34,6 +34,13 @@ class BootstrapTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "Ревизия checkout"):
                 bootstrap.materialize_checkout(bundle, root / "wrong", "0" * 40)
 
+    def test_python_build_jobs_are_limited_by_memory_and_cpus(self):
+        gib = 1024**2
+        self.assertEqual(bootstrap.python_build_jobs(8, gib // 2), 1)
+        self.assertEqual(bootstrap.python_build_jobs(8, 2 * gib), 2)
+        self.assertEqual(bootstrap.python_build_jobs(2, 8 * gib), 2)
+        self.assertEqual(bootstrap.python_build_jobs(8, 8 * gib), 4)
+
     def test_download_rejects_archive_with_wrong_digest(self):
         with tempfile.TemporaryDirectory() as location:
             output = Path(location) / "archive"
