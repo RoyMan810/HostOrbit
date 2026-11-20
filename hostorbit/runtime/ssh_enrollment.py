@@ -9,9 +9,13 @@ from ..errors import Denied
 
 
 class EnrollmentClient(asyncssh.SSHClient):
-    def __init__(self, password, key):
+    def __init__(self, fingerprint, password, key):
+        self.fingerprint = fingerprint
         self.password, self.key = password, key
         self.offered = False
+
+    def validate_host_public_key(self, host, addr, port, key):
+        return secrets.compare_digest(key.get_fingerprint("sha256"), self.fingerprint)
 
     def password_auth_requested(self):
         password, self.password = self.password, None
@@ -26,23 +30,16 @@ class EnrollmentClient(asyncssh.SSHClient):
 
 def verify_credentials(target, username, *, password, private_key):
     try:
-        host_key = asyncssh.import_public_key(target["host_key"])
-    except (asyncssh.KeyImportError, ValueError):
-        raise Denied("ENROLLMENT_TARGET_UNAVAILABLE", 404) from None
-    if not secrets.compare_digest(host_key.get_fingerprint("sha256"), target["fingerprint"]):
-        raise Denied("ENROLLMENT_TARGET_UNAVAILABLE", 404)
-
-    try:
         key = asyncssh.import_private_key(private_key) if private_key is not None else None
     except (asyncssh.KeyImportError, asyncssh.KeyEncryptionError, ValueError):
         raise Denied("SSH_KEY_FORMAT_UNSUPPORTED", 422) from None
 
-    client = EnrollmentClient(password, key)
+    client = EnrollmentClient(target["fingerprint"], password, key)
 
     async def check():
         async with asyncssh.connect(
             target["ip"], port=target["port"], username=username, client_factory=lambda: client,
-            config=None, known_hosts=([host_key], [], []), server_host_key_algs=["ssh-ed25519"],
+            config=None, known_hosts=([], [], []), server_host_key_algs=["ssh-ed25519"],
             client_keys=None, agent_path=None, agent_forwarding=False,
             preferred_auth=["publickey" if key is not None else "password"],
             public_key_auth=key is not None, password_auth=password is not None,

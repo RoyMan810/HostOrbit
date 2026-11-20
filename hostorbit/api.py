@@ -362,7 +362,7 @@ def create_app(settings: Settings, *, auth: AuthService | None = None, enrollmen
             raise Denied("SSH_ENDPOINT_INVALID", 422) from None
         catalog = enrollment_catalog or {}
         matches = [identity for identity, target in catalog.items()
-                   if (target.get("ip"), target.get("port")) == (str(address), body.port) and "host_key" in target]
+                   if (target.get("ip"), target.get("port")) == (str(address), body.port)]
         if not matches:
             raise Denied("ENROLLMENT_TARGET_UNAVAILABLE", 404)
         if len(matches) != 1:

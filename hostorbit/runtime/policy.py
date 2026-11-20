@@ -102,7 +102,7 @@ class Policy:
                 catalog[target.id] = {"fingerprint": "SHA256:" + digest, "scope_digest": target.scope_digest,
                                       "policy_revision": target.revision}
                 if ssh_endpoints:
-                    catalog[target.id].update({field: target.value[field] for field in ("ip", "port", "host_key")})
+                    catalog[target.id].update(ip=target.value["ip"], port=target.value["port"])
         return catalog
 
     @property
