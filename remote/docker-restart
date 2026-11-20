@@ -19,8 +19,8 @@ OPERATION = r"[0-9A-HJKMNP-TV-Z]{26}"
 BOOT = r"[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}"
 TIMESTAMP = r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?Z"
 BOOT_ID = Path("/proc/sys/kernel/random/boot_id")
-POLICY = Path("/etc/hostorbit/docker-restart.json")
-JOURNAL = Path("/var/lib/hostorbit-docker-restart")
+POLICY = Path("/etc/vpn-orbit/docker-restart.json")
+JOURNAL = Path("/var/lib/vpn-orbit-docker-restart")
 
 
 class Refused(ValueError):

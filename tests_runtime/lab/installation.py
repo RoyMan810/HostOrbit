@@ -59,7 +59,7 @@ def wait_for(check, description, seconds=30):
 def owner_create():
     """Exercise the actual local CLI with terminal echo disabled by getpass."""
     master, slave = pty.openpty()
-    process = subprocess.Popen(["/opt/hostorbit/admin", "create-owner", "--username", "roman"],
+    process = subprocess.Popen(["/opt/vpn-orbit/admin", "create-owner", "--username", "roman"],
                                stdin=slave, stdout=slave, stderr=slave, start_new_session=True)
     os.close(slave)
     output, sent = b"", 0
@@ -96,9 +96,9 @@ def migration_rehearsal(root):
     code = f"""import sqlite3
 from contextlib import closing
 from pathlib import Path
-from hostorbit.auth import AuthService
-from hostorbit.database import Store
-from hostorbit.migrations import historical_schema
+from vpn_orbit.auth import AuthService
+from vpn_orbit.database import Store
+from vpn_orbit.migrations import historical_schema
 p=Path({str(path)!r})
 p.touch(mode=0o600)
 with closing(sqlite3.connect(p,autocommit=True)) as db:
@@ -110,9 +110,9 @@ a.create_owner(a.issue_bootstrap(),'legacy-owner',{PASSWORD!r})
 a.login('legacy-owner',{PASSWORD!r},ip='192.0.2.77',correlation='install-lab')
 print(s.verify_audit())
 """
-    before = run("/opt/hostorbit/venv/bin/python", "-c", code).stdout.decode().strip()
+    before = run("/opt/vpn-orbit/venv/bin/python", "-c", code).stdout.decode().strip()
     output = root / "migration-review"
-    response = run("/opt/hostorbit/venv/bin/hostorbit", "--database", path,
+    response = run("/opt/vpn-orbit/venv/bin/vpn-orbit", "--database", path,
                    "migration-rehearsal", "--output", output)
     report = json.loads(response.stdout)
     if (report["status"] != "REHEARSAL_PASSED" or report["applied_to_source"] is not False
@@ -128,7 +128,7 @@ print(s.verify_audit())
 
     schema_two = output / "migrated.sqlite3"
     plan_output = root / "plan-migration-review"
-    response = run("/opt/hostorbit/venv/bin/hostorbit", "--database", schema_two,
+    response = run("/opt/vpn-orbit/venv/bin/vpn-orbit", "--database", schema_two,
                    "migration-rehearsal", "--to-schema", "3", "--output", plan_output)
     plan_report = json.loads(response.stdout)
     if (plan_report["status"] != "REHEARSAL_PASSED" or plan_report["applied_to_source"] is not False
@@ -140,7 +140,7 @@ print(s.verify_audit())
                 or copied.execute("PRAGMA user_version").fetchone() != (3,)
                 or copied.execute("SELECT count(*) FROM change_plan_drafts").fetchone() != (0,)):
             raise RuntimeError("Plan migration changed the source or produced an invalid draft table")
-    with sqlite3.connect("file:/var/lib/hostorbit/app/controller.sqlite3?mode=ro", uri=True) as installed:
+    with sqlite3.connect("file:/var/lib/vpn-orbit/app/controller.sqlite3?mode=ro", uri=True) as installed:
         if (installed.execute("PRAGMA user_version").fetchone() != (4,)
                 or installed.execute("SELECT count(*) FROM change_plan_drafts").fetchone() != (0,)):
             raise RuntimeError("Clean signed install did not initialize schema 4")
@@ -151,10 +151,10 @@ def writer_barrier(host, ids):
     """The installed wheel coordinates actual container UIDs and native services."""
     code = '''import json, os, sys
 from pathlib import Path
-from hostorbit.admission import Admission
-from hostorbit.database import DataAccess, Store
-from hostorbit.errors import Denied
-c=json.load(open('/etc/hostorbit/runtime.json'))
+from vpn_orbit.admission import Admission
+from vpn_orbit.database import DataAccess, Store
+from vpn_orbit.errors import Denied
+c=json.load(open('/etc/vpn-orbit/runtime.json'))
 a=Admission(c['writer_directory'],timeout=0.05)
 s=Store(c['database'],access=DataAccess(c['app_uid'],c['app_gid']),writers=a)
 for target in ('state.json','writers.lock'):
@@ -175,10 +175,10 @@ print('CONTAINER_WRITERS_VERIFIED')
 '''
     fixture = '''import json, subprocess, sys
 from pathlib import Path
-from hostorbit.admission import Admission
-from hostorbit.database import DataAccess, Store
-from hostorbit.runtime.coordinator import Coordinator
-c=json.load(open('/etc/hostorbit/runtime.json'))
+from vpn_orbit.admission import Admission
+from vpn_orbit.database import DataAccess, Store
+from vpn_orbit.runtime.coordinator import Coordinator
+c=json.load(open('/etc/vpn-orbit/runtime.json'))
 a=Admission(c['writer_directory'])
 co=Coordinator(Path(c['supervisor_directory'])/'snapshots',a)
 def check(phase):
@@ -197,20 +197,20 @@ with co.journal.connect() as db:
  assert [r['phase'] for r in db.execute('SELECT phase FROM transitions ORDER BY seq')][-4:]==['REQUESTED','CLOSING_ADMISSION','SHORT_BARRIER','BARRIER_RELEASED']
 print('INSTALLED_BARRIER_VERIFIED')
 '''
-    result = run("/opt/hostorbit/venv/bin/python", "-c", fixture, host, json.dumps(list(ids.values())), code, timeout=45)
+    result = run("/opt/vpn-orbit/venv/bin/python", "-c", fixture, host, json.dumps(list(ids.values())), code, timeout=45)
     if result.stdout.strip() != b"INSTALLED_BARRIER_VERIFIED":
         raise RuntimeError("Installed writer barrier did not verify")
     recovery = '''import json, os, select, signal, subprocess, sys
 from pathlib import Path
-from hostorbit.admission import Admission
-from hostorbit.runtime.ipc import Client
-from hostorbit.runtime.coordinator import Coordinator
-c=json.load(open('/etc/hostorbit/runtime.json'))
+from vpn_orbit.admission import Admission
+from vpn_orbit.runtime.ipc import Client
+from vpn_orbit.runtime.coordinator import Coordinator
+c=json.load(open('/etc/vpn-orbit/runtime.json'))
 child=''' + '"""' + '''import json, time
 from pathlib import Path
-from hostorbit.admission import Admission
-from hostorbit.runtime.coordinator import Coordinator
-c=json.load(open('/etc/hostorbit/runtime.json'))
+from vpn_orbit.admission import Admission
+from vpn_orbit.runtime.coordinator import Coordinator
+c=json.load(open('/etc/vpn-orbit/runtime.json'))
 co=Coordinator(Path(c['supervisor_directory'])/'snapshots',Admission(c['writer_directory']))
 def capture(_):
  print('SHORT_BARRIER',flush=True)
@@ -236,9 +236,9 @@ finally:
   p.wait(timeout=5)
 print('WATCHDOG_RECOVERY_VERIFIED')
 '''
-    if run("/opt/hostorbit/venv/bin/python", "-c", recovery, timeout=20).stdout.strip() != b"WATCHDOG_RECOVERY_VERIFIED":
+    if run("/opt/vpn-orbit/venv/bin/python", "-c", recovery, timeout=20).stdout.strip() != b"WATCHDOG_RECOVERY_VERIFIED":
         raise RuntimeError("Installed supervisor did not recover the killed snapshot coordinator")
-    for service in ("hostorbit-broker.service", "hostorbit-supervisor.service"):
+    for service in ("vpn-orbit-broker.service", "vpn-orbit-supervisor.service"):
         if run("/usr/bin/systemctl", "is-active", service).stdout.strip() != b"active":
             raise RuntimeError("Barrier interrupted a host service")
     if json.loads(docker(host, "inspect", ids["worker"]))[0]["RestartCount"] != 0:
@@ -248,8 +248,8 @@ print('WATCHDOG_RECOVERY_VERIFIED')
 
 def vault_pin():
     """Fixture SSH keys only; no Owner age identity or user server is involved."""
-    cfg = json.loads(Path("/etc/hostorbit/runtime.json").read_bytes())
-    folder = Path("/run/hostorbit/pin-fixture")
+    cfg = json.loads(Path("/etc/vpn-orbit/runtime.json").read_bytes())
+    folder = Path("/run/vpn-orbit/pin-fixture")
     folder.mkdir(mode=0o700)
     run("/usr/bin/ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", folder / "ssh-key")
     os.chown(folder / "ssh-key", cfg["broker_uid"], cfg["broker_gid"])
@@ -258,10 +258,10 @@ def vault_pin():
         owner, = db.execute("SELECT id FROM users WHERE role='Owner'").fetchone()
     provision = '''import json, os, sys
 from pathlib import Path
-from hostorbit.admission import Admission
-from hostorbit.runtime.storage import protected_bytes
-from hostorbit.runtime.vault import Vault
-c=json.load(open('/etc/hostorbit/runtime.json'))
+from vpn_orbit.admission import Admission
+from vpn_orbit.runtime.storage import protected_bytes
+from vpn_orbit.runtime.vault import Vault
+c=json.load(open('/etc/vpn-orbit/runtime.json'))
 v=Vault(c['vault_directory'],Path(os.environ['CREDENTIALS_DIRECTORY'])/'broker-dek',systemd_credential=True,writers=Admission(c['writer_directory']))
 key=protected_bytes(sys.argv[1],owner=os.geteuid(),maximum=8192,private=True)
 for version in (1,2):
@@ -269,19 +269,19 @@ for version in (1,2):
  if version==1: v.revoke(ref)
 print('FIXTURE_VERSIONS_IMPORTED')
 '''
-    imported = run("/usr/bin/systemd-run", "--quiet", "--wait", "--pipe", "--collect", "--unit=hostorbit-pin-fixture",
+    imported = run("/usr/bin/systemd-run", "--quiet", "--wait", "--pipe", "--collect", "--unit=vpn-orbit-pin-fixture",
                    "--property=User=" + str(cfg["broker_uid"]), "--property=Group=" + str(cfg["broker_gid"]),
                    "--property=UMask=0077", "--property=LimitCORE=0",
                    "--property=LoadCredentialEncrypted=broker-dek:" + cfg["vault_credential"],
-                   "/opt/hostorbit/venv/bin/python", "-c", provision, folder / "ssh-key", owner)
+                   "/opt/vpn-orbit/venv/bin/python", "-c", provision, folder / "ssh-key", owner)
     if imported.stdout.strip() != b"FIXTURE_VERSIONS_IMPORTED":
         raise RuntimeError("Broker fixture provisioning failed")
     capture = '''import hashlib, json
 from pathlib import Path
-from hostorbit.admission import Admission
-from hostorbit.runtime.coordinator import Coordinator
-from hostorbit.runtime.pins import capture_with_systemd
-c=json.load(open('/etc/hostorbit/runtime.json'))
+from vpn_orbit.admission import Admission
+from vpn_orbit.runtime.coordinator import Coordinator
+from vpn_orbit.runtime.pins import capture_with_systemd
+c=json.load(open('/etc/vpn-orbit/runtime.json'))
 co=Coordinator(Path(c['supervisor_directory'])/'snapshots',Admission(c['writer_directory']))
 snapshot_id,result=co.snapshot(lambda:True,capture_with_systemd)
 assert result['secrets']==2 and result['objects']==2 and result['portable_keys_exported'] is False and result['backup_gate']=='DENIED'
@@ -296,7 +296,7 @@ for f in manifest['files']:
  assert b'-----BEGIN OPENSSH PRIVATE KEY-----' not in data
 print('INSTALLED_VAULT_PIN_VERIFIED')
 '''
-    result = run("/opt/hostorbit/venv/bin/python", "-c", capture, timeout=35)
+    result = run("/opt/vpn-orbit/venv/bin/python", "-c", capture, timeout=35)
     if result.stdout.strip() != b"INSTALLED_VAULT_PIN_VERIFIED":
         raise RuntimeError("Installed Vault pin helper failed")
     print("Sandboxed Broker-UID helper pinned active/revoked ciphertext and both SQLite journals under the Root barrier; portable DEK export and Backup Gate remained disabled.", flush=True)
@@ -305,17 +305,17 @@ print('INSTALLED_VAULT_PIN_VERIFIED')
 def controller_archive(root, bundle):
     """One-VM crypto fixture, not an independent workstation/DR attestation."""
     # This binary stays in CI's fixture area, outside the Controller installation.
-    keygen = bundle.parent / "hostorbit-install-age/age/age-keygen"
+    keygen = bundle.parent / "vpn-orbit-install-age/age/age-keygen"
     identity = run(keygen).stdout
     recipient = run(keygen, "-y", input=identity).stdout.decode().strip()
     anchor = root / "independent-controller.pub"
-    anchor.write_bytes(Path("/etc/hostorbit/gate.pub").read_bytes())
+    anchor.write_bytes(Path("/etc/vpn-orbit/gate.pub").read_bytes())
     anchor.chmod(0o600)
-    result = json.loads(run("/opt/hostorbit/venv/bin/hostorbit-backup", "create", "--recipient", recipient, timeout=210).stdout)
+    result = json.loads(run("/opt/vpn-orbit/venv/bin/vpn-orbit-backup", "create", "--recipient", recipient, timeout=210).stdout)
     if (result["status"] != "LOCAL_SIGNED_ONLY" or result["portable_keys_exported"] is not True
             or result["off_host"] is not False or result["restore_verified"] is not False or result["backup_gate"] != "DENIED"):
         raise RuntimeError("Local archive falsely reported completed recovery/Backup Gate")
-    verified = json.loads(run("/opt/hostorbit/venv/bin/hostorbit-backup", "verify", "--ciphertext", result["ciphertext"],
+    verified = json.loads(run("/opt/vpn-orbit/venv/bin/vpn-orbit-backup", "verify", "--ciphertext", result["ciphertext"],
                               "--provenance", result["provenance"], "--trusted-key", anchor).stdout)
     if verified["status"] != "PROVENANCE_VERIFIED" or verified["payload_integrity"] != "NOT_DECRYPTED":
         raise RuntimeError("Installed provenance verifier reported false payload verification")
@@ -324,7 +324,7 @@ def controller_archive(root, bundle):
         os.write(write, identity)
         os.close(write)
         write = None
-        decrypted = subprocess.run(["/opt/hostorbit/tools/age", "--decrypt", "--identity", f"/dev/fd/{read}", result["ciphertext"]],
+        decrypted = subprocess.run(["/opt/vpn-orbit/tools/age", "--decrypt", "--identity", f"/dev/fd/{read}", result["ciphertext"]],
                                    pass_fds=(read,), capture_output=True, timeout=20)
         if decrypted.returncode:
             raise RuntimeError("Fixture Owner could not decrypt the installed native stream")
@@ -376,9 +376,9 @@ def controller_archive(root, bundle):
 def sftp_publication(root, local_archive, identity):
     """Real SSH/SFTP; same hosted VM with a separate network/storage namespace."""
     from sftp_receiver import receiver
-    cfg = json.loads(Path("/etc/hostorbit/runtime.json").read_bytes())
+    cfg = json.loads(Path("/etc/vpn-orbit/runtime.json").read_bytes())
     target_id, secret_id = "01JCYQZ4T9V8MNVYEH3D2M7Q1F", "01JCYQZ4T9V8MNVYEH3D2M7Q1E"
-    folder = Path("/run/hostorbit/sftp-client")
+    folder = Path("/run/vpn-orbit/sftp-client")
     folder.mkdir(mode=0o700)
     run("/usr/bin/ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", folder / "client")
     public = (folder / "client.pub").read_text()
@@ -386,26 +386,26 @@ def sftp_publication(root, local_archive, identity):
     os.chown(folder, cfg["broker_uid"], cfg["broker_gid"])
     with sqlite3.connect(cfg["database"]) as db:
         owner = db.execute("SELECT id FROM users WHERE role='Owner'").fetchone()[0]
-    run("/usr/bin/systemd-run", "--quiet", "--wait", "--pipe", "--collect", "--unit=hostorbit-sftp-import-fixture",
+    run("/usr/bin/systemd-run", "--quiet", "--wait", "--pipe", "--collect", "--unit=vpn-orbit-sftp-import-fixture",
         "--property=User=" + str(cfg["broker_uid"]), "--property=Group=" + str(cfg["broker_gid"]),
         "--property=UMask=0077", "--property=LimitCORE=0",
         "--property=LoadCredentialEncrypted=broker-dek:" + cfg["vault_credential"],
-        "/opt/hostorbit/venv/bin/hostorbit-runtime", "--config", "/etc/hostorbit/runtime.json", "import-backup-key",
+        "/opt/vpn-orbit/venv/bin/vpn-orbit-runtime", "--config", "/etc/vpn-orbit/runtime.json", "import-backup-key",
         "--key-file", folder / "client", "--secret-id", secret_id, "--owner-id", owner, "--target", target_id)
     (folder / "client").unlink()
     provenance = json.loads(Path(local_archive["provenance"]).read_bytes())
     recipient = provenance["claims"]["recipient"]
-    target_file = Path("/etc/hostorbit/backup-target.json")
+    target_file = Path("/etc/vpn-orbit/backup-target.json")
 
     def create():
-        return json.loads(run("/opt/hostorbit/venv/bin/hostorbit-backup", "create", "--recipient", recipient, timeout=210).stdout)
+        return json.loads(run("/opt/vpn-orbit/venv/bin/vpn-orbit-backup", "create", "--recipient", recipient, timeout=210).stdout)
 
     def phase(snapshot_id):
         with sqlite3.connect(Path(cfg["supervisor_directory"]) / "snapshots/snapshots.sqlite3") as db:
             return db.execute("SELECT phase FROM snapshots WHERE id=?", (snapshot_id,)).fetchone()[0]
 
     def publish(archive, expected=None):
-        response = run("/opt/hostorbit/venv/bin/hostorbit-backup", "publish", "--snapshot-id", archive["snapshot_id"], check=False, timeout=180)
+        response = run("/opt/vpn-orbit/venv/bin/vpn-orbit-backup", "publish", "--snapshot-id", archive["snapshot_id"], check=False, timeout=180)
         if expected is not None:
             if response.returncode == 0 or expected.encode() not in response.stderr or phase(archive["snapshot_id"]) != "FAILED":
                 raise RuntimeError("SFTP negative path failed: " + response.stderr.decode(errors="replace")[-300:])
@@ -437,14 +437,14 @@ def sftp_publication(root, local_archive, identity):
             raise RuntimeError("Idempotent publication overwrote final data")
         # Ciphertext survived independently of the local publisher's staging;
         # verify its signed origin with the separately saved public anchor.
-        run("/opt/hostorbit/venv/bin/hostorbit-backup", "verify", "--ciphertext", final / "controller.age",
+        run("/opt/vpn-orbit/venv/bin/vpn-orbit-backup", "verify", "--ciphertext", final / "controller.age",
             "--provenance", final / "provenance.json", "--trusted-key", root / "independent-controller.pub")
         read, write = os.pipe()
         try:
             os.write(write, identity)
             os.close(write)
             write = None
-            recovered = subprocess.run(["/opt/hostorbit/tools/age", "--decrypt", "--identity", f"/dev/fd/{read}", str(final / "controller.age")],
+            recovered = subprocess.run(["/opt/vpn-orbit/tools/age", "--decrypt", "--identity", f"/dev/fd/{read}", str(final / "controller.age")],
                                        pass_fds=(read,), capture_output=True, timeout=20)
             if recovered.returncode:
                 raise RuntimeError("Published SFTP archive did not decrypt with the fixture Owner identity")
@@ -501,16 +501,16 @@ def sftp_publication(root, local_archive, identity):
         revoked = create()
         revoke = '''import json,os
 from pathlib import Path
-from hostorbit.admission import Admission
-from hostorbit.runtime.vault import Vault
-c=json.load(open('/etc/hostorbit/runtime.json'))
+from vpn_orbit.admission import Admission
+from vpn_orbit.runtime.vault import Vault
+c=json.load(open('/etc/vpn-orbit/runtime.json'))
 v=Vault(c['vault_directory'],Path(os.environ['CREDENTIALS_DIRECTORY'])/'broker-dek',systemd_credential=True,writers=Admission(c['writer_directory']))
 v.revoke('01JCYQZ4T9V8MNVYEH3D2M7Q1E:v1')
 '''
-        run("/usr/bin/systemd-run", "--quiet", "--wait", "--pipe", "--collect", "--unit=hostorbit-sftp-revoke-fixture",
+        run("/usr/bin/systemd-run", "--quiet", "--wait", "--pipe", "--collect", "--unit=vpn-orbit-sftp-revoke-fixture",
             "--property=User=" + str(cfg["broker_uid"]), "--property=Group=" + str(cfg["broker_gid"]),
             "--property=UMask=0077", "--property=LimitCORE=0", "--property=LoadCredentialEncrypted=broker-dek:" + cfg["vault_credential"],
-            "/opt/hostorbit/venv/bin/python", "-c", revoke)
+            "/opt/vpn-orbit/venv/bin/python", "-c", revoke)
         publish(revoked, "SECRET_NOT_ACTIVE")
         if (remote.store / revoked["snapshot_id"]).exists():
             raise RuntimeError("Revoked SFTP identity published a new archive")
@@ -605,22 +605,22 @@ def recovery_installation(args, base, foreign):
     fencing/restore attestation. Never expose this cleanup as a product command.
     """
     global PORT
-    units = ("hostorbit-compose.service", "hostorbit-broker.socket", "hostorbit-supervisor.socket",
-             "hostorbit-broker.service", "hostorbit-supervisor.service")
+    units = ("vpn-orbit-compose.service", "vpn-orbit-broker.socket", "vpn-orbit-supervisor.socket",
+             "vpn-orbit-broker.service", "vpn-orbit-supervisor.service")
     run("/usr/bin/systemctl", "stop", *units, timeout=80)
-    docker(args.docker_host, "compose", "--project-name", "hostorbit", "--file", "/etc/hostorbit/compose.json", "down", timeout=60)
+    docker(args.docker_host, "compose", "--project-name", "vpn-orbit", "--file", "/etc/vpn-orbit/compose.json", "down", timeout=60)
     run("/usr/bin/systemctl", "disable", *units, check=False)
     for unit in units:
         (Path("/etc/systemd/system") / unit).unlink()
-    for path in ("/opt/hostorbit", "/etc/hostorbit", "/var/lib/hostorbit", "/run/hostorbit"):
+    for path in ("/opt/vpn-orbit", "/etc/vpn-orbit", "/var/lib/vpn-orbit", "/run/vpn-orbit"):
         shutil.rmtree(path)
-    for path in ("/etc/tmpfiles.d/hostorbit.conf", "/etc/sysusers.d/hostorbit.conf"):
+    for path in ("/etc/tmpfiles.d/vpn-orbit.conf", "/etc/sysusers.d/vpn-orbit.conf"):
         Path(path).unlink()
     run("/usr/bin/systemctl", "daemon-reload")
     run("/usr/bin/systemctl", "reset-failed", *units, check=False)
-    for name in ("ho-api", "ho-worker", "ho-broker"):
+    for name in ("vpn-orbit-api", "vpn-orbit-worker", "vpn-orbit-broker"):
         run("/usr/sbin/userdel", name)
-    for name in ("ho-api", "ho-worker", "ho-broker", "ho-app-db", "ho-broker-rpc", "ho-gate-rpc"):
+    for name in ("vpn-orbit-api", "vpn-orbit-worker", "vpn-orbit-broker", "vpn-orbit-app-db", "vpn-orbit-broker-rpc", "vpn-orbit-gate-rpc"):
         run("/usr/sbin/groupdel", name, check=False)
     print("Disposable fixture removed its source installation; only the separately imported private recovery layout remains.", flush=True)
     isolated_at = int(time.time())
@@ -629,16 +629,16 @@ def recovery_installation(args, base, foreign):
     PORT = 18081
     base = list(base)
     base[base.index("--port") + 1] = str(PORT)
-    state = "/var/lib/hostorbit-rescue-lab/target-state"
+    state = "/var/lib/vpn-orbit-rescue-lab/target-state"
     restore = [*base, "--recovery-state", state]
     checked = json.loads(run(*restore, "--check", timeout=180).stdout)
-    if checked["recovery"] != "READ_ONLY_RECOVERY" or Path("/opt/hostorbit").exists() or Path(state, "installation.claim.json").exists():
+    if checked["recovery"] != "READ_ONLY_RECOVERY" or Path("/opt/vpn-orbit").exists() or Path(state, "installation.claim.json").exists():
         raise RuntimeError("Recovery preflight created an installation or consumed the import")
     result = json.loads(run(*restore, timeout=420).stdout)
     if result["recovery"] != "READ_ONLY_RECOVERY" or result["owner_setup"] != "RESTORED_OWNER":
         raise RuntimeError("Recovery install lost its mode or recreated Owner bootstrap")
-    cfg = json.loads(Path("/etc/hostorbit/runtime.json").read_bytes())
-    worker = docker(args.docker_host, "compose", "--project-name", "hostorbit", "--file", "/etc/hostorbit/compose.json", "ps", "--quiet", "worker")
+    cfg = json.loads(Path("/etc/vpn-orbit/runtime.json").read_bytes())
+    worker = docker(args.docker_host, "compose", "--project-name", "vpn-orbit", "--file", "/etc/vpn-orbit/compose.json", "ps", "--quiet", "worker")
     # The original container owns its lifetime lock, so use its normal process
     # health and a separate no-claim assertion against the installed journals.
     status = json.loads(docker(args.docker_host, "inspect", worker))[0]
@@ -646,14 +646,14 @@ def recovery_installation(args, base, foreign):
         raise RuntimeError("Recovered Worker was not stably idle")
     verify = """import json
 from pathlib import Path
-from hostorbit.admission import Admission
-from hostorbit.database import DataAccess,Store
-from hostorbit.runtime.authority import Authority
-from hostorbit.runtime.coordinator import Coordinator
-from hostorbit.runtime.policy import Policy
+from vpn_orbit.admission import Admission
+from vpn_orbit.database import DataAccess,Store
+from vpn_orbit.runtime.authority import Authority
+from vpn_orbit.runtime.coordinator import Coordinator
+from vpn_orbit.runtime.policy import Policy
 from nacl.secret import Aead
 import subprocess,sqlite3,hashlib,stat
-c=json.load(open('/etc/hostorbit/runtime.json'))
+c=json.load(open('/etc/vpn-orbit/runtime.json'))
 w=Admission(c['writer_directory'])
 assert w.state()['phase']=='READ_ONLY_RECOVERY'
 Store(c['database'],access=DataAccess(c['app_uid'],c['app_gid']),writers=w).verify_audit()
@@ -664,7 +664,7 @@ with a.journal.connect() as db:
  assert db.execute('SELECT count(*) FROM attempts').fetchone()[0]==0
 a.close()
 key=subprocess.run(['/usr/bin/systemd-creds','decrypt','--name=broker-dek',c['vault_credential'],'-'],capture_output=True,check=True).stdout
-pin=json.load(open('/var/lib/hostorbit-rescue-lab/target-data/source/pin.json'))
+pin=json.load(open('/var/lib/vpn-orbit-rescue-lab/target-data/source/pin.json'))
 assert len(key)==32 and hashlib.sha256(key).hexdigest()==pin['key_fingerprints']['1']
 objects=Path(c['vault_directory'])/'objects'
 with sqlite3.connect(Path(c['vault_directory'])/'vault.sqlite3') as db:
@@ -684,9 +684,9 @@ Coordinator(Path(c['supervisor_directory'])/'snapshots',w).recover_if_idle()
 assert w.state()['phase']=='READ_ONLY_RECOVERY'
 print('RECOVERY_JOURNALS_VERIFIED')
 """
-    if run("/opt/hostorbit/venv/bin/python", "-c", verify).stdout.strip() != b"RECOVERY_JOURNALS_VERIFIED":
+    if run("/opt/vpn-orbit/venv/bin/python", "-c", verify).stdout.strip() != b"RECOVERY_JOURNALS_VERIFIED":
         raise RuntimeError("Recovered installed journals failed verification")
-    for service in ("hostorbit-broker.service", "hostorbit-supervisor.service"):
+    for service in ("vpn-orbit-broker.service", "vpn-orbit-supervisor.service"):
         if (run("/usr/bin/systemctl", "is-active", service).stdout.strip() != b"active"
                 or run("/usr/bin/systemctl", "show", "--property=NRestarts", "--value", service).stdout.strip() != b"0"):
             raise RuntimeError("Recovered native service failed startup or restarted")
@@ -716,7 +716,7 @@ print('RECOVERY_JOURNALS_VERIFIED')
         job = request(f"/api/v1/resources/{FAKE_JOB}/observations", {}, {**headers, "Idempotency-Key": "recovery-blocked-request"})
         if job.status != 503 or json.load(job)["code"] != "WRITER_ADMISSION_CLOSED":
             raise RuntimeError("Recovered API admitted a new job")
-    run("/usr/bin/systemctl", "restart", "hostorbit-compose.service", timeout=180)
+    run("/usr/bin/systemctl", "restart", "vpn-orbit-compose.service", timeout=180)
     if json.load(urlopen(f"http://127.0.0.1:{PORT}/healthz", timeout=10))["status"] != "alive":
         raise RuntimeError("Recovered Compose did not restart")
     if foreign.getsockname() != ("127.0.0.1", 443):
@@ -730,7 +730,7 @@ print('RECOVERY_JOURNALS_VERIFIED')
 
 def activation_terminal(arguments, answers=()):
     master, slave = pty.openpty()
-    process = subprocess.Popen(["/opt/hostorbit/venv/bin/hostorbit-activate", *arguments], stdin=slave, stdout=slave,
+    process = subprocess.Popen(["/opt/vpn-orbit/venv/bin/vpn-orbit-activate", *arguments], stdin=slave, stdout=slave,
                                stderr=slave, start_new_session=True)
     os.close(slave)
     output, sent = bytearray(), 0
@@ -767,12 +767,12 @@ def activation_fixture(state, isolated_at):
     """Simulated local operator on the disposable VM, no independent DR claim."""
     source = Path(state).parent / "target-data"
     receipt = json.loads((source / "recovery.json").read_bytes())
-    if (source / "source/gate.pub").read_bytes() == Path("/etc/hostorbit/gate.pub").read_bytes():
+    if (source / "source/gate.pub").read_bytes() == Path("/etc/vpn-orbit/gate.pub").read_bytes():
         raise RuntimeError("Recovered instance reused the removed source identity")
     old_host = run("/usr/bin/ssh-keygen", "-lf", "/etc/ssh/ssh_host_ed25519_key.pub", "-E", "sha256").stdout.decode().split()[1]
     while int(time.time()) - isolated_at < 10:
         time.sleep(0.2)
-    report = {"v": 1, "type": "hostorbit.manual-isolation", "source_instance": receipt["source_instance"],
+    report = {"v": 1, "type": "vpn-orbit.manual-isolation", "source_instance": receipt["source_instance"],
         "target_instance": receipt["target_id"], "source_backup_hash": receipt["source_backup_hash"], "dependencies_reviewed": True,
         "isolation": {"method": "verified_local_stop", "console": "CI/root-console/source-installation-removal",
             "operator": "CI-simulated-Owner-not-human-attestation", "old_host_key": old_host,
@@ -784,20 +784,20 @@ def activation_fixture(state, isolated_at):
     path.write_text(json.dumps(report, sort_keys=True, separators=(",", ":")))
     path.chmod(0o600)
     base = ["--state", state, "--old-host-key", old_host]
-    review = activation_terminal([*base, "prepare", "--report", str(path), "--policy", "/etc/hostorbit/targets.json"])
+    review = activation_terminal([*base, "prepare", "--report", str(path), "--policy", "/etc/vpn-orbit/targets.json"])
     result = activation_terminal([*base, "activate", "--plan-id", review["plan_id"]],
         [(b"Exact confirmation SHA-256", review["confirmation_sha256"]), (b"Owner username:", "roman"), (b"Owner password:", PASSWORD)])
     if result["status"] != "ACTIVE" or result["allowed_targets"] or result["restore_verified"]:
         raise RuntimeError("Fixture activation broadened its empty inventory or claimed DR attestation")
-    for unit in ("hostorbit-compose.service", "hostorbit-supervisor.service", "hostorbit-broker.service"):
+    for unit in ("vpn-orbit-compose.service", "vpn-orbit-supervisor.service", "vpn-orbit-broker.service"):
         run("/usr/bin/systemctl", "is-active", unit)
-    run("/usr/bin/systemctl", "restart", "hostorbit-supervisor.service", timeout=30)
+    run("/usr/bin/systemctl", "restart", "vpn-orbit-supervisor.service", timeout=30)
     verify = """import json
-from hostorbit.admission import Admission
-from hostorbit.database import DataAccess,Store
-from hostorbit.runtime.authority import Authority
-from hostorbit.runtime.policy import Policy
-c=json.load(open('/etc/hostorbit/runtime.json'))
+from vpn_orbit.admission import Admission
+from vpn_orbit.database import DataAccess,Store
+from vpn_orbit.runtime.authority import Authority
+from vpn_orbit.runtime.policy import Policy
+c=json.load(open('/etc/vpn-orbit/runtime.json'))
 w=Admission(c['writer_directory'])
 assert w.state()['phase']=='OPEN'
 a=Authority(c['supervisor_directory'],Policy.load(c['targets']),writers=w)
@@ -812,7 +812,7 @@ with s.write() as db:
  s.event(db,at=1,actor='fixture',kind='fixture.after_activation',target='controller',outcome='SUCCEEDED',correlation='native-activation')
 print('ACTIVATION_RECORD_VERIFIED')
 """
-    if run("/opt/hostorbit/venv/bin/python", "-c", verify).stdout.strip() != b"ACTIVATION_RECORD_VERIFIED":
+    if run("/opt/vpn-orbit/venv/bin/python", "-c", verify).stdout.strip() != b"ACTIVATION_RECORD_VERIFIED":
         raise RuntimeError("Signed activation record did not survive supervisor restart")
     print("Installed local Owner activation console passed separate digest/password, durable signed empty-inventory authorization, business admission and supervisor restart; manual isolation was simulated and VPS rotation/physical DR are not attested by this fixture.", flush=True)
 
@@ -828,13 +828,13 @@ def main():
             or os.environ.get("RUNNER_ENVIRONMENT") != "github-hosted"):
         raise SystemExit("Requires an explicitly disposable GitHub-hosted Ubuntu VM")
     # Refuse to clean up anything unless all installation namespaces are absent.
-    for path in ("/opt/hostorbit", "/etc/hostorbit", "/var/lib/hostorbit", "/run/hostorbit",
-                 "/etc/tmpfiles.d/hostorbit.conf", "/etc/sysusers.d/hostorbit.conf"):
+    for path in ("/opt/vpn-orbit", "/etc/vpn-orbit", "/var/lib/vpn-orbit", "/run/vpn-orbit",
+                 "/etc/tmpfiles.d/vpn-orbit.conf", "/etc/sysusers.d/vpn-orbit.conf"):
         if Path(path).exists():
             raise SystemExit("Fixture installation namespace already exists")
-    wheel, = (args.bundle / "wheelhouse").glob("hostorbit-*.whl")
+    wheel, = (args.bundle / "wheelhouse").glob("vpn_orbit-*.whl")
     with ZipFile(wheel) as archive:
-        manifest = json.loads(archive.read("hostorbit/release-manifest.json"))
+        manifest = json.loads(archive.read("vpn_orbit/release-manifest.json"))
         if manifest["remote_mutation_enabled"] is not False:
             raise RuntimeError("Development wheel allows remote mutation")
         if any(name.startswith(("stage0/", "tests/", "tests_app/", "tests_runtime/", "tests_tools/"))
@@ -844,7 +844,7 @@ def main():
     base = [str(HOST_PYTHON), str(REPO / "deploy/installer.py"), "install", "--bundle", str(args.bundle),
             "--trust-key", str(args.trust_key), "--development", "--origin", ORIGIN,
             "--port", str(PORT), "--docker-host", args.docker_host]
-    with tempfile.TemporaryDirectory(prefix="hostorbit-install-lab-", dir="/run") as temp:
+    with tempfile.TemporaryDirectory(prefix="vpn-orbit-install-lab-", dir="/run") as temp:
         root = Path(temp)
         # setup-docker-action puts its daemon below runner's private home. The
         # capability-free root Compose unit must not gain DAC override merely
@@ -878,7 +878,7 @@ def main():
             print("Unsafe installation parent refused before changes; disposable fixture now uses root-owned 0755 parents.", flush=True)
             # Complete cryptographic preflight must not create an installation.
             run(*base, "--check", timeout=90)
-            if Path("/opt/hostorbit").exists():
+            if Path("/opt/vpn-orbit").exists():
                 raise RuntimeError("Preflight created persistent installation state")
             print("Signed bundle preflight passed without creating application state.", flush=True)
             response = run(*base, timeout=420)
@@ -886,16 +886,16 @@ def main():
             if result.get("recovery") != "NOT_READY" or result.get("installed") is not True:
                 raise RuntimeError("Installation reported false readiness")
             installed = True
-            metadata = json.loads(Path("/opt/hostorbit/installation.json").read_bytes())
-            cfg = json.loads(Path("/etc/hostorbit/runtime.json").read_bytes())
-            age_tool = Path("/opt/hostorbit/tools/age")
+            metadata = json.loads(Path("/opt/vpn-orbit/installation.json").read_bytes())
+            cfg = json.loads(Path("/etc/vpn-orbit/runtime.json").read_bytes())
+            age_tool = Path("/opt/vpn-orbit/tools/age")
             if (age_tool.stat().st_uid != 0 or age_tool.stat().st_mode & 0o777 != 0o755
                     or hashlib.sha256(age_tool.read_bytes()).hexdigest() != "eb7dd1b518f0a307c99cd97782623c5321da049154b04acd2d98d21aa7bc9b2c"
                     or run(age_tool, "--version").stdout.strip() != b"v1.3.2"):
                 raise RuntimeError("Installed age binary did not match the signed pinned release")
             print("Signed bundle installed the pinned age v1.3.2 executable as a root-owned host tool.", flush=True)
-            ids = {name: docker(args.docker_host, "compose", "--project-name", "hostorbit", "--file",
-                               "/etc/hostorbit/compose.json", "ps", "--quiet", name) for name in ("api", "worker")}
+            ids = {name: docker(args.docker_host, "compose", "--project-name", "vpn-orbit", "--file",
+                               "/etc/vpn-orbit/compose.json", "ps", "--quiet", name) for name in ("api", "worker")}
             entries = {name: json.loads(docker(args.docker_host, "inspect", identity))[0] for name, identity in ids.items()}
             if entries["api"]["Image"] != metadata["image_id"] or entries["worker"]["Image"] != metadata["image_id"]:
                 raise RuntimeError("Unverified image executed")
@@ -906,14 +906,14 @@ def main():
                 raise RuntimeError("API was not published exclusively on loopback")
             if foreign.fileno() != foreign_identity or foreign.getsockname() != ("127.0.0.1", 443):
                 raise RuntimeError("Foreign listener changed")
-            for service in ("hostorbit-broker.service", "hostorbit-supervisor.service", "hostorbit-compose.service"):
+            for service in ("vpn-orbit-broker.service", "vpn-orbit-supervisor.service", "vpn-orbit-compose.service"):
                 if run("/usr/bin/systemctl", "is-active", service).stdout.strip() != b"active":
                     raise RuntimeError("Installed systemd service is inactive")
             print("Real systemd Broker/supervisor and isolated API/Worker containers started; foreign port 443 stayed untouched.", flush=True)
             code = """import json
-from hostorbit.runtime.ipc import Client
-from hostorbit.errors import Denied
-c=json.load(open('/etc/hostorbit/runtime.json'))
+from vpn_orbit.runtime.ipc import Client
+from vpn_orbit.errors import Denied
+c=json.load(open('/etc/vpn-orbit/runtime.json'))
 out={}
 for name,operation in [('gate_socket','attempt.status'),('broker_socket','receipt.get')]:
  try: Client(c[name],server_uids={0,c['broker_uid']}).call(operation,{'job_id':'01JCYQZ4T9V8MNVYEH3D2M7Q1A'})
@@ -926,17 +926,17 @@ print(json.dumps(out))
             denied = json.loads(docker(args.docker_host, "exec", ids["api"], "python", "-c", code))
             if denied != {"gate_socket": "RPC_UNAVAILABLE", "broker_socket": "RPC_UNAVAILABLE"}:
                 raise RuntimeError("Backend reached a host privilege socket")
-            key_path = Path("/etc/hostorbit/credentials/broker-dek.cred")
+            key_path = Path("/etc/vpn-orbit/credentials/broker-dek.cred")
             if key_path.stat().st_mode & 0o777 != 0o600 or key_path.stat().st_uid != 0 or key_path.stat().st_size <= 32:
                 raise RuntimeError("Runtime credential source is not root-private")
-            if Path("/etc/hostorbit/credentials/broker-dek").exists():
+            if Path("/etc/vpn-orbit/credentials/broker-dek").exists():
                 raise RuntimeError("Installation left a plaintext working DEK file")
             credential_binding(root, key_path)
             print("Worker container reached scoped IPC; Backend had neither privilege socket nor runtime credential mount.", flush=True)
             time_code = """import json
-from hostorbit.runtime.authority import verify_host_time
-from hostorbit.runtime.ipc import Client
-c=json.load(open('/etc/hostorbit/runtime.json'))
+from vpn_orbit.runtime.authority import verify_host_time
+from vpn_orbit.runtime.ipc import Client
+c=json.load(open('/etc/vpn-orbit/runtime.json'))
 envelope=Client(c['gate_socket'],server_uids={0}).call('time.health',{})
 report=verify_host_time(envelope,open(c['public_verify_key'],'rb').read())
 assert report['type']=='time.health' and report['state'] in ('FRESH','HOLDOVER','UNTRUSTED')
@@ -956,7 +956,7 @@ print('VERIFIED_HOST_TIME')
                 before = request("/api/v1/users", {"username": "visitor", "password": PASSWORD, "role": "Owner"})
                 if before.status not in (401, 422):
                     raise RuntimeError("Anonymous visitor could provision an administrator")
-                with sqlite3.connect("/var/lib/hostorbit/app/controller.sqlite3") as db:
+                with sqlite3.connect("/var/lib/vpn-orbit/app/controller.sqlite3") as db:
                     if db.execute("SELECT count(*) FROM users").fetchone() != (0,):
                         raise RuntimeError("Installation unexpectedly created an Owner")
                 owner_create()
@@ -971,35 +971,35 @@ print('VERIFIED_HOST_TIME')
             import base64
             rescue_input = json.dumps({"archive": local_archive, "identity": base64.b64encode(fixture_identity).decode(),
                 "anchor": str(root / "independent-controller.pub"), "password": PASSWORD,
-                "keygen": str(args.bundle.parent / "hostorbit-install-age/age/age-keygen")}).encode()
-            recovered = run("/opt/hostorbit/venv/bin/python", "tests_runtime/lab/rescue.py", "--isolated-vm", "--keep-data", input=rescue_input, timeout=120)
+                "keygen": str(args.bundle.parent / "vpn-orbit-install-age/age/age-keygen")}).encode()
+            recovered = run("/opt/vpn-orbit/venv/bin/python", "tests_runtime/lab/rescue.py", "--isolated-vm", "--keep-data", input=rescue_input, timeout=120)
             print(recovered.stdout.decode().strip(), flush=True)
             del rescue_input
             sftp_publication(root, local_archive, fixture_identity)
             migration_rehearsal(root)
             before = {name: hashlib.sha256(Path(path).read_bytes()).hexdigest() for name, path in (
-                ("credential", "/etc/hostorbit/credentials/broker-dek.cred"),
-                ("gate", "/var/lib/hostorbit/control-gate/signing.key"))}
+                ("credential", "/etc/vpn-orbit/credentials/broker-dek.cred"),
+                ("gate", "/var/lib/vpn-orbit/control-gate/signing.key"))}
             again = run(*base, check=False, timeout=30)
             if again.returncode == 0:
                 raise RuntimeError("Second install replaced a live installation")
             after = {name: hashlib.sha256(Path(path).read_bytes()).hexdigest() for name, path in (
-                ("credential", "/etc/hostorbit/credentials/broker-dek.cred"),
-                ("gate", "/var/lib/hostorbit/control-gate/signing.key"))}
+                ("credential", "/etc/vpn-orbit/credentials/broker-dek.cred"),
+                ("gate", "/var/lib/vpn-orbit/control-gate/signing.key"))}
             if before != after:
                 raise RuntimeError("Second install changed private keys")
-            run("/usr/bin/systemctl", "stop", "hostorbit-compose.service", timeout=80)
+            run("/usr/bin/systemctl", "stop", "vpn-orbit-compose.service", timeout=80)
             stopped = json.loads(docker(args.docker_host, "inspect", ids["worker"]))[0]["State"]
             if stopped["Running"] or stopped["ExitCode"] != 0 or stopped["OOMKilled"]:
                 raise RuntimeError("Idle Worker did not handle SIGTERM and exit cleanly")
             print("Container PID 1 Worker handled SIGTERM, released its lock and exited with code 0.", flush=True)
-            run("/usr/bin/systemctl", "start", "hostorbit-compose.service", timeout=150)
+            run("/usr/bin/systemctl", "start", "vpn-orbit-compose.service", timeout=150)
             if json.load(urlopen(f"http://127.0.0.1:{PORT}/healthz", timeout=5))["status"] != "alive":
                 raise RuntimeError("Compose service did not recover after restart")
             print("Repeated install was denied without key replacement; systemd Compose restart preserved the installation.", flush=True)
             recovery_installation(args, base, foreign)
         except Exception:
-            for service in ("hostorbit-vault-initialize.service", "hostorbit-broker.service", "hostorbit-supervisor.service", "hostorbit-compose.service"):
+            for service in ("vpn-orbit-vault-initialize.service", "vpn-orbit-broker.service", "vpn-orbit-supervisor.service", "vpn-orbit-compose.service"):
                 result = run("/usr/bin/journalctl", "--unit", service, "--no-pager", "--lines", "40", check=False)
                 print(result.stdout.decode(errors="replace"), file=sys.stderr)
             raise
@@ -1007,13 +1007,13 @@ print('VERIFIED_HOST_TIME')
             foreign.close()
             # This job owns the entire disposable VM. Preserve failed install
             # state/logs until the runner is discarded; never wipe a user VPS.
-            if installed and Path("/etc/hostorbit/compose.json").exists():
-                run("/usr/bin/systemctl", "stop", "hostorbit-compose.service", check=False, timeout=80)
-                docker(args.docker_host, "compose", "--project-name", "hostorbit", "--file",
-                       "/etc/hostorbit/compose.json", "down", timeout=60)
+            if installed and Path("/etc/vpn-orbit/compose.json").exists():
+                run("/usr/bin/systemctl", "stop", "vpn-orbit-compose.service", check=False, timeout=80)
+                docker(args.docker_host, "compose", "--project-name", "vpn-orbit", "--file",
+                       "/etc/vpn-orbit/compose.json", "down", timeout=60)
             run("/usr/bin/umount", daemon_socket, check=False)
-            if Path("/var/lib/hostorbit-rescue-lab").exists():
-                shutil.rmtree("/var/lib/hostorbit-rescue-lab")
+            if Path("/var/lib/vpn-orbit-rescue-lab").exists():
+                shutil.rmtree("/var/lib/vpn-orbit-rescue-lab")
             Path("/opt").chmod(opt_mode)
 
 

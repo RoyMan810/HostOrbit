@@ -8,7 +8,7 @@ import sys
 
 
 def main():
-    if len(sys.argv) != 1 or os.environ.get("SSH_ORIGINAL_COMMAND") != "hostorbit.v1.docker-restart":
+    if len(sys.argv) != 1 or os.environ.get("SSH_ORIGINAL_COMMAND") != "vpn-orbit.v1.docker-restart":
         return 65
     signal.alarm(5)
     request = sys.stdin.buffer.read(513)
@@ -16,7 +16,7 @@ def main():
     if not request or len(request) > 512:
         return 65
     try:
-        return subprocess.run(["/usr/bin/sudo", "-n", "--", "/usr/local/libexec/hostorbit/docker-restart"],
+        return subprocess.run(["/usr/bin/sudo", "-n", "--", "/usr/local/libexec/vpn-orbit/docker-restart"],
                               input=request, timeout=24, env={"PATH": "/usr/bin:/bin", "LC_ALL": "C"}).returncode
     except (OSError, subprocess.SubprocessError):
         return 70

@@ -22,10 +22,10 @@ App/Vault DB переносятся SQLite Online Backup API с проверко
 
 ```sh
 sudo python3.15 deploy/installer.py install \
-  --bundle /trusted/hostorbit-bundle \
+  --bundle /trusted/vpn-orbit-bundle \
   --trust-key /trusted/release.pub \
-  --development --origin https://hostorbit.example \
-  --recovery-state /var/lib/hostorbit-rescue/request-1 \
+  --development --origin https://vpn-orbit.example \
+  --recovery-state /var/lib/vpn-orbit-rescue/request-1 \
   --check
 ```
 

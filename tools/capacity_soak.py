@@ -22,14 +22,14 @@ import time
 
 from fastapi.testclient import TestClient
 
-from hostorbit.api import create_app
-from hostorbit.auth import COOKIE, AuthService
-from hostorbit.config import Settings
-from hostorbit.database import Store, identifier
-from hostorbit.queue import JobQueue
+from vpn_orbit.api import create_app
+from vpn_orbit.auth import COOKIE, AuthService
+from vpn_orbit.config import Settings
+from vpn_orbit.database import Store, identifier
+from vpn_orbit.queue import JobQueue
 
 
-ORIGIN = "https://capacity.hostorbit.test"
+ORIGIN = "https://capacity.vpn-orbit.test"
 HOSTS = 25
 SERVICES_PER_HOST = 8
 HISTORY_DAYS = 30
@@ -212,7 +212,7 @@ def environment(directory):
 
 def run(directory, *, warmup, seconds, interval, check_quota=False):
     started_utc = datetime.now(timezone.utc).isoformat()
-    with tempfile.TemporaryDirectory(prefix="hostorbit-capacity-", dir=directory) as workspace:
+    with tempfile.TemporaryDirectory(prefix="vpn-orbit-capacity-", dir=directory) as workspace:
         store = MeasuredStore.initialize(Path(workspace) / "controller.sqlite3")
         auth = AuthService(store)
         password = secrets.token_urlsafe(36)

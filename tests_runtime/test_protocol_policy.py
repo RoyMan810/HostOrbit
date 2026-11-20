@@ -2,9 +2,9 @@ import copy
 import json
 import unittest
 
-from hostorbit.errors import Denied
-from hostorbit.runtime.policy import Target
-from hostorbit.runtime.protocol import canonical, decode
+from vpn_orbit.errors import Denied
+from vpn_orbit.runtime.policy import Target
+from vpn_orbit.runtime.protocol import canonical, decode
 from fixtures import TARGET, policy
 
 

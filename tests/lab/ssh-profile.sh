@@ -12,11 +12,11 @@ source /etc/os-release
 test "$ID:$VERSION_ID" = "ubuntu:24.04"
 
 repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
-account=hostorbit-svc
-helper_dir=/usr/local/libexec/hostorbit
+account=vpn-orbit-svc
+helper_dir=/usr/local/libexec/vpn-orbit
 keys_dir=/etc/ssh/authorized_keys
 key_file="$keys_dir/$account"
-policy=/etc/sudoers.d/hostorbit_stage0_ssh
+policy=/etc/sudoers.d/vpn_orbit_stage0_ssh
 for path in "$helper_dir" "$key_file" "$policy"; do
     if [[ -e $path || -L $path ]]; then
         printf 'Fixture path already exists: %s\n' "$path" >&2
@@ -28,7 +28,7 @@ if getent passwd "$account" >/dev/null || getent group "$account" >/dev/null; th
     exit 2
 fi
 
-lab=$(mktemp -d /run/hostorbit-ssh-lab.XXXXXX)
+lab=$(mktemp -d /run/vpn-orbit-ssh-lab.XXXXXX)
 sshd_pid=
 account_created=no
 helper_dir_created=no
@@ -73,8 +73,8 @@ install -m 0755 "$repo/stage0/ssh_gateway.py" "$helper_dir/ssh-gateway"
 install -m 0755 "$repo/stage0/ssh_typed_helper.py" "$helper_dir/typed-helper"
 
 cat > "$lab/sudoers" <<'POLICY'
-Defaults:hostorbit-svc env_reset,secure_path="/usr/sbin:/usr/bin:/sbin:/bin"
-hostorbit-svc ALL=(root) NOPASSWD: /usr/local/libexec/hostorbit/typed-helper ""
+Defaults:vpn-orbit-svc env_reset,secure_path="/usr/sbin:/usr/bin:/sbin:/bin"
+vpn-orbit-svc ALL=(root) NOPASSWD: /usr/local/libexec/vpn-orbit/typed-helper ""
 POLICY
 visudo -cf "$lab/sudoers"
 install -m 0440 "$lab/sudoers" "$policy"
@@ -134,7 +134,7 @@ request='{"operation":"probe","target":"stage0-fixture","version":1}'
 expected='{"status":"OK","uid":0,"version":1}'
 destination="$account@127.0.0.1"
 typed_probe() {
-    printf '%s\n' "$request" | client -T "$destination" hostorbit.stage0.probe
+    printf '%s\n' "$request" | client -T "$destination" vpn-orbit.stage0.probe
 }
 
 reply=
@@ -162,9 +162,9 @@ reject() {
 
 reject "interactive shell" client -T "$destination" </dev/null
 reject "remote shell syntax" client -T "$destination" 'printf injected; id' </dev/null
-reject "untyped stdin" client -T "$destination" hostorbit.stage0.probe <<<'{"operation":"exec"}'
-reject "target traversal" client -T "$destination" hostorbit.stage0.probe <<<'{"operation":"probe","target":"../fixture","version":1}'
-reject "environment override" client -o 'SetEnv=SSH_ORIGINAL_COMMAND=hostorbit.stage0.probe' \
+reject "untyped stdin" client -T "$destination" vpn-orbit.stage0.probe <<<'{"operation":"exec"}'
+reject "target traversal" client -T "$destination" vpn-orbit.stage0.probe <<<'{"operation":"probe","target":"../fixture","version":1}'
+reject "environment override" client -o 'SetEnv=SSH_ORIGINAL_COMMAND=vpn-orbit.stage0.probe' \
     -T "$destination" id <<<$request
 reject "PTY" client -tt "$destination" </dev/null
 [[ $(cat "$lab/reject.err") == *'PTY allocation request failed'* ]]
@@ -188,7 +188,7 @@ echo 'Pinned SSH transport accepted the fixed typed probe.'
 if [[ ${2-} == --controller-loss ]]; then
     install -m 0644 "$lab/authorized" "$key_file"
     work=$3
-    "${HOSTORBIT_LAB_PYTHON:?Set the fixture Python interpreter}" "$repo/tests/lab/offhost_recovery.py" --isolated-vm \
+    "${VPN_ORBIT_LAB_PYTHON:?Set the fixture Python interpreter}" "$repo/tests/lab/offhost_recovery.py" --isolated-vm \
         --image "$work/ubuntu.qcow2" --dependencies "$work/deps" --age-dir "$work/age" --scratch "$work" \
         --ssh-fixture "$lab" "$port" "$helper_dir" "$key_file"
     exit

@@ -15,14 +15,14 @@ from unittest.mock import patch
 
 from nacl.signing import SigningKey
 
-from hostorbit.errors import Denied
-from hostorbit.runtime.archive_stream import AGE_SHA256
-from hostorbit.runtime.protocol import canonical
-from hostorbit.runtime.rescue import _encrypted_output
-from hostorbit.runtime.resource_restore_cli import main
-from hostorbit.runtime.resource_restore_attestation import verify_attestation, verify_restore_source
-from hostorbit.runtime.resource_restore_stage import stage_restore_source
-from hostorbit.runtime.resource_restore_target import check_restore_target
+from vpn_orbit.errors import Denied
+from vpn_orbit.runtime.archive_stream import AGE_SHA256
+from vpn_orbit.runtime.protocol import canonical
+from vpn_orbit.runtime.rescue import _encrypted_output
+from vpn_orbit.runtime.resource_restore_cli import main
+from vpn_orbit.runtime.resource_restore_attestation import verify_attestation, verify_restore_source
+from vpn_orbit.runtime.resource_restore_stage import stage_restore_source
+from vpn_orbit.runtime.resource_restore_target import check_restore_target
 from test_controller_backup import AGE_DIR
 
 
@@ -37,7 +37,7 @@ class RestoreAttestationTests(unittest.TestCase):
         self.signer = SigningKey.generate()
         self.claims = {
             "v": 1,
-            "type": "hostorbit.resource-restore-attestation",
+            "type": "vpn-orbit.resource-restore-attestation",
             "resource_type": "docker.named-volume",
             "application_schema": "fixture-v1",
             "procedure_sha256": PROCEDURE,
@@ -119,7 +119,7 @@ class RestoreAttestationTests(unittest.TestCase):
         signer = SigningKey.generate()
         public_key = bytes(signer.verify_key)
         ciphertext = archive.read_bytes()
-        claims = {"v": 1, "type": "hostorbit.resource-backup", "application_schema": "fixture-v1",
+        claims = {"v": 1, "type": "vpn-orbit.resource-backup", "application_schema": "fixture-v1",
                   "manifest_sha256": hashlib.sha256(manifest).hexdigest(), "recipient": recipient,
                   "ciphertext_sha256": hashlib.sha256(ciphertext).hexdigest(), "ciphertext_size": len(ciphertext),
                   "age_sha256": AGE_SHA256, "signing_key_sha256": hashlib.sha256(public_key).hexdigest()}
@@ -127,8 +127,8 @@ class RestoreAttestationTests(unittest.TestCase):
         options = {"attestation": self.envelope(), "evidence": EVIDENCE, "owner_key": bytes(self.signer.verify_key),
                    "application_schema": "fixture-v1", "procedure_sha256": PROCEDURE, "now": NOW,
                    "age_path": age, "tool_owner": os.geteuid()}
-        self.enterContext(patch("hostorbit.runtime.resource_archive.offline_profile"))
-        self.enterContext(patch("hostorbit.runtime.resource_restore_stage.offline_profile"))
+        self.enterContext(patch("vpn_orbit.runtime.resource_archive.offline_profile"))
+        self.enterContext(patch("vpn_orbit.runtime.resource_restore_stage.offline_profile"))
         return root, payload, (archive, provenance, public_key, identity), options
 
     def test_source_check_combines_yesterdays_signed_archive_and_separate_owner_evidence(self):
@@ -186,7 +186,7 @@ class RestoreAttestationTests(unittest.TestCase):
     def test_failed_write_consumes_the_reservation_without_publishing_data(self):
         root, _, args, options = self.signed_source()
         destination = root / "staged"
-        with patch("hostorbit.runtime.resource_restore_stage.new_private_file", side_effect=OSError("disk full")):
+        with patch("vpn_orbit.runtime.resource_restore_stage.new_private_file", side_effect=OSError("disk full")):
             with self.assertRaisesRegex(Denied, "RESTORE_STAGE_WRITE_FAILED"):
                 stage_restore_source(*args, destination=destination, **options)
         self.assertTrue(destination.is_dir())
@@ -223,22 +223,22 @@ class RestoreAttestationTests(unittest.TestCase):
 
     def assert_cli_refuses_confirmation(self, args, replies, reason):
         error = io.StringIO()
-        with (patch("hostorbit.runtime.resource_restore_cli.harden"),
-              patch("hostorbit.runtime.resource_restore_cli.offline_profile"),
-              patch("hostorbit.runtime.resource_restore_cli.console"),
+        with (patch("vpn_orbit.runtime.resource_restore_cli.harden"),
+              patch("vpn_orbit.runtime.resource_restore_cli.offline_profile"),
+              patch("vpn_orbit.runtime.resource_restore_cli.console"),
               patch("builtins.input", side_effect=replies),
-              patch("hostorbit.runtime.resource_restore_cli.getpass.getpass") as read_identity,
+              patch("vpn_orbit.runtime.resource_restore_cli.getpass.getpass") as read_identity,
               redirect_stderr(error), redirect_stdout(io.StringIO())):
             self.assertEqual(main(args), 2)
         read_identity.assert_not_called()
         self.assertEqual(error.getvalue().splitlines()[-1], reason)
 
-    @unittest.skipUnless(os.environ.get("HOSTORBIT_LAB_RESTORE_IMAGE"), "requires disposable Docker CI")
+    @unittest.skipUnless(os.environ.get("VPN_ORBIT_LAB_RESTORE_IMAGE"), "requires disposable Docker CI")
     def test_restored_data_is_usable_in_a_new_docker_volume(self):
         self.assertEqual(os.environ.get("RUNNER_ENVIRONMENT"), "github-hosted")
         self.assertEqual(os.environ.get("GITHUB_ACTIONS"), "true")
         self.assertEqual(os.geteuid(), 0)
-        image = os.environ["HOSTORBIT_LAB_RESTORE_IMAGE"]
+        image = os.environ["VPN_ORBIT_LAB_RESTORE_IMAGE"]
 
         def docker(*args):
             return subprocess.run(["/usr/bin/docker", *args], check=True, capture_output=True, timeout=60).stdout
@@ -249,7 +249,7 @@ class RestoreAttestationTests(unittest.TestCase):
             source.commit()
             payload = source.serialize()
         root, _, source, options = self.signed_source(payload)
-        name = f"hostorbit-ac-b05-{uuid4().hex}"
+        name = f"vpn-orbit-ac-b05-{uuid4().hex}"
         docker_socket = Path("/run/docker.sock")
         original_mode = stat.S_IMODE(docker_socket.stat().st_mode)
         docker_socket.chmod(0o600)
@@ -259,12 +259,12 @@ class RestoreAttestationTests(unittest.TestCase):
             args = self.cli_args(root, source, options, destination) + ["--docker-volume", name]
             output, error = io.StringIO(), io.StringIO()
             digest = source[1]["claims"]["ciphertext_sha256"]
-            with (patch("hostorbit.runtime.resource_restore_cli.harden"),
-                  patch("hostorbit.runtime.resource_restore_cli.offline_profile"),
-                  patch("hostorbit.runtime.resource_restore_cli.console"),
-                  patch("hostorbit.runtime.resource_restore_cli.time.time", return_value=NOW),
+            with (patch("vpn_orbit.runtime.resource_restore_cli.harden"),
+                  patch("vpn_orbit.runtime.resource_restore_cli.offline_profile"),
+                  patch("vpn_orbit.runtime.resource_restore_cli.console"),
+                  patch("vpn_orbit.runtime.resource_restore_cli.time.time", return_value=NOW),
                   patch("builtins.input", side_effect=[digest, name]),
-                  patch("hostorbit.runtime.resource_restore_cli.getpass.getpass", return_value=source[3].decode()),
+                  patch("vpn_orbit.runtime.resource_restore_cli.getpass.getpass", return_value=source[3].decode()),
                   redirect_stdout(output), redirect_stderr(error)):
                 code = main(args)
             return code, output.getvalue(), error.getvalue()

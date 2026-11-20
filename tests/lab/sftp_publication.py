@@ -165,7 +165,7 @@ class SftpReceiver:
 @contextmanager
 def sftp_receiver(root):
     root.chmod(0o711)
-    account = f"ho-sftp-{secrets.token_hex(4)}"
+    account = f"vpn-orbit-sftp-{secrets.token_hex(4)}"
     # Ubuntu's shadow entry '*' disables password login and allows public-key auth without PAM.
     command(
         "/usr/sbin/useradd", "--system", "--user-group", "--home-dir", "/store",
@@ -224,7 +224,7 @@ def restored_values(restored):
 
 class SftpPublicationTests(unittest.TestCase):
     def setUp(self):
-        self.root = Path(self.enterContext(TemporaryDirectory(prefix="hostorbit-sftp-", dir="/run")))
+        self.root = Path(self.enterContext(TemporaryDirectory(prefix="vpn-orbit-sftp-", dir="/run")))
         self.receiver = self.enterContext(sftp_receiver(self.root))
         self.store = self.receiver.store
         command("/usr/bin/ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", self.root / "client")

@@ -10,9 +10,9 @@ import tempfile
 from deploy.artifact import ArtifactError, read_at, trusted_key
 from deploy.build_update_release import copy_updater
 from deploy.update_release import PLATFORM, verify_candidate
-from hostorbit.errors import Denied
-from hostorbit.runtime.migration_review import verify_rehearsal
-from hostorbit.runtime.storage import directory_sync
+from vpn_orbit.errors import Denied
+from vpn_orbit.runtime.migration_review import verify_rehearsal
+from vpn_orbit.runtime.storage import directory_sync
 
 
 def stage_candidate(source, slot, key, compatibility):
@@ -20,7 +20,7 @@ def stage_candidate(source, slot, key, compatibility):
     for name, limit in (("release.json", 65536), ("release.sig", 64)):
         (slot / name).write_bytes(read_at(source, name, limit))
     metadata = verify_candidate(source, key, **compatibility)
-    filename = f"hostorbit-updater-{PLATFORM}-{metadata['version']}.tar.zst"
+    filename = f"vpn-orbit-updater-{PLATFORM}-{metadata['version']}.tar.zst"
     copy_updater(source / filename, slot / filename)
     staged = verify_candidate(slot, key, **compatibility)
     if staged != metadata:
@@ -45,7 +45,7 @@ def rehearse_update(source, key, *, installed, bootstrap, schema, vault_format, 
                     migration=None):
     compatibility = dict(installed=installed, bootstrap=bootstrap, schema=schema, vault_format=vault_format,
                          minimum_release=minimum_release)
-    with tempfile.TemporaryDirectory(prefix="hostorbit-update-rehearsal-") as directory:
+    with tempfile.TemporaryDirectory(prefix="vpn-orbit-update-rehearsal-") as directory:
         root = Path(directory)
         current = root / "A"
         current.mkdir(mode=0o700)
@@ -103,7 +103,7 @@ def main(argv=None):
             code = error.code
         else:
             code = "UPDATE_REHEARSAL_UNAVAILABLE"
-        print(f"HostOrbit: {code}", file=sys.stderr)
+        print(f"VPN-Orbit: {code}", file=sys.stderr)
         return 1
     print(json.dumps(report, sort_keys=True))
     return 0 if report["candidate_verified_after_switch"] else 1

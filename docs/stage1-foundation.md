@@ -2,7 +2,7 @@
 
 [Документация](README.md)
 
-Пакет `hostorbit` реализует аутентификацию, локальную активацию владельца, хранение состояния и аудит контроллера.
+Пакет `vpn-orbit` реализует аутентификацию, локальную активацию владельца, хранение состояния и аудит контроллера.
 
 ## Установка для разработки
 
@@ -11,22 +11,22 @@
 ```bash
 python3.15 -m venv .venv
 .venv/bin/python -m pip install -r requirements-dev.txt
-.venv/bin/python -m hostorbit --database "$PWD/.hostorbit-state/controller.sqlite3" init
-.venv/bin/python -m hostorbit --database "$PWD/.hostorbit-state/controller.sqlite3" bootstrap-token
-.venv/bin/python -m hostorbit --database "$PWD/.hostorbit-state/controller.sqlite3" create-owner --username roman
+.venv/bin/python -m vpn-orbit --database "$PWD/.vpn-orbit-state/controller.sqlite3" init
+.venv/bin/python -m vpn-orbit --database "$PWD/.vpn-orbit-state/controller.sqlite3" bootstrap-token
+.venv/bin/python -m vpn-orbit --database "$PWD/.vpn-orbit-state/controller.sqlite3" create-owner --username roman
 ```
 
 CLI показывает одноразовый token, действующий 10 минут. `create-owner` запрашивает token, пароль и повтор пароля скрытым вводом. Первый веб-посетитель не создаёт Owner. Повторная выдача token заменяет предыдущий, а потребление и создание Owner выполняются одной транзакцией. Аргументов командной строки для пароля и token нет.
 
 Новые пароли должны содержать минимум 14 символов. `serve` запускается от непривилегированного пользователя; запуск API с UID 0 отклоняется.
 
-Команда `serve --origin https://hostorbit.example` запускает API на `127.0.0.1:8000`. HTTPS завершается на явно настроенном reverse proxy. Если он передаёт схему и IP, его точный адрес или CIDR передаётся отдельным `--trusted-proxy`. Proxy должен перезаписывать `X-Forwarded-Proto` и `X-Forwarded-For` одним фактическим IP. Uvicorn proxy headers отключены. Без настроенного доверия используется peer IP и исходная схема соединения. Публичный DNS, TLS и Nginx этим кодом не меняются.
+Команда `serve --origin https://vpn-orbit.example` запускает API на `127.0.0.1:8000`. HTTPS завершается на явно настроенном reverse proxy. Если он передаёт схему и IP, его точный адрес или CIDR передаётся отдельным `--trusted-proxy`. Proxy должен перезаписывать `X-Forwarded-Proto` и `X-Forwarded-For` одним фактическим IP. Uvicorn proxy headers отключены. Без настроенного доверия используется peer IP и исходная схема соединения. Публичный DNS, TLS и Nginx этим кодом не меняются.
 
 ## Аутентификация и права
 
-Пароли хешируются Argon2id с профилем 1 из `hostorbit/release-manifest.json` — 64 MiB, три прохода, четыре потока. При входе старый допустимый hash мигрирует на текущий профиль. Manifest обозначен как development и не включает удалённые изменения.
+Пароли хешируются Argon2id с профилем 1 из `vpn_orbit/release-manifest.json` — 64 MiB, три прохода, четыре потока. При входе старый допустимый hash мигрирует на текущий профиль. Manifest обозначен как development и не включает удалённые изменения.
 
-`POST /api/v1/auth/login` выдаёт cookie `__Host-hostorbit_session` с `Secure`, `HttpOnly`, `SameSite=Strict` и `Path=/`. Session ID меняется при входе. В SQLite сохраняются дайджесты session/CSRF. CSRF получен HMAC от конкретной сессии; чтение `/auth/session` возвращает тот же token, поэтому вкладки не отзывают его друг у друга. Выход отзывает текущую сессию, а изменение роли, grant или disabled — все сессии пользователя. Проверяются 30 минут простоя, 12 часов абсолютного срока и обратный ход наблюдаемого времени сессии.
+`POST /api/v1/auth/login` выдаёт cookie `__Host-vpn_orbit_session` с `Secure`, `HttpOnly`, `SameSite=Strict` и `Path=/`. Session ID меняется при входе. В SQLite сохраняются дайджесты session/CSRF. CSRF получен HMAC от конкретной сессии; чтение `/auth/session` возвращает тот же token, поэтому вкладки не отзывают его друг у друга. Выход отзывает текущую сессию, а изменение роли, grant или disabled — все сессии пользователя. Проверяются 30 минут простоя, 12 часов абсолютного срока и обратный ход наблюдаемого времени сессии.
 
 `POST /api/v1/auth/reauth` проверяет пароль и выдаёт одноразовое подтверждение на пять минут с привязкой к session и точному `plan_hash`. Его потребляет будущая транзакция одобрения плана; сам этот endpoint не одобряет и не исполняет план.
 
@@ -49,7 +49,7 @@ Owner управляет прикладными правами. Admin испол
 Оператор может проверить локальную БД установленной командой. Укажите путь к БД и UID/GID из конфигурации установки.
 
 ```sh
-hostorbit --database "$database_path" --database-owner "$database_uid" --database-group "$database_gid" audit-verify
+vpn-orbit --database "$database_path" --database-owner "$database_uid" --database-group "$database_gid" audit-verify
 ```
 
 Команда открывает БД в режиме чтения. В одном снимке она сверяет цепочку хешей Audit и соответствие событий строкам Outbox. При успехе JSON содержит число событий `events` и последний хеш `head`. При ошибке команда возвращает код 1 и пишет `AUDIT_VERIFICATION_FAILED` в stderr.

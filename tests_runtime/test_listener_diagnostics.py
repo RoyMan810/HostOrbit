@@ -8,7 +8,7 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from unittest.mock import patch
 
-from hostorbit.runtime.listener_diagnostics import _read_bindings, inspect_port, main
+from vpn_orbit.runtime.listener_diagnostics import _read_bindings, inspect_port, main
 
 
 _HEADER = b"  sl  local_address rem_address   st tx_queue\n"
@@ -105,7 +105,7 @@ class ListenerDiagnosticsTests(unittest.TestCase):
         for error, state in ((TimeoutError("private diagnostic"), "TIMED_OUT"),
                              (OSError(errno.ENETUNREACH, "private diagnostic"), "UNREACHABLE"),
                              (PermissionError("private diagnostic"), "ERROR")):
-            with self.subTest(state=state), patch("hostorbit.runtime.listener_diagnostics.socket.socket") as transport:
+            with self.subTest(state=state), patch("vpn_orbit.runtime.listener_diagnostics.socket.socket") as transport:
                 conn = transport.return_value.__enter__.return_value
                 conn.connect.side_effect = error
                 output = io.StringIO()
@@ -142,11 +142,11 @@ class BindDiagnosticsTests(unittest.TestCase):
                     self.assertIn("127.0.0.1", result["bind_check"]["candidate_addresses"])
 
     def test_dual_stack_and_unavailable_tables_are_conservative(self):
-        from hostorbit.runtime.listener_diagnostics import check_bind
+        from vpn_orbit.runtime.listener_diagnostics import check_bind
 
         report = {"ipv4": {"state": "UNKNOWN", "addresses": []},
                   "ipv6": {"state": "LISTENING", "addresses": ["::", "::ffff:c000:201"]}}
-        with patch("hostorbit.runtime.listener_diagnostics.inspect_port", return_value=report):
+        with patch("vpn_orbit.runtime.listener_diagnostics.inspect_port", return_value=report):
             self.assertEqual(check_bind("192.0.2.1", 443)["bind_check"]["candidate_addresses"], ["::", "::ffff:c000:201"])
             self.assertEqual(check_bind("192.0.2.2", 443)["bind_check"]["candidate_addresses"], ["::"])
             report["ipv6"]["addresses"] = ["::ffff:c000:201"]

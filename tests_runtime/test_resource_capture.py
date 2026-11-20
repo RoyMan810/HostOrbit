@@ -12,10 +12,10 @@ from uuid import uuid4
 
 from nacl.signing import SigningKey
 
-from hostorbit.errors import Denied
-from hostorbit.runtime.archive_stream import trusted_age
-from hostorbit.runtime import resource_capture as capture
-from hostorbit.runtime.resource_archive import verified_archive
+from vpn_orbit.errors import Denied
+from vpn_orbit.runtime.archive_stream import trusted_age
+from vpn_orbit.runtime import resource_capture as capture
+from vpn_orbit.runtime.resource_archive import verified_archive
 from test_controller_backup import AGE_DIR, fixture_identity
 
 
@@ -24,7 +24,7 @@ class ResourceCaptureTests(unittest.TestCase):
         self.root = Path(self.enterContext(tempfile.TemporaryDirectory()))
         self.private = SigningKey.generate()
         self.identity, self.public = fixture_identity()
-        self.name = "hostorbit-source-" + uuid4().hex
+        self.name = "vpn-orbit-source-" + uuid4().hex
         self.created = "2026-01-01T00:00:00Z"
         self.age = self.root / "age"
         self.age.write_bytes((AGE_DIR / "age").read_bytes())
@@ -40,7 +40,7 @@ class ResourceCaptureTests(unittest.TestCase):
         tree.mkdir(parents=True)
         self.enterContext(patch.object(capture, "_ROOT", docker))
         self.enterContext(patch.object(capture, "_require_private_docker"))
-        self.enterContext(patch("hostorbit.runtime.rescue.trusted_age",
+        self.enterContext(patch("vpn_orbit.runtime.rescue.trusted_age",
                                side_effect=lambda path, owner: trusted_age(path, owner=os.geteuid())))
         return tree
 
@@ -80,11 +80,11 @@ class ResourceCaptureTests(unittest.TestCase):
                 capture.capture_volume(self.name, **self.options)
         self.assertFalse(self.destination.exists())
 
-    @unittest.skipUnless(os.environ.get("HOSTORBIT_LAB_RESTORE_IMAGE"), "requires disposable Docker CI")
+    @unittest.skipUnless(os.environ.get("VPN_ORBIT_LAB_RESTORE_IMAGE"), "requires disposable Docker CI")
     def test_docker_volume_cli(self):
         self.assertEqual(os.environ.get("RUNNER_ENVIRONMENT"), "github-hosted")
         self.assertEqual(os.geteuid(), 0)
-        image = os.environ["HOSTORBIT_LAB_RESTORE_IMAGE"]
+        image = os.environ["VPN_ORBIT_LAB_RESTORE_IMAGE"]
 
         def docker(*args):
             return subprocess.run(["/usr/bin/docker", *args], check=True, capture_output=True,

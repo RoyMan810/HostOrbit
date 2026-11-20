@@ -1,4 +1,4 @@
-"""Install a fresh HostOrbit development Controller with HTTPS WebUI."""
+"""Install a fresh VPN-Orbit development Controller with HTTPS WebUI."""
 
 import argparse
 from dataclasses import dataclass
@@ -19,10 +19,10 @@ import tarfile
 import tempfile
 
 
-TOOLS = Path("/opt/hostorbit-bootstrap")
-APP = Path("/opt/hostorbit")
-WEB_UNIT = Path("/etc/systemd/system/hostorbit-web.service")
-WEB_STATE = Path("/var/lib/hostorbit-web")
+TOOLS = Path("/opt/vpn-orbit-bootstrap")
+APP = Path("/opt/vpn-orbit")
+WEB_UNIT = Path("/etc/systemd/system/vpn-orbit-web.service")
+WEB_STATE = Path("/var/lib/vpn-orbit-web")
 DOCKER_SOCKET = "unix:///run/docker.sock"
 PYTHON_VERSION = "3.15.2"
 PYTHON_ARCHIVE = f"Python-{PYTHON_VERSION}.tar.xz"
@@ -33,9 +33,9 @@ NODE_VERSION = "26.13.0"
 NODE_ARCHIVE = f"node-v{NODE_VERSION}-linux-x64.tar.xz"
 NODE_SHA256 = "d28a96af6c38596f6d9d97c0ee531c13d238d757742387d1928de822d959e997"
 DOCKER_KEY = "9DC858229FC7DD38854AE2D88D81803C0EBFCD88"
-DOCKER_APT_SOURCE = Path("/etc/apt/sources.list.d/hostorbit-docker.sources")
-DOCKER_APT_KEY = Path("/etc/apt/keyrings/hostorbit-docker.asc")
-BUILD_USER = "ho-build"
+DOCKER_APT_SOURCE = Path("/etc/apt/sources.list.d/vpn-orbit-docker.sources")
+DOCKER_APT_KEY = Path("/etc/apt/keyrings/vpn-orbit-docker.asc")
+BUILD_USER = "vpn-orbit-build"
 SYSTEM_ENV = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LANG": "C.UTF-8"}
 API_PORT = 18080
 WEB_PORT = 18443
@@ -133,8 +133,8 @@ def platform_and_ports(endpoint):
                 listener.bind((address, port))
             except OSError as error:
                 raise ValueError(f"Порт {address}:{port} занят.") from error
-    for path in (APP, TOOLS, WEB_UNIT, Path("/etc/hostorbit"), Path("/var/lib/hostorbit"),
-                 Path("/run/hostorbit")):
+    for path in (APP, TOOLS, WEB_UNIT, Path("/etc/vpn-orbit"), Path("/var/lib/vpn-orbit"),
+                 Path("/run/vpn-orbit")):
         if path.exists() or path.is_symlink():
             raise ValueError(f"Найдена существующая установка или её часть: {path}.")
     return suite
@@ -366,7 +366,7 @@ def create_local_certificate(temporary):
                          "keyUsage=critical,digitalSignature\nextendedKeyUsage=serverAuth\n"
                          "subjectAltName=IP:127.0.0.1\n")
     run("openssl", "req", "-x509", "-new", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1",
-        "-noenc", "-days", "397", "-subj", "/CN=HostOrbit local HTTPS",
+        "-noenc", "-days", "397", "-subj", "/CN=VPN-Orbit local HTTPS",
         "-addext", "basicConstraints=critical,CA:TRUE,pathlen:0",
         "-addext", "keyUsage=critical,keyCertSign,cRLSign",
         "-addext", "nameConstraints=critical,permitted;IP:127.0.0.1/255.255.255.255",
@@ -388,13 +388,13 @@ def start_web(endpoint):
         curl_tls = ["--cacert", TOOLS / "web-ca.pem"]
     with WEB_UNIT.open("x") as unit:
         unit.write(f"""[Unit]
-Description=HostOrbit WebUI and HTTPS proxy
-Requires=hostorbit-compose.service
-After=hostorbit-compose.service
+Description=VPN-Orbit WebUI and HTTPS proxy
+Requires=vpn-orbit-compose.service
+After=vpn-orbit-compose.service
 
 [Service]
 DynamicUser=yes
-StateDirectory=hostorbit-web
+StateDirectory=vpn-orbit-web
 StateDirectoryMode=0700
 LoadCredential=web.pem:{cert}
 LoadCredential=web.key:{key}
@@ -429,7 +429,7 @@ def install(owner, targets, suite, endpoint):
     revision = capture(*git, "rev-parse", "HEAD", **checkout)
     if capture(*git, "status", "--porcelain", "--untracked-files=no", **checkout):
         raise ValueError("Запустите установку из чистого зафиксированного checkout.")
-    with tempfile.TemporaryDirectory(prefix="hostorbit-bootstrap-", dir="/var/tmp") as location:
+    with tempfile.TemporaryDirectory(prefix="vpn-orbit-bootstrap-", dir="/var/tmp") as location:
         temporary = Path(location)
         temporary.chmod(0o711)
         private = temporary / "private"
@@ -439,7 +439,7 @@ def install(owner, targets, suite, endpoint):
             approved = private / "targets.json"
             approved.write_bytes(targets.read_bytes())
             options = ["--targets", approved, "--web-enrollment"]
-        stage(f"HostOrbit development · {revision}")
+        stage(f"VPN-Orbit development · {revision}")
         apt("update")
         apt("install", "-y", "--no-remove", "--no-install-recommends", "curl", "ca-certificates", "gnupg",
             "openssl", "xz-utils", "build-essential", "pkg-config", "libssl-dev", "zlib1g-dev",
@@ -505,10 +505,10 @@ def main():
     except ValueError as error:
         parser.error(str(error))
     if os.geteuid() != 0:
-        parser.exit(1, "Запустите sudo ./HostOrbit/install.\n")
+        parser.exit(1, "Запустите sudo ./VPN-Orbit/install.\n")
     os.umask(0o022)
     try:
-        with open("/run/hostorbit-bootstrap.lock", "w", opener=lambda p, f: os.open(
+        with open("/run/vpn-orbit-bootstrap.lock", "w", opener=lambda p, f: os.open(
                 p, f | os.O_NOFOLLOW, 0o600)) as lock:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             install(args.owner, args.targets, platform_and_ports(endpoint), endpoint)

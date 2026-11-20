@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
-image=${HOSTORBIT_LAB_PYTHON_IMAGE:?Set the pinned lab image}
+image=${VPN_ORBIT_LAB_PYTHON_IMAGE:?Set the pinned lab image}
 lab=$(mktemp -d)
 socket_dir="$lab/broker"
 app_dir="$lab/app"
@@ -44,12 +44,12 @@ printf 'synthetic Vault canary\n' | sudo tee "$policy_dir/vault-canary" >/dev/nu
 docker version --format 'Docker Engine {{.Server.Version}}'
 docker pull --platform linux/amd64 "$image"
 isolation=(--network none --userns host --read-only --cap-drop ALL --security-opt no-new-privileges=true)
-socket_mount="type=bind,source=$socket_dir,target=/run/hostorbit-broker"
+socket_mount="type=bind,source=$socket_dir,target=/run/vpn-orbit-broker"
 broker=$(docker run -d "${isolation[@]}" --user "$broker_uid:$broker_uid" \
     --mount "$socket_mount" \
     --mount "type=bind,source=$policy_dir,target=/lab/policy,readonly" \
     --mount "type=bind,source=$repo/stage0/broker_lab.py,target=/lab/broker.py,readonly" \
-    "$image" python /lab/broker.py /run/hostorbit-broker/broker.sock "$worker_uid" "$worker_uid" \
+    "$image" python /lab/broker.py /run/vpn-orbit-broker/broker.sock "$worker_uid" "$worker_uid" \
     --fixture-grant /lab/policy/grant.json)
 
 for ((attempt=0; attempt<50; attempt++)); do

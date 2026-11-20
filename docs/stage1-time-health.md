@@ -4,7 +4,7 @@
 
 Host supervisor проверяет время независимо от заменяемых API/Worker. Поддержаны системные chrony 4.5 и timesyncd 255 на Ubuntu 24.04. Данные не принимаются из HTTP, application SQLite, environment Worker или произвольного JSON. Backend не получает privilege socket; Worker получает подписанный ответ через AF_UNIX с проверкой UID сервера и Ed25519 public key.
 
-`hostorbit/runtime/clock.py` использует только фиксированные команды мониторинга. Для chrony выбрана одна локальная Unix socket `/run/chrony/chronyd.sock`, без UDP/DNS fallback. Владелец и защита каталога проверяются supervisor; тип и точный UID socket — фиксированным stdlib-helper уже после смены UID. Для него нужен системный `/usr/bin/python3` Ubuntu. PID 1 запускает короткий sandboxed `chronyc -n -c -h … tracking` от UID владельца закрытого каталога: клиенту chrony нужен собственный reply socket в том же каталоге. Supervisor сохраняет пустой capability set и не получает доступа к приватным данным Broker/Vault. Worker не выбирает executable, UID, unit properties, адрес или команду.
+`vpn_orbit/runtime/clock.py` использует только фиксированные команды мониторинга. Для chrony выбрана одна локальная Unix socket `/run/chrony/chronyd.sock`, без UDP/DNS fallback. Владелец и защита каталога проверяются supervisor; тип и точный UID socket — фиксированным stdlib-helper уже после смены UID. Для него нужен системный `/usr/bin/python3` Ubuntu. PID 1 запускает короткий sandboxed `chronyc -n -c -h … tracking` от UID владельца закрытого каталога: клиенту chrony нужен собственный reply socket в том же каталоге. Supervisor сохраняет пустой capability set и не получает доступа к приватным данным Broker/Vault. Worker не выбирает executable, UID, unit properties, адрес или команду.
 
 Для timesyncd читаются типизированный D-Bus `NTPMessage`, frequency и kernel synchronization status. Используются реальные timestamps, root delay/dispersion, precision, delay и jitter принятого пакета. Настроенный `RootDistanceMaxUSec` не выдаётся за измеренную погрешность. Если обе службы активны, источник неоднозначен и изменения запрещены. Отсутствие службы/интерфейса, неизвестный формат, local-only reference chrony, unsynchronized/leap status, spike и недопустимые значения не становятся успешной выборкой. Код не перенастраивает NTP и не устанавливает системные часы.
 
@@ -30,23 +30,23 @@ Root-only `update.quiesce` дополнительно получает `plan_id`
 
 ## Хранение и локальная диагностика
 
-Private journal `/var/lib/hostorbit/control-gate/time-health/time.sqlite3` отделён от мигрируемой application DB. Directory mode — `0700`, файл — `0600`, WAL/FULL/foreign keys проверяются. Journal не содержит DEK, passwords или содержимого managed VPS. API/Worker его не монтируют. Worker получает только root-owned public verification key, который не даёт права выпускать permits.
+Private journal `/var/lib/vpn-orbit/control-gate/time-health/time.sqlite3` отделён от мигрируемой application DB. Directory mode — `0700`, файл — `0600`, WAL/FULL/foreign keys проверяются. Journal не содержит DEK, passwords или содержимого managed VPS. API/Worker его не монтируют. Worker получает только root-owned public verification key, который не даёт права выпускать permits.
 
 Свежая установка явно создаёт journal вместе с authority. При каждом старте supervisor повышает time generation до обслуживания IPC: старые approvals не переживают смену процесса. Если recovery journal не удалось записать, весь сеанс остаётся `UNTRUSTED`; последующее исправление диска не включает прежние baselines незаметно.
 
 Локальная проверка установленного экземпляра:
 
 ```bash
-sudo /opt/hostorbit/venv/bin/hostorbit-runtime \
-  --config /etc/hostorbit/runtime.json time-health
+sudo /opt/vpn-orbit/venv/bin/vpn-orbit-runtime \
+  --config /etc/vpn-orbit/runtime.json time-health
 ```
 
 Для более ранней installation, в которой journal ещё отсутствует, предусмотрено отдельное root-действие:
 
 ```bash
-sudo /opt/hostorbit/venv/bin/hostorbit-runtime \
-  --config /etc/hostorbit/runtime.json initialize-time-health
-sudo systemctl restart hostorbit-supervisor.service
+sudo /opt/vpn-orbit/venv/bin/vpn-orbit-runtime \
+  --config /etc/vpn-orbit/runtime.json initialize-time-health
+sudo systemctl restart vpn-orbit-supervisor.service
 ```
 
 Инициализация отказывается заменять существующие данные. Restart инвалидирует прежние permits, а открытый update/incident может сохранить `RECOVERY_HOLD`; команда не является обходом recovery workflow. Если journal существовал и пропал/повреждён, его нельзя считать новой установкой: требуется отдельное расследование, а не удаление и re-init.

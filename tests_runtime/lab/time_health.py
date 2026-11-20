@@ -14,15 +14,15 @@ import tempfile
 from threading import Event, Thread
 import time
 
-from hostorbit.errors import Denied
-from hostorbit.runtime.authority import Authority, verify_host_time
-from hostorbit.runtime.clock import HostSources
-from hostorbit.runtime.ipc import Client, activated_socket, serve
-from hostorbit.runtime.policy import Policy
+from vpn_orbit.errors import Denied
+from vpn_orbit.runtime.authority import Authority, verify_host_time
+from vpn_orbit.runtime.clock import HostSources
+from vpn_orbit.runtime.ipc import Client, activated_socket, serve
+from vpn_orbit.runtime.policy import Policy
 
 
 WORKER, STRANGER = 23102, 23105
-UNIT = "hostorbit-time-lab"
+UNIT = "vpn-orbit-time-lab"
 PLAN, APPROVAL = "01JCYQZ4T9V8MNVYEH3D2M7Q1A", "01JCYQZ4T9V8MNVYEH3D2M7Q1D"
 
 
@@ -115,16 +115,16 @@ def worker_client(root):
 def configure_source(root, source):
     run("/usr/bin/systemctl", "stop", "chrony.service", "systemd-timesyncd.service", check=False)
     if source == "timesyncd":
-        path = Path("/run/systemd/timesyncd.conf.d/99-hostorbit-time-lab.conf")
+        path = Path("/run/systemd/timesyncd.conf.d/99-vpn-orbit-time-lab.conf")
         write(path, "[Time]\nNTP=\nNTP=127.0.0.1\nFallbackNTP=\nPollIntervalMinSec=16s\nPollIntervalMaxSec=16s\n")
         unit = "systemd-timesyncd.service"
     else:
         # Keep the fixture in Ubuntu's permitted configuration tree. The stock
         # AppArmor profile intentionally denies an arbitrary /run config path.
-        config = Path("/etc/chrony/conf.d/hostorbit-time-lab.conf")
+        config = Path("/etc/chrony/conf.d/vpn-orbit-time-lab.conf")
         write(config, "server 127.0.0.1 port 123 iburst minpoll 0 maxpoll 0\nport 0\ncmdport 0\n"
               "bindcmdaddress /run/chrony/chronyd.sock\npidfile /run/chrony/chronyd.pid\n")
-        write(Path("/run/systemd/system/chrony.service.d/99-hostorbit-time-lab.conf"),
+        write(Path("/run/systemd/system/chrony.service.d/99-vpn-orbit-time-lab.conf"),
               "[Service]\nType=simple\nPIDFile=\nExecStart=\n"
               f"ExecStart=/usr/sbin/chronyd -d -x -U -u _chrony -f {config}\n")
         unit = "chrony.service"
@@ -138,7 +138,7 @@ def start_authority(root):
     (root / "gate.pub").chmod(0o644)
     authority.close()
     code = root / "code"
-    shutil.copytree(Path(__file__).resolve().parents[2] / "hostorbit", code / "hostorbit",
+    shutil.copytree(Path(__file__).resolve().parents[2] / "vpn_orbit", code / "vpn_orbit",
                     ignore=shutil.ignore_patterns("__pycache__"))
     shutil.copyfile(__file__, code / "lab.py")
     for path in code.rglob("*"):
@@ -177,10 +177,10 @@ def main():
             or os.environ.get("GITHUB_ACTIONS") != "true" or os.environ.get("RUNNER_ENVIRONMENT") != "github-hosted"):
         raise SystemExit("Requires an explicitly disposable GitHub-hosted VM")
     for path in (Path(f"/run/systemd/system/{UNIT}.service"), Path(f"/run/systemd/system/{UNIT}.socket"),
-                 Path("/var/lib/hostorbit")):
+                 Path("/var/lib/vpn-orbit")):
         if path.exists():
             raise SystemExit("Lab namespace already exists")
-    with tempfile.TemporaryDirectory(prefix="hostorbit-time-lab-", dir="/run") as temporary:
+    with tempfile.TemporaryDirectory(prefix="vpn-orbit-time-lab-", dir="/run") as temporary:
         root = Path(temporary)
         root.chmod(0o755)
         source_unit = configure_source(root, args.source)

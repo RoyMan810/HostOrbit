@@ -1,10 +1,10 @@
 import asyncssh
 from fastapi.testclient import TestClient
 
-from hostorbit.api import create_app
-from hostorbit.config import Settings
-from hostorbit.database import identifier
-from hostorbit.runtime.policy import Policy
+from vpn_orbit.api import create_app
+from vpn_orbit.config import Settings
+from vpn_orbit.database import identifier
+from vpn_orbit.runtime.policy import Policy
 from test_auth_api import Fixture, ORIGIN, OTHER, SCOPE
 
 

@@ -64,7 +64,7 @@ export function Enrollment({ t, session, expired, onEnroll, firstVps }: {
     onToggle={event => setExpanded(event.currentTarget.open)}>
     <summary>{t.enroll}</summary>
     <form onSubmit={submit}>
-      <p>{t.enrollmentHelp} <a href="https://github.com/RoyMan810/HostOrbit/blob/main/docs/stage1-installation.md#подготовка-vps-по-паролю-или-ssh-ключу">{t.enrollmentGuide}</a></p>
+      <p>{t.enrollmentHelp} <a href="https://github.com/RoyMan810/VPN-Orbit/blob/main/docs/stage1-installation.md#подготовка-vps-по-паролю-или-ssh-ключу">{t.enrollmentGuide}</a></p>
       {byId ? (candidates?.length ? <label>{t.enrollmentId}
         <select name="id" required defaultValue={candidates.length === 1 ? candidates[0] : ''}>
           {candidates.length > 1 && <option value="">{t.enrollmentChoose}</option>}

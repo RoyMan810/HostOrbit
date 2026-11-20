@@ -2,13 +2,13 @@
 
 [Документация](README.md)
 
-`hostorbit-activate` добавляет переход установленного восстановленного Controller из READ_ONLY_RECOVERY в ACTIVE с устойчивым карантином. Это локальная административная процедура: нет Web/Worker endpoint, provider API, автоматического выключения старого хоста, SSH shell из UI или `force-active`.
+`vpn-orbit-activate` добавляет переход установленного восстановленного Controller из READ_ONLY_RECOVERY в ACTIVE с устойчивым карантином. Это локальная административная процедура: нет Web/Worker endpoint, provider API, автоматического выключения старого хоста, SSH shell из UI или `force-active`.
 
 ## Что подтверждает Owner
 
 Внешний ручной runbook сначала останавливает/маскирует старые Worker/Scheduler, блокирует автозапуск, прекращает опасные прямые и delegated effects либо изолирует старый хост через независимую консоль. Owner отдельно сверяет прежний Controller ID, известный SSH host fingerprint и recovery source hash. SSH timeout, DNS и одиночный скриншот не считаются fencing.
 
-JSON report содержит `v=1`, `type=hostorbit.manual-isolation`, `source_instance`, `target_instance`, `source_backup_hash`, `dependencies_reviewed=true`, `isolation`, `targets`. В `isolation` обязательны:
+JSON report содержит `v=1`, `type=vpn-orbit.manual-isolation`, `source_instance`, `target_instance`, `source_backup_hash`, `dependencies_reviewed=true`, `isolation`, `targets`. В `isolation` обязательны:
 
 - `method`: `verified_local_stop`, `power_off` или `network_isolation`;
 - `console`, `operator`, `old_host_key` в OpenSSH `SHA256:…` формате;
@@ -34,8 +34,8 @@ JSON report содержит `v=1`, `type=hostorbit.manual-isolation`, `source_i
 Пример формы команды (публичные fingerprints/пути допустимы в argv):
 
 ```sh
-sudo /opt/hostorbit/venv/bin/hostorbit-activate \
-  --state /var/lib/hostorbit-rescue/request-1 \
+sudo /opt/vpn-orbit/venv/bin/vpn-orbit-activate \
+  --state /var/lib/vpn-orbit-rescue/request-1 \
   --old-host-key SHA256:PUBLIC_SOURCE_FINGERPRINT \
   prepare --report /root/manual-isolation.json --policy /root/recovered-targets.json
 ```

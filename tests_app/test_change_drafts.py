@@ -4,14 +4,14 @@ import json
 import sqlite3
 from unittest.mock import patch
 
-from hostorbit.auth import COOKIE, etag
-from hostorbit.change_drafts import (check_draft_approval, check_draft_baseline, check_draft_probe, get_draft,
+from vpn_orbit.auth import COOKIE, etag
+from vpn_orbit.change_drafts import (check_draft_approval, check_draft_baseline, check_draft_probe, get_draft,
                                      record_draft_approval, record_draft_backup_decision, request_draft_probe, save_draft)
-from hostorbit.database import Store, identifier
-from hostorbit.errors import Denied
-from hostorbit.migrations import rehearse
-from hostorbit.queue import JobQueue
-from hostorbit.runtime.protocol import canonical, checksum
+from vpn_orbit.database import Store, identifier
+from vpn_orbit.errors import Denied
+from vpn_orbit.migrations import rehearse
+from vpn_orbit.queue import JobQueue
+from vpn_orbit.runtime.protocol import canonical, checksum
 from test_auth_api import Fixture, OTHER, PASSWORD, SCOPE
 
 

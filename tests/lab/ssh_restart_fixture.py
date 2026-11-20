@@ -10,7 +10,7 @@ import signal
 import sys
 
 
-COMMAND = "hostorbit.stage0.restart-fixture"
+COMMAND = "vpn-orbit.stage0.restart-fixture"
 REQUEST = b'{"operation":"restart-fixture","target":"stage0-fixture","version":1}\n'
 DOCKER_HOST = "unix:///var/run/docker.sock"
 
@@ -36,7 +36,7 @@ def restart_fixture(state_dir: Path, *, payload: bytes | None = None, stop_timeo
     container, unit, daemon = spec["container"], spec["unit"], spec["docker_host"]
     if not re.fullmatch(r"[0-9a-f]{64}", container):
         return 65
-    if not re.fullmatch(r"hostorbit-stage0-restart-[0-9a-f]{16}\.service", unit):
+    if not re.fullmatch(r"vpn-orbit-stage0-restart-[0-9a-f]{16}\.service", unit):
         return 65
     if not local_docker_socket(daemon):
         return 65

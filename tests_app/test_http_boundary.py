@@ -2,16 +2,16 @@ import json
 
 from fastapi.testclient import TestClient
 
-from hostorbit.api import create_app
-from hostorbit.auth import COOKIE, IDLE_SECONDS
-from hostorbit.config import Settings
+from vpn_orbit.api import create_app
+from vpn_orbit.auth import COOKIE, IDLE_SECONDS
+from vpn_orbit.config import Settings
 from test_auth_api import Fixture, ORIGIN, PASSWORD
 
 
 class HttpBoundaryTests(Fixture):
     def test_http_spoofed_proto_cross_origin_form_and_large_body_are_denied(self):
         body = {"username": "roman", "password": PASSWORD}
-        with TestClient(self.client.app, base_url="http://hostorbit.test") as client:
+        with TestClient(self.client.app, base_url="http://vpn-orbit.test") as client:
             result = client.post("/api/v1/auth/login", json=body, headers={"Origin": ORIGIN, "X-Forwarded-Proto": "https"})
             self.assertEqual(result.status_code, 400)
             self.assertEqual(result.json()["code"], "HTTPS_REQUIRED")
@@ -26,7 +26,7 @@ class HttpBoundaryTests(Fixture):
 
     def test_only_explicit_proxy_can_supply_scheme_and_single_client_ip(self):
         settings = Settings(self.store.path, ORIGIN, ("192.0.2.0/24",))
-        with TestClient(create_app(settings, auth=self.auth), base_url="http://hostorbit.test", client=("192.0.2.1", 1234)) as client:
+        with TestClient(create_app(settings, auth=self.auth), base_url="http://vpn-orbit.test", client=("192.0.2.1", 1234)) as client:
             headers = {"Origin": ORIGIN, "X-Forwarded-Proto": "https", "X-Forwarded-For": "198.51.100.5"}
             body = {"username": "roman", "password": PASSWORD}
             self.assertEqual(client.post("/api/v1/auth/login", json=body, headers=headers).status_code, 200)
@@ -85,7 +85,7 @@ class HttpBoundaryTests(Fixture):
         self.store.verify_audit()
 
     def test_invalid_public_origins_and_oversize_audit_cursor_are_rejected(self):
-        for origin in ("http://hostorbit.test", "https://hostorbit.test/", "https://user:secret@hostorbit.test", "https://bad host", "https://hostorbit.test:443"):
+        for origin in ("http://vpn-orbit.test", "https://vpn-orbit.test/", "https://user:secret@vpn-orbit.test", "https://bad host", "https://vpn-orbit.test:443"):
             with self.subTest(origin=origin), self.assertRaises(ValueError):
                 Settings(self.store.path, origin)
         self.assertEqual(self.client.get("/api/v1/audit", params={"after": str(2**64)}).status_code, 422)

@@ -5,12 +5,12 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from hostorbit.errors import Denied
-from hostorbit.admission import Admission
-from hostorbit.runtime import recovery_install
-from hostorbit.runtime.policy import Policy
-from hostorbit.runtime.protocol import canonical
-from hostorbit.runtime.storage import protected_bytes
+from vpn_orbit.errors import Denied
+from vpn_orbit.admission import Admission
+from vpn_orbit.runtime import recovery_install
+from vpn_orbit.runtime.policy import Policy
+from vpn_orbit.runtime.protocol import canonical
+from vpn_orbit.runtime.storage import protected_bytes
 import test_rescue as rescue_fixture
 
 
@@ -44,14 +44,14 @@ class RecoveryInstallationTests(unittest.TestCase):
         with self.assertRaisesRegex(Denied, "RECOVERY_INSTALLATION_CONSUMED"):
             recovery_install.check(self.state)
         (self.state / "installation.claim.json").unlink()
-        from hostorbit.runtime.storage import Journal
+        from vpn_orbit.runtime.storage import Journal
         with Journal(self.state / "recovery.sqlite3").write() as db:
             db.execute("UPDATE request SET state='FAILED'")
         with self.assertRaisesRegex(Denied, "RECOVERY_IMPORT_NOT_COMPLETE"):
             recovery_install.check(self.state)
 
     def test_active_or_foreign_authority_cannot_boot_as_restored_controller(self):
-        from hostorbit.runtime.storage import Journal
+        from vpn_orbit.runtime.storage import Journal
         with Journal(self.data / "control-gate/gate.sqlite3").write() as db:
             db.execute("UPDATE gate SET activated=1")
         with self.assertRaisesRegex(Denied, "RECOVERY_AUTHORITY_INVALID"):

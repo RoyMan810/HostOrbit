@@ -1,0 +1,14 @@
+[Unit]
+Description=VPN-Orbit scoped Broker socket
+After=systemd-tmpfiles-setup.service
+
+[Socket]
+ListenStream=/run/vpn-orbit/broker/broker.sock
+SocketUser=vpn-orbit-broker
+SocketGroup=vpn-orbit-broker-rpc
+SocketMode=0660
+DirectoryMode=0710
+RemoveOnStop=true
+
+[Install]
+WantedBy=sockets.target

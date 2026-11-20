@@ -8,8 +8,8 @@ from nacl.signing import SigningKey
 from deploy.artifact import ArtifactError
 from deploy.build_update_release import build_release
 from deploy.rehearse_update import rehearse_update, select_slot
-from hostorbit.database import Store
-from hostorbit.migrations import rehearse
+from vpn_orbit.database import Store
+from vpn_orbit.migrations import rehearse
 
 
 class UpdateRehearsalTests(unittest.TestCase):
@@ -64,6 +64,6 @@ class UpdateRehearsalTests(unittest.TestCase):
 
     def test_tampered_package_is_denied_before_switch(self):
         self.build(2)
-        (self.release / "hostorbit-updater-linux-amd64-1.2.0.tar.zst").write_bytes(b"invalid package")
+        (self.release / "vpn-orbit-updater-linux-amd64-1.2.0.tar.zst").write_bytes(b"invalid package")
         with self.assertRaisesRegex(ArtifactError, "UPDATE_UPDATER_DIGEST_MISMATCH"):
             self.execute()

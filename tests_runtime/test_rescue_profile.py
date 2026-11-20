@@ -2,9 +2,9 @@ from pathlib import Path
 import unittest
 from unittest.mock import patch
 
-from hostorbit.errors import Denied
-from hostorbit.runtime.rescue import offline_profile
-from hostorbit.runtime.rescue_cli import console
+from vpn_orbit.errors import Denied
+from vpn_orbit.runtime.rescue import offline_profile
+from vpn_orbit.runtime.rescue_cli import console
 
 
 class RescueProfileTests(unittest.TestCase):
@@ -13,7 +13,7 @@ class RescueProfileTests(unittest.TestCase):
                 "/sys/power/state": "freeze mem\n", "/proc/net/dev": "header\nheader\nlo: 0 0\n",
                 "/proc/meminfo": "MemAvailable: 8388608 kB\n"}
         data.update(changes)
-        with patch("hostorbit.runtime.rescue.harden"), patch("os.geteuid", return_value=0), \
+        with patch("vpn_orbit.runtime.rescue.harden"), patch("os.geteuid", return_value=0), \
                 patch("platform.system", return_value="Linux"), patch("platform.machine", return_value="x86_64"), \
                 patch.object(Path, "exists", return_value=False), patch.object(Path, "read_text", lambda p: data[str(p)]):
             return offline_profile()

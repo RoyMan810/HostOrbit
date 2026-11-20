@@ -53,9 +53,9 @@ def build_release(output, updater, signer, *, release_version, installed, bootst
     version(release_version)
     if os.path.lexists(output):
         raise ArtifactError("UPDATE_OUTPUT_EXISTS")
-    work = Path(tempfile.mkdtemp(prefix=".hostorbit-release-", dir=output.parent))
+    work = Path(tempfile.mkdtemp(prefix=".vpn-orbit-release-", dir=output.parent))
     try:
-        filename = f"hostorbit-updater-{PLATFORM}-{release_version}.tar.zst"
+        filename = f"vpn-orbit-updater-{PLATFORM}-{release_version}.tar.zst"
         archive = copy_updater(updater, work / filename)
         key = bytes(signer.verify_key)
         release = {
@@ -99,7 +99,7 @@ def main():
             images={name: getattr(args, f"{name}_digest") for name in ("web", "api", "worker")},
         )
     except (ArtifactError, OSError) as error:
-        print(f"HostOrbit: {error if isinstance(error, ArtifactError) else 'UPDATE_BUILD_IO_FAILED'}", file=sys.stderr)
+        print(f"VPN-Orbit: {error if isinstance(error, ArtifactError) else 'UPDATE_BUILD_IO_FAILED'}", file=sys.stderr)
         return 1
     print(json.dumps(report, sort_keys=True))
     return 0

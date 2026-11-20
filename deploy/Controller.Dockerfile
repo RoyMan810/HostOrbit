@@ -8,4 +8,4 @@ RUN --network=none python -m pip install --no-index --find-links=/opt/wheelhouse
     && python -c "import sys,sqlite3; assert sys.version_info[:2] == (3,15); assert sqlite3.sqlite_version_info >= (3,45)" \
     && rm -rf /opt/wheelhouse /opt/requirements-install.txt
 USER 65534:65534
-ENTRYPOINT ["hostorbit-runtime", "--config", "/etc/hostorbit/runtime.json"]
+ENTRYPOINT ["vpn-orbit-runtime", "--config", "/etc/vpn-orbit/runtime.json"]

@@ -8,16 +8,16 @@ from unittest.mock import patch
 
 from nacl.signing import SigningKey
 
-from hostorbit.admission import Admission
-from hostorbit.database import Store, identifier
-from hostorbit.errors import Denied
-from hostorbit.runtime.archive_stream import CONTROLLER_FILES
-from hostorbit.runtime.controller_backup import sign_provenance
-from hostorbit.runtime.coordinator import Coordinator
-from hostorbit.runtime.protocol import canonical, checksum
-from hostorbit.runtime.publication import Publisher
-from hostorbit.runtime.sftp_publication import completion
-from hostorbit.runtime.storage import new_private_file
+from vpn_orbit.admission import Admission
+from vpn_orbit.database import Store, identifier
+from vpn_orbit.errors import Denied
+from vpn_orbit.runtime.archive_stream import CONTROLLER_FILES
+from vpn_orbit.runtime.controller_backup import sign_provenance
+from vpn_orbit.runtime.coordinator import Coordinator
+from vpn_orbit.runtime.protocol import canonical, checksum
+from vpn_orbit.runtime.publication import Publisher
+from vpn_orbit.runtime.sftp_publication import completion
+from vpn_orbit.runtime.storage import new_private_file
 from test_sftp_publication import destination
 
 

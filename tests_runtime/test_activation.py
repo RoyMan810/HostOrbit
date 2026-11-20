@@ -11,18 +11,18 @@ from unittest.mock import patch
 
 import asyncssh
 
-from hostorbit.admission import Admission
-from hostorbit.auth import AuthService
-from hostorbit.database import Store, identifier
-from hostorbit.errors import Denied
-from hostorbit.runtime.activation import Activation
-from hostorbit.runtime.authority import Authority
-from hostorbit.runtime.coordinator import Coordinator
-from hostorbit.runtime.policy import Policy
-from hostorbit.runtime.protocol import canonical
-from hostorbit.runtime.recovery_keys import key_facts
-from hostorbit.runtime.storage import new_private_file
-from hostorbit.runtime.vault import Vault
+from vpn_orbit.admission import Admission
+from vpn_orbit.auth import AuthService
+from vpn_orbit.database import Store, identifier
+from vpn_orbit.errors import Denied
+from vpn_orbit.runtime.activation import Activation
+from vpn_orbit.runtime.authority import Authority
+from vpn_orbit.runtime.coordinator import Coordinator
+from vpn_orbit.runtime.policy import Policy
+from vpn_orbit.runtime.protocol import canonical
+from vpn_orbit.runtime.recovery_keys import key_facts
+from vpn_orbit.runtime.storage import new_private_file
+from vpn_orbit.runtime.vault import Vault
 from fixtures import PASSWORD, ACTOR, TARGET, OTHER, SECRET, WORKER_UID, binding, policy
 
 
@@ -64,7 +64,7 @@ class ActivationTests(unittest.TestCase):
         self.manager = Activation(self.cfg, self.binding, owner=os.geteuid(),
             inspect_keys=lambda p: key_facts(self.vault, self.old, p, WORKER_UID), manage_services=self.actions.append)
         facts = key_facts(self.vault, self.old, self.new, WORKER_UID)
-        self.report = {"v": 1, "type": "hostorbit.manual-isolation", "source_instance": self.binding["source_instance"],
+        self.report = {"v": 1, "type": "vpn-orbit.manual-isolation", "source_instance": self.binding["source_instance"],
             "target_instance": self.instance, "source_backup_hash": "a" * 64, "dependencies_reviewed": True,
             "isolation": {"method": "power_off", "console": "hypervisor-console/ticket-1", "operator": "fixture-owner",
                 "old_host_key": self.binding["old_host_key"], "worker_stopped": True, "scheduler_stopped": True, "autostart_blocked": True,
@@ -136,7 +136,7 @@ class ActivationTests(unittest.TestCase):
 
     def test_metadata_acl_edit_without_matching_aead_is_rejected(self):
         import json
-        from hostorbit.runtime.protocol import checksum
+        from vpn_orbit.runtime.protocol import checksum
         with self.vault.journal.write() as db:
             row = db.execute("SELECT metadata FROM secrets WHERE ref=?", (SECRET + ":v2",)).fetchone()
             metadata = json.loads(row[0])
@@ -151,7 +151,7 @@ class ActivationTests(unittest.TestCase):
         old = Policy([self.old.targets[TARGET].value, {**self.old.targets[OTHER].value, "dependencies": shared}])
         new = Policy([self.new.targets[TARGET].value, {**self.new.targets[OTHER].value, "dependencies": shared}])
         facts = key_facts(self.vault, old, new, WORKER_UID)
-        from hostorbit.runtime.activation import isolation_report
+        from vpn_orbit.runtime.activation import isolation_report
         allowed, quarantined = isolation_report(self.report, self.binding, old, new, facts, [], int(time.time()))
         self.assertEqual(allowed, [])
         self.assertEqual(set(quarantined), {TARGET, OTHER})
@@ -223,10 +223,10 @@ class ActivationTests(unittest.TestCase):
                 self.manager.activate(review["plan_id"], review["confirmation_sha256"], "roman", "wrong")
         with self.assertRaisesRegex(Denied, "OWNER_AUTH_LOCKED"):
             self.activate(review)
-        with patch("hostorbit.runtime.activation.time.monotonic_ns", return_value=10**30):
+        with patch("vpn_orbit.runtime.activation.time.monotonic_ns", return_value=10**30):
             fresh = self.prepare()
         with self.assertRaisesRegex(Denied, "PLAN_EXPIRED"):
-            with patch("hostorbit.runtime.activation.time.monotonic_ns", return_value=10**31):
+            with patch("vpn_orbit.runtime.activation.time.monotonic_ns", return_value=10**31):
                 self.activate(fresh)
         report = copy.deepcopy(self.report)
         del report["targets"][OTHER]

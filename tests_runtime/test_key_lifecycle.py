@@ -9,14 +9,14 @@ from unittest.mock import patch
 
 import asyncssh
 
-from hostorbit.admission import Admission
-from hostorbit.errors import Denied
-from hostorbit.runtime.cli import main
-from hostorbit.runtime.policy import Policy
-from hostorbit.runtime.backup_target import BackupTarget
+from vpn_orbit.admission import Admission
+from vpn_orbit.errors import Denied
+from vpn_orbit.runtime.cli import main
+from vpn_orbit.runtime.policy import Policy
+from vpn_orbit.runtime.backup_target import BackupTarget
 from test_sftp_publication import destination
-from hostorbit.runtime.storage import new_private_file
-from hostorbit.runtime.vault import Vault
+from vpn_orbit.runtime.storage import new_private_file
+from vpn_orbit.runtime.vault import Vault
 from fixtures import ACTOR, OTHER, SECRET, TARGET, WORKER_UID, policy, private_key
 
 
@@ -32,9 +32,9 @@ class KeyLifecycleTests(unittest.TestCase):
         self.config = dict(app_uid=1, app_gid=2, broker_uid=os.geteuid(), worker_uid=WORKER_UID,
                            writer_directory=str(self.writers.directory), targets="/targets",
                            vault_directory=str(self.vault.directory), vault_credential=str(credential))
-        self.enterContext(patch("hostorbit.runtime.cli.configuration", return_value=self.config))
-        self.policy = self.enterContext(patch("hostorbit.runtime.cli.Policy.load", return_value=policy()))
-        self.enterContext(patch("hostorbit.runtime.cli.Admission", return_value=self.writers))
+        self.enterContext(patch("vpn_orbit.runtime.cli.configuration", return_value=self.config))
+        self.policy = self.enterContext(patch("vpn_orbit.runtime.cli.Policy.load", return_value=policy()))
+        self.enterContext(patch("vpn_orbit.runtime.cli.Admission", return_value=self.writers))
         self.first = self.vault.import_ssh(SECRET, 1, private_key(), owner_id=ACTOR, worker_uid=WORKER_UID, target=TARGET)
         self.key = asyncssh.generate_private_key("ssh-ed25519").export_private_key("openssh")
         self.keyfile = self.root / "new-key"

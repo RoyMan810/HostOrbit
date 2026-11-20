@@ -21,22 +21,22 @@ import time
 
 import httpx
 
-from hostorbit.auth import AuthService, COOKIE
-from hostorbit.database import DataAccess, Store, identifier
-from hostorbit.errors import Denied
-from hostorbit.queue import JobQueue
-from hostorbit.runtime.cli import configuration, run
-from hostorbit.runtime.ipc import Client
-from hostorbit.runtime.policy import Policy
-from hostorbit.runtime.protocol import canonical
-from hostorbit.runtime.storage import new_private_file
+from vpn_orbit.auth import AuthService, COOKIE
+from vpn_orbit.database import DataAccess, Store, identifier
+from vpn_orbit.errors import Denied
+from vpn_orbit.queue import JobQueue
+from vpn_orbit.runtime.cli import configuration, run
+from vpn_orbit.runtime.ipc import Client
+from vpn_orbit.runtime.policy import Policy
+from vpn_orbit.runtime.protocol import canonical
+from vpn_orbit.runtime.storage import new_private_file
 
 
 REPO = Path(__file__).resolve().parents[2]
 UID_API, UID_WORKER, UID_BROKER, UID_STRANGER = 23101, 23102, 23103, 23105
 GID_APP, GID_BROKER_RPC, GID_GATE_RPC = 23201, 23202, 23203
 TARGET, SECRET = "01JCYQZ4T9V8MNVYEH3D2M7Q1A", "01JCYQZ4T9V8MNVYEH3D2M7Q1C"
-ORIGIN = "https://hostorbit.test"
+ORIGIN = "https://vpn-orbit.test"
 
 
 def command(*args, **kwargs):
@@ -96,7 +96,7 @@ def child(args):
         os.environ["LISTEN_PID"] = str(os.getpid())
         os.environ["LISTEN_FDS"] = "1"
     if args.child == "import-key":
-        from hostorbit.runtime.vault import Vault
+        from vpn_orbit.runtime.vault import Vault
         vault = Vault(config["vault_directory"], config["vault_credential"])
         vault.import_ssh(SECRET, 1, Path(args.key).read_bytes(), owner_id=args.owner, worker_uid=UID_WORKER, target=TARGET)
         return
@@ -119,29 +119,29 @@ def main():
     if (not args.isolated_vm or os.geteuid() != 0 or os.environ.get("GITHUB_ACTIONS") != "true"
             or os.environ.get("RUNNER_ENVIRONMENT") != "github-hosted"):
         raise SystemExit("Requires an explicitly disposable GitHub-hosted VM")
-    account = "hostorbit-svc"
+    account = "vpn-orbit-svc"
     try:
         pwd.getpwnam(account)
     except KeyError:
         pass
     else:
         raise SystemExit("Fixture account already exists")
-    helper_dir = Path("/usr/local/libexec/hostorbit")
-    sudoers = Path("/etc/sudoers.d/hostorbit_stage1_ssh")
+    helper_dir = Path("/usr/local/libexec/vpn-orbit")
+    sudoers = Path("/etc/sudoers.d/vpn_orbit_stage1_ssh")
     if helper_dir.exists() or sudoers.exists():
         raise SystemExit("Fixture paths already exist")
     tag = secrets.token_hex(4)
-    namespace, host_link, remote_link = f"ho-runtime-{tag}", f"hoh{tag}", f"hor{tag}"
+    namespace, host_link, remote_link = f"vpn-orbit-runtime-{tag}", f"hoh{tag}", f"hor{tag}"
     processes = []
     logs = []
     user_created = network_created = helper_created = sudoers_created = False
     service_users, service_groups = [], []
-    with tempfile.TemporaryDirectory(prefix="hostorbit-runtime-", dir="/run") as temp:
+    with tempfile.TemporaryDirectory(prefix="vpn-orbit-runtime-", dir="/run") as temp:
         lab = Path(temp)
         lab.chmod(0o755)
         code = lab / "code"
         code.mkdir(mode=0o755)
-        shutil.copytree(REPO / "hostorbit", code / "hostorbit", ignore=shutil.ignore_patterns("__pycache__"))
+        shutil.copytree(REPO / "vpn_orbit", code / "vpn_orbit", ignore=shutil.ignore_patterns("__pycache__"))
         child_script = code / "tests_runtime" / "lab" / Path(__file__).name
         child_script.parent.mkdir(parents=True, mode=0o755)
         shutil.copyfile(Path(__file__), child_script)
@@ -156,7 +156,7 @@ def main():
         config_path = lab / "runtime.json"
         def service_env(role):
             # A foreign launcher HOME must not enable implicit SSH trust/key discovery in Broker.
-            name = {"api": "ho-api", "worker": "ho-worker", "broker": "ho-broker", "root": "root", "stranger": "nobody"}[role]
+            name = {"api": "vpn-orbit-api", "worker": "vpn-orbit-worker", "broker": "vpn-orbit-broker", "root": "root", "stranger": "nobody"}[role]
             return {**os.environ, "PYTHONPATH": str(code), "HOME": "/root" if role in ("root", "broker") else "/nonexistent",
                     "USER": name, "LOGNAME": name}
         def invoke(mode, role, *extra, input=None):
@@ -181,8 +181,8 @@ def main():
                     os.killpg(process.pid, signal.SIGKILL)
                     process.wait(timeout=5)
         try:
-            for name, gid in (("ho-app-db", GID_APP), ("ho-broker-rpc", GID_BROKER_RPC), ("ho-gate-rpc", GID_GATE_RPC),
-                              ("ho-worker", UID_WORKER), ("ho-broker", UID_BROKER)):
+            for name, gid in (("vpn-orbit-app-db", GID_APP), ("vpn-orbit-broker-rpc", GID_BROKER_RPC), ("vpn-orbit-gate-rpc", GID_GATE_RPC),
+                              ("vpn-orbit-worker", UID_WORKER), ("vpn-orbit-broker", UID_BROKER)):
                 try:
                     grp.getgrnam(name)
                     raise RuntimeError("Fixture group already exists")
@@ -190,7 +190,7 @@ def main():
                     pass
                 command("groupadd", "--gid", str(gid), name)
                 service_groups.append(name)
-            for name, uid, gid in (("ho-api", UID_API, GID_APP), ("ho-worker", UID_WORKER, UID_WORKER), ("ho-broker", UID_BROKER, UID_BROKER)):
+            for name, uid, gid in (("vpn-orbit-api", UID_API, GID_APP), ("vpn-orbit-worker", UID_WORKER, UID_WORKER), ("vpn-orbit-broker", UID_BROKER, UID_BROKER)):
                 try:
                     pwd.getpwnam(name)
                     raise RuntimeError("Fixture service account already exists")
@@ -201,8 +201,8 @@ def main():
             unit_dir = lab / "verified-units"
             unit_dir.mkdir()
             for unit in (REPO / "deploy/systemd").glob("*"):
-                # Verify unit syntax without requiring an installed /opt/hostorbit entry point.
-                content = unit.read_text().replace("/opt/hostorbit/venv/bin/hostorbit-runtime", sys.executable)
+                # Verify unit syntax without requiring an installed /opt/vpn-orbit entry point.
+                content = unit.read_text().replace("/opt/vpn-orbit/venv/bin/vpn-orbit-runtime", sys.executable)
                 (unit_dir / unit.name).write_text(content)
             command("systemd-analyze", "--man=no", "verify", *(str(p) for p in unit_dir.iterdir()),
                     env={**os.environ, "SYSTEMD_UNIT_PATH": f"{unit_dir}:/usr/lib/systemd/system:/lib/systemd/system"})
@@ -216,7 +216,7 @@ def main():
             for name in ("ssh-gateway", "typed-helper"):
                 shutil.copyfile(REPO / "remote" / name, helper_dir / name)
                 (helper_dir / name).chmod(0o755)
-            sudoers.write_text('Defaults:hostorbit-svc env_reset,secure_path="/usr/sbin:/usr/bin:/sbin:/bin"\nhostorbit-svc ALL=(root) NOPASSWD: /usr/local/libexec/hostorbit/typed-helper ""\n')
+            sudoers.write_text('Defaults:vpn-orbit-svc env_reset,secure_path="/usr/sbin:/usr/bin:/sbin:/bin"\nvpn-orbit-svc ALL=(root) NOPASSWD: /usr/local/libexec/vpn-orbit/typed-helper ""\n')
             sudoers.chmod(0o440)
             sudoers_created = True
             command("visudo", "-cf", str(sudoers))
@@ -322,7 +322,7 @@ Match User {account}
             for listener in listeners:
                 listener.close()
             client = httpx.Client(base_url=f"http://127.0.0.1:{api_port}", timeout=15,
-                                  headers={"Host": "hostorbit.test", "Origin": ORIGIN, "X-Forwarded-Proto": "https", "X-Forwarded-For": "198.51.100.10"})
+                                  headers={"Host": "vpn-orbit.test", "Origin": ORIGIN, "X-Forwarded-Proto": "https", "X-Forwarded-For": "198.51.100.10"})
             wait_for(lambda: client.get("/healthz").status_code == 200, "API failed to start")
             result = client.post("/api/v1/auth/login", json={"username": "fixture-owner", "password": password})
             assert result.status_code == 200, result.text

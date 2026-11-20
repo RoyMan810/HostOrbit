@@ -29,7 +29,7 @@ from stage0.recovery import RecoveryRequest, Rejected, SignedBackup, Snapshot, a
 from stage0.snapshot import BackupLab, Work
 
 
-_DEVICE = "/dev/virtio-ports/hostorbit.recovery"
+_DEVICE = "/dev/virtio-ports/vpn-orbit.recovery"
 _SFTP_HOST = "10.0.2.100"
 _SFTP_PORT = 2222
 _VALUES = {"old": b"retained-generation", "current": b"active-generation"}
@@ -146,7 +146,7 @@ def recover_guest(stream, root, endpoint, archives):
 
 
 def guest(stream):
-    root = Path("/var/lib/hostorbit-offhost")
+    root = Path("/var/lib/vpn-orbit-offhost")
     root.mkdir(mode=0o700)
     ssh_identity = root / "sftp-client"
     command("/usr/bin/ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", ssh_identity)
@@ -233,7 +233,7 @@ def make_seed(work, dependencies, age_dir):
         shutil.copyfile(Path(__file__).with_name(name), payload / name)
     for name in ("age", "age-keygen"):
         shutil.copy2(age_dir / name, payload / name)
-    (payload / "meta-data").write_text("instance-id: hostorbit-offhost\n", encoding="ascii")
+    (payload / "meta-data").write_text("instance-id: vpn-orbit-offhost\n", encoding="ascii")
     (payload / "user-data").write_text("""#cloud-config
 users: []
 ssh_pwauth: false
@@ -241,11 +241,11 @@ growpart:
   mode: "off"
 resize_rootfs: false
 runcmd:
-  - [mkdir, -p, /mnt/hostorbit]
-  - [mount, -o, ro, "LABEL=cidata", /mnt/hostorbit]
+  - [mkdir, -p, /mnt/vpn-orbit]
+  - [mount, -o, ro, "LABEL=cidata", /mnt/vpn-orbit]
   - [modprobe, virtio_console]
   - [udevadm, settle, "--timeout=15"]
-  - [env, "PYTHONPATH=/mnt/hostorbit:/mnt/hostorbit/deps", "PATH=/mnt/hostorbit:/usr/bin:/bin", /usr/bin/python3, /mnt/hostorbit/offhost_recovery.py, --guest]
+  - [env, "PYTHONPATH=/mnt/vpn-orbit:/mnt/vpn-orbit/deps", "PATH=/mnt/vpn-orbit:/usr/bin:/bin", /usr/bin/python3, /mnt/vpn-orbit/offhost_recovery.py, --guest]
 """, encoding="ascii")
     seed = work / "seed.iso"
     command("/usr/bin/xorriso", "-as", "mkisofs", "-quiet", "-r", "-V", "cidata", "-o", seed, payload)
@@ -294,7 +294,7 @@ def boot_guest(work, console, role, image, seed, sftp_port, managed):
             "-netdev", f"user,id=network,restrict=on,ipv6=off,{forwarding}",
             "-device", "virtio-net-pci,netdev=network",
             "-chardev", f"socket,id=control,path={port},server=on,wait=off",
-            "-device", "virtio-serial-pci", "-device", "virtserialport,chardev=control,name=hostorbit.recovery",
+            "-device", "virtio-serial-pci", "-device", "virtserialport,chardev=control,name=vpn-orbit.recovery",
         ], stdin=subprocess.DEVNULL, stdout=errors, stderr=errors)
         try:
             with connect_guest(port, process) as channel, channel.makefile("rwb") as stream:
@@ -442,10 +442,10 @@ def main():
     if args.ssh_fixture is not None:
         lab, port, helper_dir, authorized = args.ssh_fixture
         service = fencing.managed_service(
-            Path(lab), int(port), Path(helper_dir), Path(authorized), os.environ.get("HOSTORBIT_LAB_PYTHON_IMAGE"),
+            Path(lab), int(port), Path(helper_dir), Path(authorized), os.environ.get("VPN_ORBIT_LAB_PYTHON_IMAGE"),
         )
-    with service as managed, TemporaryDirectory(prefix="hostorbit-guests-", dir=args.scratch) as work, \
-            TemporaryDirectory(prefix="hostorbit-console-", dir="/run") as console:
+    with service as managed, TemporaryDirectory(prefix="vpn-orbit-guests-", dir=args.scratch) as work, \
+            TemporaryDirectory(prefix="vpn-orbit-console-", dir="/run") as console:
         Path(console).chmod(0o711)
         experiment(Path(work), Path(console), args.image.resolve(), args.dependencies, args.age_dir, managed)
 

@@ -1,4 +1,4 @@
-name: HostOrbit CI
+name: VPN-Orbit CI
 
 on:
   push:
@@ -14,8 +14,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  HOSTORBIT_LAB_DOCKER_VERSION: "29.9.3"
-  HOSTORBIT_LAB_PYTHON_IMAGE: docker.io/library/python@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928
+  VPN_ORBIT_LAB_DOCKER_VERSION: "29.9.3"
+  VPN_ORBIT_LAB_PYTHON_IMAGE: docker.io/library/python@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928
 
 jobs:
   quality:
@@ -76,7 +76,7 @@ jobs:
       - &setup_docker
         uses: docker/setup-docker-action@3f1ab1ab0e29231562e4db4ca600c1a49653bac6 # v5.7.0
         with:
-          version: v${{ env.HOSTORBIT_LAB_DOCKER_VERSION }}
+          version: v${{ env.VPN_ORBIT_LAB_DOCKER_VERSION }}
           set-host: true
       - name: Install fixed builder dependencies and generate an ephemeral lab signer
         run: |
@@ -88,27 +88,27 @@ jobs:
           from nacl.signing import SigningKey
           root = pathlib.Path(os.environ["RUNNER_TEMP"])
           signer = SigningKey.generate()
-          (root / "hostorbit-lab-signer.seed").write_bytes(bytes(signer))
-          (root / "hostorbit-lab-signer.seed").chmod(0o600)
-          (root / "hostorbit-lab-signer.pub").write_bytes(bytes(signer.verify_key))
+          (root / "vpn-orbit-lab-signer.seed").write_bytes(bytes(signer))
+          (root / "vpn-orbit-lab-signer.seed").chmod(0o600)
+          (root / "vpn-orbit-lab-signer.pub").write_bytes(bytes(signer.verify_key))
           PY
       - name: Build the signed wheel bundle without placing its private signer inside
         run: |
-          age_dir="$RUNNER_TEMP/hostorbit-install-age"
+          age_dir="$RUNNER_TEMP/vpn-orbit-install-age"
           mkdir -p "$age_dir"
           python "$GITHUB_WORKSPACE/tools/fetch_age.py" --output "$age_dir/age.tar.gz"
           tar --no-same-owner -xzf "$age_dir/age.tar.gz" -C "$age_dir" -- age/age age/age-keygen
-          python_image="$HOSTORBIT_LAB_PYTHON_IMAGE"
+          python_image="$VPN_ORBIT_LAB_PYTHON_IMAGE"
           docker pull "$python_image"
           docker run --rm --network none "$python_image" python -c 'import sys,sqlite3; print(sys.version); print(sqlite3.sqlite_version); assert sys.version_info[:2]==(3,15) and sqlite3.sqlite_version_info>=(3,45)'
-          python deploy/build_bundle.py --output "$RUNNER_TEMP/hostorbit-install-bundle" \
-            --signing-key "$RUNNER_TEMP/hostorbit-lab-signer.seed" \
+          python deploy/build_bundle.py --output "$RUNNER_TEMP/vpn-orbit-install-bundle" \
+            --signing-key "$RUNNER_TEMP/vpn-orbit-lab-signer.seed" \
             --python-image "$python_image" --age-tool "$age_dir/age/age"
       - name: Install and verify the actual host services and container namespaces
         run: |
           sudo -n /usr/bin/env GITHUB_ACTIONS=true "RUNNER_ENVIRONMENT=$RUNNER_ENVIRONMENT" \
             PYTHONDONTWRITEBYTECODE=1 "$(command -v python)" tests_runtime/lab/installation.py --isolated-vm \
-            --bundle "$RUNNER_TEMP/hostorbit-install-bundle" --trust-key "$RUNNER_TEMP/hostorbit-lab-signer.pub" \
+            --bundle "$RUNNER_TEMP/vpn-orbit-install-bundle" --trust-key "$RUNNER_TEMP/vpn-orbit-lab-signer.pub" \
             --docker-host "$DOCKER_HOST"
 
       - name: Preserve public metadata for Stage1 revalidation
@@ -117,10 +117,10 @@ jobs:
           name: stage1-bundle-evidence
           if-no-files-found: error
           path: |
-            ${{ runner.temp }}/hostorbit-install-bundle/manifest.json
-            ${{ runner.temp }}/hostorbit-install-bundle/manifest.sig
-            ${{ runner.temp }}/hostorbit-install-bundle/sbom.cdx.json
-            ${{ runner.temp }}/hostorbit-lab-signer.pub
+            ${{ runner.temp }}/vpn-orbit-install-bundle/manifest.json
+            ${{ runner.temp }}/vpn-orbit-install-bundle/manifest.sig
+            ${{ runner.temp }}/vpn-orbit-install-bundle/sbom.cdx.json
+            ${{ runner.temp }}/vpn-orbit-lab-signer.pub
 
   foundation:
     name: Stage 1 Auth, RBAC and Audit / Python 3.15
@@ -133,11 +133,11 @@ jobs:
         run: python -m pip install -r requirements-dev.txt
       - name: Verify authentication boundaries and atomic audit delivery
         run: |
-          age_dir="$RUNNER_TEMP/hostorbit-runtime-age"
+          age_dir="$RUNNER_TEMP/vpn-orbit-runtime-age"
           mkdir -p "$age_dir"
           python "$GITHUB_WORKSPACE/tools/fetch_age.py" --output "$age_dir/age.tar.gz"
           tar --no-same-owner -xzf "$age_dir/age.tar.gz" -C "$age_dir" -- age/age age/age-keygen
-          export HOSTORBIT_TEST_AGE_DIR="$age_dir/age"
+          export VPN_ORBIT_TEST_AGE_DIR="$age_dir/age"
           python -m unittest discover -s tests_app -v
           python -m unittest discover -s tests_runtime -v
       - name: Exercise synthetic capacity workload
@@ -173,7 +173,7 @@ jobs:
       - name: Install verified age release
         shell: bash
         run: |
-          age_dir="$RUNNER_TEMP/hostorbit-age"
+          age_dir="$RUNNER_TEMP/vpn-orbit-age"
           mkdir -p "$age_dir"
           cd "$age_dir"
           python "$GITHUB_WORKSPACE/tools/fetch_age.py" --output age.tar.gz
@@ -200,13 +200,13 @@ jobs:
       - *setup_docker
       - name: Verify Worker, Backend and stranger access
         run: |
-          test "$(docker version --format '{{.Server.Version}}')" = "$HOSTORBIT_LAB_DOCKER_VERSION"
+          test "$(docker version --format '{{.Server.Version}}')" = "$VPN_ORBIT_LAB_DOCKER_VERSION"
           bash tests/lab/broker-containers.sh
       - name: Verify scoped discovery against the pinned Docker daemon
         run: |
           sudo -n /usr/bin/env "PATH=$PATH" "DOCKER_HOST=$DOCKER_HOST" GITHUB_ACTIONS=true \
             "RUNNER_ENVIRONMENT=$RUNNER_ENVIRONMENT" python3 tests_runtime/lab/docker_discovery.py \
-            --isolated-vm --image "$HOSTORBIT_LAB_PYTHON_IMAGE"
+            --isolated-vm --image "$VPN_ORBIT_LAB_PYTHON_IMAGE"
 
   docker-late-effect:
     name: Delegated restart effect / SSH, systemd and Docker
@@ -221,7 +221,7 @@ jobs:
             sudo apt-get update
             sudo apt-get install -y --no-install-recommends openssh-server
           fi
-          test "$(docker version --format '{{.Server.Version}}')" = "$HOSTORBIT_LAB_DOCKER_VERSION"
-          sudo -n /usr/bin/env "HOSTORBIT_LAB_DOCKER_HOST=$DOCKER_HOST" \
-            "HOSTORBIT_LAB_PYTHON_IMAGE=$HOSTORBIT_LAB_PYTHON_IMAGE" \
+          test "$(docker version --format '{{.Server.Version}}')" = "$VPN_ORBIT_LAB_DOCKER_VERSION"
+          sudo -n /usr/bin/env "VPN_ORBIT_LAB_DOCKER_HOST=$DOCKER_HOST" \
+            "VPN_ORBIT_LAB_PYTHON_IMAGE=$VPN_ORBIT_LAB_PYTHON_IMAGE" \
             /usr/bin/bash tests/lab/ssh-profile.sh --isolated-vm --docker-chain

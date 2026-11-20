@@ -8,10 +8,10 @@ import tempfile
 
 from deploy.artifact import file_at
 from deploy.update_release import PLATFORM
-from hostorbit.errors import Denied
+from vpn_orbit.errors import Denied
 
 
-EXECUTABLE = "hostorbit-updater"
+EXECUTABLE = "vpn-orbit-updater"
 MAX_EXECUTABLE = 64 * 1024 * 1024
 
 
@@ -28,7 +28,7 @@ def unpack_updater(package, version, output):
     # the header and accept only a single USTAR file, without extended headers.
     zstd = zstd_runtime()
 
-    archive = f"hostorbit-updater-{PLATFORM}-{version}.tar.zst"
+    archive = f"vpn-orbit-updater-{PLATFORM}-{version}.tar.zst"
     try:
         with file_at(package, archive) as (fd, _):
             with os.fdopen(fd, "rb", closefd=False) as stream, zstd.ZstdFile(

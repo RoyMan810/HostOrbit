@@ -2,7 +2,7 @@
 
 ## Среда
 
-Для локальной проверки используйте Linux и Python 3.15.2 с SQLite ≥3.45. Создайте `.venv` и установите `requirements-dev.txt` вместе с `requirements-quality.txt`. Для crypto tests нужны `age` и `age-keygen` v1.3.2. CI сверяет SHA-256 официального архива до запуска. `age` должен быть в `PATH`. Для runtime tests задайте `HOSTORBIT_TEST_AGE_DIR` с обоими executables.
+Для локальной проверки используйте Linux и Python 3.15.2 с SQLite ≥3.45. Создайте `.venv` и установите `requirements-dev.txt` вместе с `requirements-quality.txt`. Для crypto tests нужны `age` и `age-keygen` v1.3.2. CI сверяет SHA-256 официального архива до запуска. `age` должен быть в `PATH`. Для runtime tests задайте `VPN_ORBIT_TEST_AGE_DIR` с обоими executables.
 
 ```sh
 python3.15 -m venv .venv

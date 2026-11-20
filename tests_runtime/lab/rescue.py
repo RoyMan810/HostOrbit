@@ -15,23 +15,23 @@ import subprocess
 import sys
 from unittest.mock import patch
 
-from hostorbit.admission import Admission
-from hostorbit.auth import AuthService
-from hostorbit.database import Store
-from hostorbit.errors import Denied
-from hostorbit.runtime.authority import Authority
-from hostorbit.runtime.coordinator import Coordinator
-from hostorbit.runtime.policy import Policy
-from hostorbit.runtime.protocol import checksum
-from hostorbit.runtime.recovery_import import RecoveryTarget
-from hostorbit.runtime.rescue import offline_profile, prepare_bundle, wipe
+from vpn_orbit.admission import Admission
+from vpn_orbit.auth import AuthService
+from vpn_orbit.database import Store
+from vpn_orbit.errors import Denied
+from vpn_orbit.runtime.authority import Authority
+from vpn_orbit.runtime.coordinator import Coordinator
+from vpn_orbit.runtime.policy import Policy
+from vpn_orbit.runtime.protocol import checksum
+from vpn_orbit.runtime.recovery_import import RecoveryTarget
+from vpn_orbit.runtime.rescue import offline_profile, prepare_bundle, wipe
 
 
 def main():
     if (sys.argv[1:] not in (["--isolated-vm"], ["--isolated-vm", "--keep-data"]) or os.geteuid() != 0 or os.environ.get("GITHUB_ACTIONS") != "true"
             or os.environ.get("RUNNER_ENVIRONMENT") != "github-hosted"):
         raise RuntimeError("Recovery fixture requires an explicitly isolated GitHub-hosted VM")
-    root = Path("/var/lib/hostorbit-rescue-lab")
+    root = Path("/var/lib/vpn-orbit-rescue-lab")
     root.mkdir(mode=0o700)  # Refuse any pre-existing path.
     identity = None
     keep = False
@@ -54,7 +54,7 @@ def main():
         else:
             raise RuntimeError("Installed Controller passed the offline-workstation profile")
         bundle = root / "recovery.age"
-        with patch("hostorbit.runtime.rescue.offline_profile", return_value={"profile": "CI_PROCEDURE_FIXTURE_NOT_OFFLINE_ATTESTED"}):
+        with patch("vpn_orbit.runtime.rescue.offline_profile", return_value={"profile": "CI_PROCEDURE_FIXTURE_NOT_OFFLINE_ATTESTED"}):
             review = prepare_bundle(data["archive"]["ciphertext"], envelope, anchor, identity, request, bundle)
         if review["bundle_sha256"] != hashlib.sha256(bundle.read_bytes()).hexdigest():
             raise RuntimeError("Owner review did not bind the exact ciphertext")

@@ -10,8 +10,8 @@ import unittest
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlsplit
 
-from hostorbit.errors import Denied
-from hostorbit.runtime.resource_restore_target import check_restore_target
+from vpn_orbit.errors import Denied
+from vpn_orbit.runtime.resource_restore_target import check_restore_target
 
 
 class RestoreTargetTests(unittest.TestCase):
@@ -71,7 +71,7 @@ class RestoreTargetTests(unittest.TestCase):
         self.assertEqual(len(self.requests), 2)
 
     def check(self, *, required_bytes=1, required_inodes=1, expected_fingerprint=None, reply=None):
-        with patch("hostorbit.runtime.resource_restore_target._get", side_effect=reply or self.reply):
+        with patch("vpn_orbit.runtime.resource_restore_target._get", side_effect=reply or self.reply):
             return check_restore_target(self.name, expected_created_at=self.created, required_bytes=required_bytes,
                                         required_inodes=required_inodes, docker_root=self.docker_root,
                                         socket_path=self.socket, owner=os.geteuid(),
@@ -112,7 +112,7 @@ class RestoreTargetTests(unittest.TestCase):
 
     def test_reserved_volume_requires_only_its_created_helper(self):
         reservation, container = "a" * 32, "b" * 64
-        self.volume["Labels"] = {"org.hostorbit.resource-restore": reservation}
+        self.volume["Labels"] = {"org.vpn-orbit.resource-restore": reservation}
         references = [{"Id": container, "State": "created"}]
 
         def reply(socket_path, owner, endpoint, reply_type=dict):
@@ -127,7 +127,7 @@ class RestoreTargetTests(unittest.TestCase):
         kwargs = {"expected_created_at": self.created, "required_bytes": 1, "required_inodes": 1,
                   "docker_root": self.docker_root, "socket_path": self.socket, "owner": os.geteuid(),
                   "reservation": reservation}
-        with patch("hostorbit.runtime.resource_restore_target._get", side_effect=reply):
+        with patch("vpn_orbit.runtime.resource_restore_target._get", side_effect=reply):
             baseline = check_restore_target(self.name, **kwargs)
             kwargs.update(expected_container=container, expected_fingerprint=baseline["target_fingerprint"])
             self.assertEqual(check_restore_target(self.name, **kwargs), baseline)

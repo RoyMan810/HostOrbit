@@ -19,13 +19,13 @@ API показывает последние наблюдения из сущес
 
 ## Обнаружение Docker и Nginx
 
-Обновлённые `ssh-gateway` и `typed-helper` поддерживают фиксированный запрос `hostorbit.v2.probe`. После проверки SSH host key helper читает метаданные двух путей на Ubuntu, `/usr/bin/docker` и `/usr/sbin/nginx`. В `observation.last_success.software` возвращаются только значения `PRESENT`, `NOT_DETECTED` или `UNKNOWN` для `docker` и `nginx`. Они описывают наличие инструментов в этих путях. Состояние служб, контейнеров и проектов Compose требует отдельного наблюдения.
+Обновлённые `ssh-gateway` и `typed-helper` поддерживают фиксированный запрос `vpn-orbit.v2.probe`. После проверки SSH host key helper читает метаданные двух путей на Ubuntu, `/usr/bin/docker` и `/usr/sbin/nginx`. В `observation.last_success.software` возвращаются только значения `PRESENT`, `NOT_DETECTED` или `UNKNOWN` для `docker` и `nginx`. Они описывают наличие инструментов в этих путях. Состояние служб, контейнеров и проектов Compose требует отдельного наблюдения.
 
 При тихом отказе старого gateway с кодом 65 Broker повторяет фиксированный запрос v1 в том же SSH-соединении. В таком результате поле `software` отсутствует. При установке v2 замените оба root-owned файла через действующую процедуру установки helper. Старый Controller может использовать v1 с обновлённой парой.
 
 ## Контейнеры импортированных Docker-проектов
 
-Для probe v3 владелец вручную добавляет до восьми контейнеров импортированного тестового Compose-проекта в `/etc/hostorbit/docker-discovery.json` на VPS. Каталог принадлежит root и закрыт от записи группы и остальных пользователей. Файл принадлежит root, имеет режим `0600` и одну жёсткую ссылку.
+Для probe v3 владелец вручную добавляет до восьми контейнеров импортированного тестового Compose-проекта в `/etc/vpn-orbit/docker-discovery.json` на VPS. Каталог принадлежит root и закрыт от записи группы и остальных пользователей. Файл принадлежит root, имеет режим `0600` и одну жёсткую ссылку.
 
 ```json
 {
@@ -71,7 +71,7 @@ Probe v7 проверяет узкий профиль выделенного Doc
 На Linux-хосте с установленным VPN-Orbit можно проверить один TCP-порт в сетевом пространстве имён вызывающего процесса:
 
 ```bash
-/opt/hostorbit/venv/bin/python -m hostorbit.runtime.listener_diagnostics --port 443
+/opt/vpn-orbit/venv/bin/python -m vpn_orbit.runtime.listener_diagnostics --port 443
 ```
 
 Команда читает локальную таблицу сокетов ядра и возвращает JSON с отдельными результатами для IPv4 и IPv6. `LISTENING` означает, что порт прослушивается по перечисленным адресам. `NOT_LISTENING` означает, что в таблице этого семейства слушателей для порта нет. При недоступной или некорректной таблице результат для семейства — `UNKNOWN`, код выхода — 1. Команда показывает адреса привязки на момент проверки, включая `0.0.0.0` и `::` без предположений о режиме dual-stack.
@@ -81,7 +81,7 @@ Probe v7 проверяет узкий профиль выделенного Doc
 ### Конфликт с локальными TCP-слушателями
 
 ```bash
-python -m hostorbit.runtime.listener_diagnostics --port 443 --check-bind 0.0.0.0
+python -m vpn_orbit.runtime.listener_diagnostics --port 443 --check-bind 0.0.0.0
 ```
 
 Укажите планируемый IPv4 или IPv6 адрес привязки. `POSSIBLE_CONFLICT` перечисляет пересекающиеся TCP-слушатели. IPv6 wildcard учитывается консервативно, поскольку таблица сокетов не показывает режим dual-stack каждого сокета. Недоступная таблица нужного семейства даёт `UNKNOWN`, если конфликт пока не найден. В обоих случаях код выхода 1.
@@ -93,7 +93,7 @@ python -m hostorbit.runtime.listener_diagnostics --port 443 --check-bind 0.0.0.0
 На машине в сети, из которой должен быть доступен сервис, запустите тот же модуль из установленного пакета VPN-Orbit. Укажите IP назначения и порт. Замените пример на адрес проверяемого хоста:
 
 ```bash
-python -m hostorbit.runtime.listener_diagnostics --connect 203.0.113.20 --port 443
+python -m vpn_orbit.runtime.listener_diagnostics --connect 203.0.113.20 --port 443
 ```
 
 Режим `--connect` без дополнительных опций устанавливает одно TCP-соединение с тайм-аутом 3 секунды и сразу закрывает его. Он принимает числовой IPv4 или IPv6. IPv6-адреса, требующие выбора интерфейса, отклоняются. Результат `CONNECTED` подтверждает TCP-доступность из сети проверяющей машины в момент запуска. Он не подтверждает работу приложения, TLS или доступность из других сетей.
@@ -105,7 +105,7 @@ python -m hostorbit.runtime.listener_diagnostics --connect 203.0.113.20 --port 4
 Чтобы проверить конкретный сервер до переключения DNS, передайте имя сайта через `--tls-name`. Замените тестовые IP и имя на значения для вашего сервера:
 
 ```bash
-python -m hostorbit.runtime.listener_diagnostics --connect 203.0.113.20 --port 443 --tls-name site.example
+python -m vpn_orbit.runtime.listener_diagnostics --connect 203.0.113.20 --port 443 --tls-name site.example
 ```
 
 Команда подключается к заданному IP и передаёт имя сайта в SNI. Она проверяет цепочку сертификатов по доверенным CA проверяющей машины, срок действия и имя в SAN. Для интернациональных имён укажите Punycode. На TCP и TLS выделяется до 3 секунд каждому.
@@ -117,7 +117,7 @@ python -m hostorbit.runtime.listener_diagnostics --connect 203.0.113.20 --port 4
 Добавьте `--https-path`, чтобы после проверки сертификата выполнить один HTTP/1.1 HEAD на том же соединении:
 
 ```bash
-python -m hostorbit.runtime.listener_diagnostics --connect 203.0.113.20 --port 443 --tls-name site.example --https-path /healthz
+python -m vpn_orbit.runtime.listener_diagnostics --connect 203.0.113.20 --port 443 --tls-name site.example --https-path /healthz
 ```
 
 Отчёт содержит HTTP-статус в `https.status`. Код выхода 0 соответствует ответу 2xx. Команда выводит 3xx и другие ответы без перехода по перенаправлениям и без чтения тела. Для пути требуется начальный слэш; не-ASCII символы кодируются как URL. При отказе TLS запрос не отправляется.
@@ -127,7 +127,7 @@ python -m hostorbit.runtime.listener_diagnostics --connect 203.0.113.20 --port 4
 После ручного обновления DNS проверьте, какие IPv4 и IPv6 адреса видит системный резолвер машины запуска:
 
 ```bash
-python -m hostorbit.runtime.listener_diagnostics --resolve site.example --expect-ip 203.0.113.20 --expect-ip 2001:db8::20
+python -m vpn_orbit.runtime.listener_diagnostics --resolve site.example --expect-ip 203.0.113.20 --expect-ip 2001:db8::20
 ```
 
 Повторите `--expect-ip` для каждого ожидаемого адреса. Совпадение полного набора возвращает `MATCH`. При `MISMATCH` отчёт перечисляет отсутствующие и лишние адреса. Без ожидаемого списка команда показывает адреса со статусом `RESOLVED`. `NO_ADDRESSES` и `LOOKUP_FAILED` различают отсутствие адресов и ошибку резолвера.
@@ -147,7 +147,7 @@ python -m hostorbit.runtime.listener_diagnostics --resolve site.example --expect
 
 ## План перезапуска Docker
 
-Компонент [change_drafts](../hostorbit/change_drafts.py) сохраняет ревизии плана в БД контроллера. Вызов выполняется в одной SQLite-транзакции с проверкой сессии, CSRF и прав `vps:read` и `vps:restart` на одну VPS. Черновик фиксирует точный ID последнего завершённого наблюдения, контейнер, boot ID и ревизии ресурса и политики. Сервер добавляет семантический diff и риск, вычисляет хеш и записывает ревизию вместе с Audit/Outbox.
+Компонент [change_drafts](../vpn_orbit/change_drafts.py) сохраняет ревизии плана в БД контроллера. Вызов выполняется в одной SQLite-транзакции с проверкой сессии, CSRF и прав `vps:read` и `vps:restart` на одну VPS. Черновик фиксирует точный ID последнего завершённого наблюдения, контейнер, boot ID и ревизии ресурса и политики. Сервер добавляет семантический diff и риск, вычисляет хеш и записывает ревизию вместе с Audit/Outbox.
 
 Обновление черновика сохраняет предыдущую ревизию и принимает только точный strong ETag текущей. Без `If-Match` возвращается 428, с устаревшим или слабым ETag — 412. Для обновления нужно свежее успешное наблюдение той же цели.
 
@@ -195,8 +195,8 @@ SSH probe v8 сохраняет точное значение `StartedAt` от D
 
 Для стенда используйте чистый Controller, отдельную Ubuntu VPS и один тестовый контейнер на выделенном Docker daemon. Provisioning выполняется до инициализации Authority: список targets закрепляется хешем, который включает ревизию политики, fingerprint и ссылки на ключи.
 
-1. На тестовой VPS установите `ssh-gateway` и `typed-helper` для read-only аккаунта. Для `hostorbit-restart` используйте отдельный Ed25519-ключ, отдельный ForceCommand `/usr/local/libexec/hostorbit/restart-gateway` и точное правило sudo `hostorbit-restart ALL=(root) NOPASSWD: /usr/local/libexec/hostorbit/docker-restart ""`. Используйте ограничения SSH из [описания профиля](stage1-runtime.md). Привилегированные файлы должны принадлежать root.
-2. Запишите один и тот же полный ID, проект и сервис в `/etc/hostorbit/docker-discovery.json` и `/etc/hostorbit/docker-restart.json` с режимом `0600` и владельцем root. Создайте root-owned каталог `/var/lib/hostorbit-docker-restart` с режимом `0700`. Используйте контейнер без mounts с сетью `none` и ограничениями из раздела о зависимостях. На Docker daemon не должно быть других контейнеров.
+1. На тестовой VPS установите `ssh-gateway` и `typed-helper` для read-only аккаунта. Для `vpn-orbit-restart` используйте отдельный Ed25519-ключ, отдельный ForceCommand `/usr/local/libexec/vpn-orbit/restart-gateway` и точное правило sudo `vpn-orbit-restart ALL=(root) NOPASSWD: /usr/local/libexec/vpn-orbit/docker-restart ""`. Используйте ограничения SSH из [описания профиля](stage1-runtime.md). Привилегированные файлы должны принадлежать root.
+2. Запишите один и тот же полный ID, проект и сервис в `/etc/vpn-orbit/docker-discovery.json` и `/etc/vpn-orbit/docker-restart.json` с режимом `0600` и владельцем root. Создайте root-owned каталог `/var/lib/vpn-orbit-docker-restart` с режимом `0700`. Используйте контейнер без mounts с сетью `none` и ограничениями из раздела о зависимостях. На Docker daemon не должно быть других контейнеров.
 3. На Controller закрепите независимо проверенный SSH fingerprint VPS. В root-owned targets включите для этой цели `host.probe` и `docker.restart`. Укажите разные `secret_ref` и `restart_secret_ref`. Передайте этот список установщику через `--targets`. Провизионите ключи через Broker с назначениями `import-key` и `import-restart-key` для текущей ревизии политики. Зарегистрируйте ресурс по защищённому списку targets.
 4. Создайте Change Plan с явным подтверждением тестового назначения. Получите наблюдение v8, выполните preflight, запишите решение Backup Gate и подтвердите ревизию с повторной аутентификацией Owner.
 5. В защищённой сессии отправьте `POST /api/v1/change-plans/{id}/execution-requests` с текущим `If-Match`, CSRF и полями `probe_id`, `request_key`, `approval_id`. Повтор того же запроса возвращает тот же ID. Прочитайте `GET /api/v1/change-plans/{id}/execution-timeline`. Записи запроса, подготовки, отправки и результата сохранены в общем Audit/Outbox.

@@ -26,7 +26,7 @@
 
 ## Сборка и запуск
 
-Для установки скачайте архив `hostorbit-webui-<commit>` из успешного прогона [сборки WebUI](https://github.com/RoyMan810/VPN-Orbit/actions/workflows/web-ui.yml) на `main`. GitHub выдаёт ZIP после входа в аккаунт. Выбирайте прогон той же ревизии, что и установленный Controller. В распакованном ZIP сверьте `source-commit.txt` с `source_commit` подписанного манифеста Controller и выполните:
+Для установки скачайте архив `vpn-orbit-webui-<commit>` из успешного прогона [сборки WebUI](https://github.com/RoyMan810/VPN-Orbit/actions/workflows/web-ui.yml) на `main`. GitHub выдаёт ZIP после входа в аккаунт. Выбирайте прогон той же ревизии, что и установленный Controller. В распакованном ZIP сверьте `source-commit.txt` с `source_commit` подписанного манифеста Controller и выполните:
 
 ```sh
 sha256sum -c SHA256SUMS && mkdir -p dist && tar -xzf webui.tar.gz -C dist
@@ -46,7 +46,7 @@ npm run build
 
 ```nginx
 location / {
-    root /srv/hostorbit-web/current;
+    root /srv/vpn-orbit-web/current;
     index index.html;
     try_files $uri $uri/ =404;
     add_header Content-Security-Policy "frame-ancestors 'none'" always;
@@ -73,7 +73,7 @@ Playwright проходит сценарий владельца на русск�
 
 ```sh
 npm run build
-HOSTORBIT_CHROMIUM="$(command -v google-chrome)" npm test
+VPN_ORBIT_CHROMIUM="$(command -v google-chrome)" npm test
 ```
 
 Для Chromium из Playwright выполните `npx playwright install chromium --only-shell`, затем `npm test`.

@@ -16,25 +16,25 @@ from deploy.controller_restore_attestation import MAX_EVIDENCE
 from deploy.prepare_migration import prepare_migration
 from deploy.supervised_update import check_gate, enter_maintenance, private_slots
 from deploy.update_release import verify_candidate
-from hostorbit.admission import Admission
-from hostorbit.database import DataAccess, Store
-from hostorbit.errors import Denied
-from hostorbit.migrations import _source_digest, _statements, _verify, migration_script
-from hostorbit.runtime.activation import atomic
-from hostorbit.runtime.cli import configuration
-from hostorbit.runtime.ipc import Client
-from hostorbit.runtime.protocol import SHA256, ULID, canonical, checksum, decode, fields, integer, text
-from hostorbit.runtime.storage import directory_sync, new_private_file, process_lock, protected_bytes
+from vpn_orbit.admission import Admission
+from vpn_orbit.database import DataAccess, Store
+from vpn_orbit.errors import Denied
+from vpn_orbit.migrations import _source_digest, _statements, _verify, migration_script
+from vpn_orbit.runtime.activation import atomic
+from vpn_orbit.runtime.cli import configuration
+from vpn_orbit.runtime.ipc import Client
+from vpn_orbit.runtime.protocol import SHA256, ULID, canonical, checksum, decode, fields, integer, text
+from vpn_orbit.runtime.storage import directory_sync, new_private_file, process_lock, protected_bytes
 
 
-APP = Path("/opt/hostorbit")
-CONFIG = Path("/etc/hostorbit")
-UPDATE_STATE = Path("/var/lib/hostorbit/application-update")
-COMPOSE_UNIT = "hostorbit-compose.service"
-WEB_UNIT = "hostorbit-web.service"
+APP = Path("/opt/vpn-orbit")
+CONFIG = Path("/etc/vpn-orbit")
+UPDATE_STATE = Path("/var/lib/vpn-orbit/application-update")
+COMPOSE_UNIT = "vpn-orbit-compose.service"
+WEB_UNIT = "vpn-orbit-web.service"
 SYSTEMCTL = "/usr/bin/systemctl"
 BOOT_BLOCK = UPDATE_STATE / "service-start.blocked"
-DROP_IN = Path("/etc/systemd/system") / (COMPOSE_UNIT + ".d") / "90-hostorbit-update-gate.conf"
+DROP_IN = Path("/etc/systemd/system") / (COMPOSE_UNIT + ".d") / "90-vpn-orbit-update-gate.conf"
 OCI_REF = r"[a-z0-9][a-z0-9.:-]*(?:/[a-z0-9][a-z0-9._-]*)+@sha256:[0-9a-f]{64}"
 APPLICATION_SERVICES = ("api", "worker")
 
@@ -50,7 +50,7 @@ class ComposeServices:
 
     def __init__(self):
         installation = json.loads(protected_bytes(APP / "installation.json", owner=0, private=True))
-        if (installation.get("v") != 1 or installation.get("project") != "hostorbit"
+        if (installation.get("v") != 1 or installation.get("project") != "vpn-orbit"
                 or installation.get("docker_host") not in ("unix:///run/docker.sock", "unix:///var/run/docker.sock")):
             raise Denied("APPLICATION_INSTALLATION_INVALID")
         self.host = installation["docker_host"]
@@ -64,7 +64,7 @@ class ComposeServices:
     def stage(self, images, digests):
         original = protected_bytes(self.path, owner=0, maximum=65536)
         updated = json.loads(original)
-        if updated.get("name") != "hostorbit" or set(updated.get("services", ())) != set(APPLICATION_SERVICES):
+        if updated.get("name") != "vpn-orbit" or set(updated.get("services", ())) != set(APPLICATION_SERVICES):
             raise Denied("APPLICATION_COMPOSE_INVALID")
         for name in APPLICATION_SERVICES:
             image = text(images[name], OCI_REF, "APPLICATION_IMAGE_REFERENCE_INVALID")
@@ -96,7 +96,7 @@ class ComposeServices:
 
     def stop(self):
         command(SYSTEMCTL, "stop", COMPOSE_UNIT, timeout=90)
-        running = self.docker("compose", "--project-name", "hostorbit", "--project-directory", str(APP),
+        running = self.docker("compose", "--project-name", "vpn-orbit", "--project-directory", str(APP),
                          "--file", str(self.path), "ps", "--status", "running", "-q")
         if running.strip():
             raise Denied("APPLICATION_WRITERS_STILL_RUNNING")
@@ -257,7 +257,7 @@ def main(argv=None):
                               UPDATE_STATE, inputs=inputs)
     except (Denied, ArtifactError, OSError, RuntimeError, ValueError, sqlite3.Error, KeyError, TypeError, subprocess.SubprocessError) as error:
         code = error.code if isinstance(error, Denied) else str(error) if isinstance(error, ArtifactError) else "APPLICATION_UPDATE_UNAVAILABLE"
-        print(f"HostOrbit: {code}", file=sys.stderr)
+        print(f"VPN-Orbit: {code}", file=sys.stderr)
         return 1
     print(json.dumps(result, sort_keys=True))
     return 0

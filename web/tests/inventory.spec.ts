@@ -6,7 +6,7 @@ import type { Locator, Page } from '@playwright/test'
 const fresh = '01JCYQZ4T9V8MNVYEH3D2M7Q1A'
 const stale = '01JCYQZ4T9V8MNVYEH3D2M7Q1B'
 const never = '01JCYQZ4T9V8MNVYEH3D2M7Q1C'
-const password = 'HostOrbit fixture password!'
+const password = 'VPN-Orbit fixture password!'
 
 let clientNumber = 0
 test.beforeEach(async ({ context }, { workerIndex }) => {
@@ -177,7 +177,7 @@ test('downloads reviewed plan revisions with page-local numbers and no source id
   const ready = page.waitForEvent('download')
   await page.getByRole('link', { name: 'Скачать JSON' }).click()
   const download = await ready
-  expect(download.suggestedFilename()).toBe('hostorbit-change-plan-audit.json')
+  expect(download.suggestedFilename()).toBe('vpn-orbit-change-plan-audit.json')
   expect(await readFile(await download.path(), 'utf8')).toBe(reviewed)
   await page.getByRole('button', { name: 'Следующая страница' }).click()
   await expect(page.locator('#audit-event-101')).toBeVisible()
@@ -214,7 +214,7 @@ test('downloads only the reviewed SSH audit export for the current page', async 
   await page.getByLabel('Event category').selectOption('ssh')
   await expect(downloadLink).toBeVisible()
   await page.getByLabel('Event category').selectOption('auth')
-  await expect(downloadLink).toHaveAttribute('download', 'hostorbit-auth-audit.json')
+  await expect(downloadLink).toHaveAttribute('download', 'vpn-orbit-auth-audit.json')
   await page.getByLabel('Event category').selectOption('ssh')
   const preview = page.locator('.audit-export[open] pre')
   const reviewed = await preview.innerText()
@@ -230,7 +230,7 @@ test('downloads only the reviewed SSH audit export for the current page', async 
   const ready = page.waitForEvent('download')
   await page.getByRole('link', { name: 'Скачать JSON' }).click()
   const download = await ready
-  expect(download.suggestedFilename()).toBe('hostorbit-ssh-audit.json')
+  expect(download.suggestedFilename()).toBe('vpn-orbit-ssh-audit.json')
   expect(await readFile(await download.path(), 'utf8')).toBe(reviewed)
   const refreshed = page.waitForResponse(response => new URL(response.url()).pathname === '/api/v1/audit')
   await page.getByRole('button', { name: 'Обновить журнал аудита' }).click()
@@ -275,7 +275,7 @@ test('exports only reviewed authentication events from the current audit page', 
   const ready = page.waitForEvent('download')
   await page.getByRole('link', { name: 'Скачать JSON' }).click()
   const download = await ready
-  expect(download.suggestedFilename()).toBe('hostorbit-auth-audit.json')
+  expect(download.suggestedFilename()).toBe('vpn-orbit-auth-audit.json')
   expect(await readFile(await download.path(), 'utf8')).toBe(reviewed)
   await page.getByRole('button', { name: 'Следующая страница', exact: true }).click()
   await expect(page.getByText('auth.unknown', { exact: true })).toBeVisible()
@@ -317,7 +317,7 @@ test('exports only reviewed access administration events from the current audit 
   const ready = page.waitForEvent('download')
   await page.getByRole('link', { name: 'Скачать JSON' }).click()
   const download = await ready
-  expect(download.suggestedFilename()).toBe('hostorbit-access-audit.json')
+  expect(download.suggestedFilename()).toBe('vpn-orbit-access-audit.json')
   expect(await readFile(await download.path(), 'utf8')).toBe(reviewed)
   await page.getByRole('button', { name: 'Следующая страница' }).click()
   await expect(page.locator('#audit-event-101')).toBeVisible()
@@ -356,14 +356,14 @@ test('shows the Controller denial for audit without permission', async ({ page }
 
 test('authenticates against the real Controller and restores the browser session', async ({ page, context }) => {
   await signIn(page)
-  const cookie = (await context.cookies()).find(c => c.name === '__Host-hostorbit_session')
+  const cookie = (await context.cookies()).find(c => c.name === '__Host-vpn_orbit_session')
   expect(cookie).toMatchObject({ httpOnly: true, secure: true, sameSite: 'Strict' })
   await page.reload()
   await expect(page.getByRole('heading', { name: 'VPS inventory' })).toBeVisible()
   expect(await page.evaluate(() => Object.keys(localStorage))).toEqual([])
   await page.getByRole('button', { name: 'Sign out' }).click()
   await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible()
-  expect((await context.cookies()).find(c => c.name === '__Host-hostorbit_session')).toBeUndefined()
+  expect((await context.cookies()).find(c => c.name === '__Host-vpn_orbit_session')).toBeUndefined()
 })
 
 test('distinguishes current SSH reachability, historical data and an unchecked VPS', async ({ page }) => {
@@ -880,7 +880,7 @@ test('first-run help and device time settings are keyboard accessible', async ({
   await expect(recovery).toHaveAttribute('download', 'stage1-rescue.md')
   const guide = await page.request.get((await recovery.getAttribute('href'))!)
   expect(guide.ok()).toBe(true)
-  expect(await guide.text()).toContain('hostorbit-rescue')
+  expect(await guide.text()).toContain('vpn-orbit-rescue')
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
   await page.getByLabel('Time zone').selectOption('UTC')
   await page.reload()

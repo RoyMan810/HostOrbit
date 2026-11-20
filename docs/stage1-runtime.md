@@ -32,9 +32,9 @@ Runtime Worker явно обрабатывает SIGTERM/SIGINT, в том чи�
 
 ## UID и SQLite
 
-API и Worker имеют разные UID и общую отдельную группу `ho-app-db`. Shared Store требует точного владельца API, GID этой группы, directory mode 2770 и database mode 0660. Setgid сохраняет группу WAL/SHM и Worker lock. Runtime configuration задаёт эти значения явно. Приватный режим разработки с mode 0700/0600 остаётся доступен.
+API и Worker имеют разные UID и общую отдельную группу `vpn-orbit-app-db`. Shared Store требует точного владельца API, GID этой группы, directory mode 2770 и database mode 0660. Setgid сохраняет группу WAL/SHM и Worker lock. Runtime configuration задаёт эти значения явно. Приватный режим разработки с mode 0700/0600 остаётся доступен.
 
-Vault и Broker receipts принадлежат `ho-broker` в отдельных каталогах 0700. Gate journal и signing key принадлежат root в каталоге 0700. Backend не имеет групп Broker/gate и не получает их sockets. Worker имеет только нужные supplementary groups и не читает Vault, DEK или gate database. AF_UNIX server проверяет UID/GID из SO_PEERCRED; JSON не задаёт роль. Systemd создаёт listener до запуска сервисного UID, поэтому клиент допускает доверенный root socket activation и ожидаемый UID службы.
+Vault и Broker receipts принадлежат `vpn-orbit-broker` в отдельных каталогах 0700. Gate journal и signing key принадлежат root в каталоге 0700. Backend не имеет групп Broker/gate и не получает их sockets. Worker имеет только нужные supplementary groups и не читает Vault, DEK или gate database. AF_UNIX server проверяет UID/GID из SO_PEERCRED; JSON не задаёт роль. Systemd создаёт listener до запуска сервисного UID, поэтому клиент допускает доверенный root socket activation и ожидаемый UID службы.
 
 Новая БД имеет схему 4. Наблюдения поддерживаются на схемах 2–4. Постановка подтверждённых перезапусков в общую очередь требует схемы 4. Схема 1 сохраняет Auth API, но очередь отвечает `QUEUE_SCHEMA_REQUIRES_VERIFIED_MIGRATION`. Автоматической миграции или удаления существующих пользователей нет. Перенос существующей БД должен пройти отдельный подтверждённый Backup Gate; он не заменяется копированием WAL/SHM.
 
@@ -48,13 +48,13 @@ Broker получает runtime DEK из OS credential. В новом systemd п
 
 AsyncSSH принимает Ed25519 key непосредственно в памяти Broker. Agent, password auth, keyboard-interactive auth и внешняя SSH config отключены. Цель — только защищённый numeric IP из заданного CIDR и порта; loopback, link-local, metadata endpoints, IPv6 zones и непредусмотренные capabilities отклоняются. Хост проверяется по закреплённому Ed25519 key. Общая длительность соединения ограничена. Лимит stdout составляет 12 288 байт для v4–v8, 4096 для v3 и 2048 для v1/v2. Лимит stderr составляет 2048 байт для всех версий. При ошибке остаётся фиксированный код, а произвольный вывод не попадает в SQLite, SSE или ошибку API.
 
-На managed Ubuntu устанавливаются root-owned `remote/ssh-gateway` и `remote/typed-helper` по путям из [инструкции подготовки VPS](stage1-installation.md#подготовка-vps-по-паролю-или-ssh-ключу). Gateway принимает команды `hostorbit.v1.probe`, `hostorbit.v2.probe`, `hostorbit.v3.probe`, `hostorbit.v4.probe`, `hostorbit.v5.probe`, `hostorbit.v6.probe`, `hostorbit.v7.probe` и `hostorbit.v8.probe` с точным JSON для каждой версии. Helper запускается без argv и выполняет наблюдение, включая [ограниченную сводку Docker](stage2-inventory.md#контейнеры-импортированных-docker-проектов) и [опубликованные порты начиная с v4](stage2-inventory.md#опубликованные-порты-docker) и [статус mounts начиная с v5](stage2-inventory.md#подключённые-тома-и-mounts), а также [статус сетевой изоляции начиная с v6](stage2-inventory.md#сетевая-изоляция) и [проверка зависимостей начиная с v7](stage2-inventory.md#зависимости-тестового-контейнера). Probe v8 добавляет точный Docker `StartedAt` для сверки исходного состояния Change Plan. Account `hostorbit-svc` использует `/bin/sh`, server-side ForceCommand, точный sudoers без аргументов, root-owned authorized_keys и запрет PTY/forwarding/environment override. Первичный fingerprint подтверждается отдельно владельцем.
+На managed Ubuntu устанавливаются root-owned `remote/ssh-gateway` и `remote/typed-helper` по путям из [инструкции подготовки VPS](stage1-installation.md#подготовка-vps-по-паролю-или-ssh-ключу). Gateway принимает команды `vpn-orbit.v1.probe`, `vpn-orbit.v2.probe`, `vpn-orbit.v3.probe`, `vpn-orbit.v4.probe`, `vpn-orbit.v5.probe`, `vpn-orbit.v6.probe`, `vpn-orbit.v7.probe` и `vpn-orbit.v8.probe` с точным JSON для каждой версии. Helper запускается без argv и выполняет наблюдение, включая [ограниченную сводку Docker](stage2-inventory.md#контейнеры-импортированных-docker-проектов) и [опубликованные порты начиная с v4](stage2-inventory.md#опубликованные-порты-docker) и [статус mounts начиная с v5](stage2-inventory.md#подключённые-тома-и-mounts), а также [статус сетевой изоляции начиная с v6](stage2-inventory.md#сетевая-изоляция) и [проверка зависимостей начиная с v7](stage2-inventory.md#зависимости-тестового-контейнера). Probe v8 добавляет точный Docker `StartedAt` для сверки исходного состояния Change Plan. Account `vpn-orbit-svc` использует `/bin/sh`, server-side ForceCommand, точный sudoers без аргументов, root-owned authorized_keys и запрет PTY/forwarding/environment override. Первичный fingerprint подтверждается отдельно владельцем.
 
 ## Профили запуска и стенд
 
 `deploy/sysusers.d`, `deploy/tmpfiles.d` и `deploy/systemd` описывают пользователей, права каталогов, socket activation и sandboxing. `deploy/runtime.example.json` содержит пример числовых UID/GID; при установке их сверяют с фактическими созданными accounts. Runtime JSON принадлежит root и закрыт от записи группой. Target policy устанавливается отдельно владельцем и не изменяется регистрацией через Web API.
 
-Локальные команды `hostorbit-runtime initialize-supervisor`, `initialize-broker`, `import-key` и `register-observations` выполняются только ожидаемым OS пользователем. Инициализация отдельная и отказывается заменять существующие journals/key versions. Для Broker init/import требуется тот же защищённый OS credential, что и для сервиса. `register-observations` — root-side импорт защищённого summary в application registry. Сервисы не выполняют эту инициализацию при каждом запуске.
+Локальные команды `vpn-orbit-runtime initialize-supervisor`, `initialize-broker`, `import-key` и `register-observations` выполняются только ожидаемым OS пользователем. Инициализация отдельная и отказывается заменять существующие journals/key versions. Для Broker init/import требуется тот же защищённый OS credential, что и для сервиса. `register-observations` — root-side импорт защищённого summary в application registry. Сервисы не выполняют эту инициализацию при каждом запуске.
 
 [Development-установщик](stage1-installation.md) уже проверен на чистой Ubuntu 24.04: подписанный bundle, настоящие systemd services, Compose namespaces, локальный Owner, HTTPS proxy и restart. Он требует подготовленные Docker/Python и не меняет DNS, system Nginx или чужие контейнеры. [Репетиция схемы 1 → 2](stage1-migrations.md) проверяет отдельную копию; применение к рабочей БД остаётся закрытым до полного maintenance/backup/TimeHealth workflow.
 
@@ -65,7 +65,7 @@ AsyncSSH принимает Ed25519 key непосредственно в пам
 Остановите выдачу новых заданий для выбранной цели или дождитесь завершения текущего SSH-сеанса. Для плановой ротации заранее установите открытый ключ нового Ed25519 на принимающем узле с прежними ограничениями. На Controller подготовьте закрытый ключ в файле владельца Broker с правами 0600. Выполните команду от UID Broker с тем же systemd-профилем `LoadCredentialEncrypted=broker-dek`, что и при импорте ключа.
 
 ```sh
-hostorbit-runtime --config /etc/hostorbit/runtime.json rotate-key \
+vpn-orbit-runtime --config /etc/vpn-orbit/runtime.json rotate-key \
   --purpose host.probe --target "$TARGET_ID" --policy-revision "$REVISION" \
   --reference "$CURRENT_REF" --key-file "$KEY_FILE"
 ```
@@ -75,7 +75,7 @@ hostorbit-runtime --config /etc/hostorbit/runtime.json rotate-key \
 В root-owned политике оставьте исходную ссылку. Она задаёт начало цепочки версий. Worker и SFTP-публикатор используют текущую версию по цепочке подтверждённых ротаций для той же политики. Явный запрос отозванной версии отклоняется. Отдельный импорт более новой версии не переключает текущий ключ. Для следующей операции передайте точную ссылку, напечатанную предыдущей ротацией.
 
 ```sh
-hostorbit-runtime --config /etc/hostorbit/runtime.json revoke-key \
+vpn-orbit-runtime --config /etc/vpn-orbit/runtime.json revoke-key \
   --purpose host.probe --target "$TARGET_ID" --policy-revision "$REVISION" \
   --reference "$CURRENT_REF"
 ```

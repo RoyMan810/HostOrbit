@@ -12,12 +12,12 @@ from unittest.mock import patch
 
 import asyncssh
 
-from hostorbit.errors import Denied
-from hostorbit.runtime.backup_target import BackupTarget
-from hostorbit.runtime.protocol import canonical
-from hostorbit.runtime.sftp_publication import publication_timeout, publish_session
-from hostorbit.runtime.storage import new_private_file
-from hostorbit.runtime.vault import Vault
+from vpn_orbit.errors import Denied
+from vpn_orbit.runtime.backup_target import BackupTarget
+from vpn_orbit.runtime.protocol import canonical
+from vpn_orbit.runtime.sftp_publication import publication_timeout, publish_session
+from vpn_orbit.runtime.storage import new_private_file
+from vpn_orbit.runtime.vault import Vault
 from fixtures import ACTOR, OTHER, SECRET, TARGET, BROKER_UID, WORKER_UID, private_key, public_key
 
 
@@ -139,7 +139,7 @@ class SftpProtocolTests(unittest.TestCase):
         real_wait = asyncio.wait_for
         def short_wait(awaitable, _timeout):
             return real_wait(awaitable, 0.01)
-        with patch.object(RemoteFile, "read", stalled), patch("hostorbit.runtime.sftp_publication.asyncio.wait_for", short_wait):
+        with patch.object(RemoteFile, "read", stalled), patch("vpn_orbit.runtime.sftp_publication.asyncio.wait_for", short_wait):
             with self.assertRaises(TimeoutError):
                 self.publish()
         self.assertNotIn("/store/" + OTHER, self.remote.dirs)

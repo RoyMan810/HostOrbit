@@ -17,8 +17,8 @@ from urllib.parse import urlsplit
 
 import httpx
 
-from hostorbit.auth import COOKIE
-from hostorbit.runtime.protocol import ULID
+from vpn_orbit.auth import COOKIE
+from vpn_orbit.runtime.protocol import ULID
 from tools.capacity_soak import (
     ENDPOINTS, HOSTS, READ_CONCURRENCY, READ_P95_MS, SERVICES_PER_HOST, SOAK_SECONDS, WARMUP_SECONDS,
     environment, summary,

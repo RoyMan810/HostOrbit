@@ -7,18 +7,18 @@ import time
 import unittest
 from unittest.mock import patch
 
-from hostorbit.auth import AuthService
-from hostorbit.admission import Admission
-from hostorbit.database import Store
-from hostorbit.errors import Denied
-from hostorbit.queue import JobQueue
-from hostorbit.runtime.authority import Authority
-from hostorbit.runtime.broker import Broker
-from hostorbit.runtime.ipc import Peer
-from hostorbit.runtime.protocol import canonical
-from hostorbit.runtime.storage import new_private_file, process_lock
-from hostorbit.runtime.vault import Vault
-from hostorbit.worker import Worker
+from vpn_orbit.auth import AuthService
+from vpn_orbit.admission import Admission
+from vpn_orbit.database import Store
+from vpn_orbit.errors import Denied
+from vpn_orbit.queue import JobQueue
+from vpn_orbit.runtime.authority import Authority
+from vpn_orbit.runtime.broker import Broker
+from vpn_orbit.runtime.ipc import Peer
+from vpn_orbit.runtime.protocol import canonical
+from vpn_orbit.runtime.storage import new_private_file, process_lock
+from vpn_orbit.runtime.vault import Vault
+from vpn_orbit.worker import Worker
 from fixtures import ACTOR, BROKER_UID, PASSWORD, SECRET, TARGET, WORKER_UID, observation, policy, private_key
 
 

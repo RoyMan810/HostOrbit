@@ -42,7 +42,7 @@ for (const language of ['en', 'ru'] as const) {
       await expect(main.getByRole('alert')).toHaveText(t.loginError)
       await expect(password).toHaveValue('')
       await expect(password).toBeFocused()
-      await page.keyboard.type('HostOrbit fixture password!')
+      await page.keyboard.type('VPN-Orbit fixture password!')
       await page.keyboard.press('Enter')
       await expect(main.getByRole('heading', { name: t.inventory })).toBeVisible()
 

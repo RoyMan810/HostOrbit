@@ -1,8 +1,8 @@
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
-from hostorbit.auth import COOKIE
-from hostorbit.errors import Denied
+from vpn_orbit.auth import COOKIE
+from vpn_orbit.errors import Denied
 from test_auth_api import Fixture, OTHER, PASSWORD, SCOPE
 
 
@@ -70,7 +70,7 @@ class PermissionTests(Fixture):
         csrf = admin.get("/api/v1/auth/session").json()["csrf_token"]
         def create(resource, role="Operator"):
             version = admin.get("/api/v1/users").headers["etag"]
-            return admin.post("/api/v1/users", headers={"Origin": "https://hostorbit.test", "X-CSRF-Token": csrf, "If-Match": version},
+            return admin.post("/api/v1/users", headers={"Origin": "https://vpn-orbit.test", "X-CSRF-Token": csrf, "If-Match": version},
                               json={"username": "delegated", "password": PASSWORD, "role": role,
                                     "grants": [{"permission": "vps:restart", "resource_id": resource}]})
         self.assertEqual(create(OTHER).status_code, 403)

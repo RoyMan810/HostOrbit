@@ -294,12 +294,12 @@ function Inventory({ t, lang, expired, session }: { t: Copy; lang: Language; exp
 
 function App() {
   const [lang, setLang] = useState<Language>(() => {
-    const stored = preference('hostorbit.language')
+    const stored = preference('vpn-orbit.language')
     if (stored === 'ru' || stored === 'en') return stored
     return navigator.language.toLowerCase().startsWith('ru') ? 'ru' : 'en'
   })
   const [theme, setTheme] = useState<Theme>(() => {
-    const stored = preference('hostorbit.theme')
+    const stored = preference('vpn-orbit.theme')
     return stored === 'light' || stored === 'dark' ? stored : 'system'
   })
   const [session, setSession] = useState<Session | null>(null)
@@ -309,7 +309,7 @@ function App() {
   const [ending, setEnding] = useState(false)
   const [view, setView] = useState<'inventory' | 'audit' | 'settings' | 'help'>('inventory')
   const [timeZone, setTimeZone] = useState<'UTC' | undefined>(() =>
-    preference('hostorbit.timeZone') === 'UTC' ? 'UTC' : undefined)
+    preference('vpn-orbit.timeZone') === 'UTC' ? 'UTC' : undefined)
 
   const [restart, setRestart] = useState(() => readRestartHash(window.location.hash))
   const t = copy[lang]
@@ -373,17 +373,17 @@ function App() {
       document.getElementById('main')?.focus()
     }}>{t.skip}</a>
     <header className="topbar">
-      <div className="brand"><Mark/><span>HostOrbit</span></div>
+      <div className="brand"><Mark/><span>VPN-Orbit</span></div>
       <div className="preferences">
         <select aria-label={t.language} value={lang} onChange={event => {
           const value = event.target.value as Language
           setLang(value)
-          savePreference('hostorbit.language', value)
+          savePreference('vpn-orbit.language', value)
         }}><option value="en">English</option><option value="ru">Русский</option></select>
         <select aria-label={t.theme} value={theme} onChange={event => {
           const value = event.target.value as Theme
           setTheme(value)
-          savePreference('hostorbit.theme', value)
+          savePreference('vpn-orbit.theme', value)
         }}><option value="system">{t.system}</option><option value="light">{t.light}</option><option value="dark">{t.dark}</option></select>
         {session && <div className="account">
           <span>{session.user.username}</span>
@@ -414,7 +414,7 @@ function App() {
             <label>{t.timeZone} <select value={timeZone ?? 'local'} onChange={event => {
               const value = event.target.value === 'UTC' ? 'UTC' : undefined
               setTimeZone(value)
-              savePreference('hostorbit.timeZone', value ?? 'local')
+              savePreference('vpn-orbit.timeZone', value ?? 'local')
             }}><option value="local">{t.localTime}</option><option value="UTC">{t.utcTime}</option></select></label>
           </section>}
           {!restart && view === 'help' && <section className="workspace" aria-labelledby="help-heading">

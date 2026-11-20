@@ -1,12 +1,12 @@
 from concurrent.futures import ThreadPoolExecutor
 import os
 
-from hostorbit.admission import Admission
-from hostorbit.database import identifier
+from vpn_orbit.admission import Admission
+from vpn_orbit.database import identifier
 
-from hostorbit.auth import COOKIE
-from hostorbit.queue import JobQueue
-from hostorbit.errors import Denied
+from vpn_orbit.auth import COOKIE
+from vpn_orbit.queue import JobQueue
+from vpn_orbit.errors import Denied
 from test_auth_api import Fixture, SCOPE, OTHER
 
 
@@ -59,7 +59,7 @@ class QueueApiTests(Fixture):
         self.create_user(grants=[{"permission": "vps:probe", "resource_id": SCOPE}, {"permission": "vps:read", "resource_id": SCOPE}])
         operator = self.other_client("operator")
         csrf = operator.get("/api/v1/auth/session").json()["csrf_token"]
-        headers = {"Origin": "https://hostorbit.test", "X-CSRF-Token": csrf, "Idempotency-Key": "operator-request-0001"}
+        headers = {"Origin": "https://vpn-orbit.test", "X-CSRF-Token": csrf, "Idempotency-Key": "operator-request-0001"}
         self.assertEqual(operator.post(f"/api/v1/resources/{OTHER}/observations", json={}, headers=headers).status_code, 403)
         self.assertEqual(operator.post(f"/api/v1/resources/{SCOPE}/observations", json={}, headers=headers).status_code, 202)
         self.create_user(name="auditor", role="Auditor", grants=[{"permission": "vps:read", "resource_id": SCOPE}])

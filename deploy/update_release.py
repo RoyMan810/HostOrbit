@@ -1,4 +1,4 @@
-"""Verify a publisher-signed HostOrbit update candidate without activating it."""
+"""Verify a publisher-signed VPN-Orbit update candidate without activating it."""
 
 import argparse
 import hashlib
@@ -60,7 +60,7 @@ def verify_candidate(directory, key, *, installed, bootstrap, schema, vault_form
             or type(updater["size"]) is not int or not 1 <= updater["size"] <= MAX_UPDATER_SIZE
             or not isinstance(updater["sha256"], str) or re.fullmatch(DIGEST, updater["sha256"]) is None):
         raise ArtifactError("UPDATE_UPDATER_INVALID")
-    filename = f"hostorbit-updater-{PLATFORM}-{release['version']}.tar.zst"
+    filename = f"vpn-orbit-updater-{PLATFORM}-{release['version']}.tar.zst"
     with file_at(directory, filename) as (fd, info):
         if info.st_size != updater["size"]:
             raise ArtifactError("UPDATE_UPDATER_DIGEST_MISMATCH")
@@ -92,7 +92,7 @@ def main(argv=None):
                                   bootstrap=args.bootstrap, schema=args.schema, vault_format=args.vault_format,
                                   minimum_release=args.minimum_release)
     except (ArtifactError, OSError) as exc:
-        print(f"HostOrbit: {exc if isinstance(exc, ArtifactError) else 'UPDATE_RELEASE_UNREADABLE'}", file=sys.stderr)
+        print(f"VPN-Orbit: {exc if isinstance(exc, ArtifactError) else 'UPDATE_RELEASE_UNREADABLE'}", file=sys.stderr)
         return 1
     print(json.dumps(report, sort_keys=True))
     return 0

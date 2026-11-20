@@ -1,4 +1,4 @@
-name: HostOrbit recovery after source VM loss
+name: VPN-Orbit recovery after source VM loss
 
 on:
   push:
@@ -24,8 +24,8 @@ permissions:
   contents: read
 
 env:
-  HOSTORBIT_LAB_DOCKER_VERSION: "29.9.3"
-  HOSTORBIT_LAB_PYTHON_IMAGE: docker.io/library/python@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928
+  VPN_ORBIT_LAB_DOCKER_VERSION: "29.9.3"
+  VPN_ORBIT_LAB_PYTHON_IMAGE: docker.io/library/python@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928
 
 jobs:
   restore:
@@ -41,7 +41,7 @@ jobs:
           python-version: "3.15.2"
       - uses: docker/setup-docker-action@3f1ab1ab0e29231562e4db4ca600c1a49653bac6 # v5.7.0
         with:
-          version: v${{ env.HOSTORBIT_LAB_DOCKER_VERSION }}
+          version: v${{ env.VPN_ORBIT_LAB_DOCKER_VERSION }}
           set-host: true
       - name: Install QEMU and the SFTP lab tools
         run: |
@@ -50,7 +50,7 @@ jobs:
       - name: Prepare the pinned guest image and lab dependencies
         shell: bash
         run: |
-          lab="$RUNNER_TEMP/hostorbit-offhost"
+          lab="$RUNNER_TEMP/vpn-orbit-offhost"
           mkdir -p "$lab"
           cd "$lab"
           curl --proto '=https' --proto-redir '=https' --fail --silent --show-error --location --retry 2 \
@@ -63,9 +63,9 @@ jobs:
           python -m pip install --only-binary=:all: --python-version 3.12 --target "$lab/deps" -r "$GITHUB_WORKSPACE/requirements-lab.txt"
       - name: Fence the source guest while the Docker effect is pending
         run: |
-          lab="$RUNNER_TEMP/hostorbit-offhost"
-          test "$(docker version --format '{{.Server.Version}}')" = "$HOSTORBIT_LAB_DOCKER_VERSION"
+          lab="$RUNNER_TEMP/vpn-orbit-offhost"
+          test "$(docker version --format '{{.Server.Version}}')" = "$VPN_ORBIT_LAB_DOCKER_VERSION"
           sudo -n /usr/bin/env "PATH=$lab/age:$PATH" "PYTHONPATH=$PWD" PYTHONDONTWRITEBYTECODE=1 \
-            "HOSTORBIT_LAB_PYTHON=$(command -v python)" \
-            "HOSTORBIT_LAB_DOCKER_HOST=$DOCKER_HOST" "HOSTORBIT_LAB_PYTHON_IMAGE=$HOSTORBIT_LAB_PYTHON_IMAGE" \
+            "VPN_ORBIT_LAB_PYTHON=$(command -v python)" \
+            "VPN_ORBIT_LAB_DOCKER_HOST=$DOCKER_HOST" "VPN_ORBIT_LAB_PYTHON_IMAGE=$VPN_ORBIT_LAB_PYTHON_IMAGE" \
             /usr/bin/bash tests/lab/ssh-profile.sh --isolated-vm --controller-loss "$lab"

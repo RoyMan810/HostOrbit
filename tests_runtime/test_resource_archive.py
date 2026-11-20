@@ -14,12 +14,12 @@ from unittest.mock import patch
 
 from nacl.signing import SigningKey
 
-from hostorbit.errors import Denied
-from hostorbit.runtime.archive_stream import AGE_SHA256, trusted_age
-from hostorbit.runtime.protocol import canonical
-from hostorbit.runtime.rescue import _encrypted_output
-from hostorbit.runtime.rescue_cli import main
-from hostorbit.runtime.resource_archive import verify_archive
+from vpn_orbit.errors import Denied
+from vpn_orbit.runtime.archive_stream import AGE_SHA256, trusted_age
+from vpn_orbit.runtime.protocol import canonical
+from vpn_orbit.runtime.rescue import _encrypted_output
+from vpn_orbit.runtime.rescue_cli import main
+from vpn_orbit.runtime.resource_archive import verify_archive
 from test_controller_backup import AGE_DIR
 
 
@@ -44,7 +44,7 @@ class ResourceArchiveTests(unittest.TestCase):
             "root": {"uid": 1000, "gid": 1000, "mode": 0o700},
             "entries": [{"kind": "directory", "path": "data", "uid": 1000, "gid": 1000, "mode": 0o700}, self.file],
         }
-        self.enterContext(patch("hostorbit.runtime.resource_archive.offline_profile", return_value={"profile": "fixture"}))
+        self.enterContext(patch("vpn_orbit.runtime.resource_archive.offline_profile", return_value={"profile": "fixture"}))
 
     def archive(self, *, manifest=None, members=None, manifest_hash=None):
         path = self.directory / "volume.age"
@@ -56,7 +56,7 @@ class ResourceArchiveTests(unittest.TestCase):
                           age_path=self.age, tool_owner=os.geteuid())
         ciphertext = path.read_bytes()
         claims = {
-            "v": 1, "type": "hostorbit.resource-backup", "application_schema": manifest["application_schema"],
+            "v": 1, "type": "vpn-orbit.resource-backup", "application_schema": manifest["application_schema"],
             "manifest_sha256": manifest_hash or hashlib.sha256(raw).hexdigest(),
             "recipient": self.recipient, "ciphertext_sha256": hashlib.sha256(ciphertext).hexdigest(),
             "ciphertext_size": len(ciphertext), "age_sha256": AGE_SHA256,
@@ -81,8 +81,8 @@ class ResourceArchiveTests(unittest.TestCase):
         self.assertEqual({item.name for item in self.directory.iterdir()}, {"age", "volume.age"})
 
     def test_retention_inventory_protects_signed_resources_without_external_receipt(self):
-        from hostorbit.runtime.retention import resource_inventory
-        from hostorbit.runtime.storage import new_private_file
+        from vpn_orbit.runtime.retention import resource_inventory
+        from vpn_orbit.runtime.storage import new_private_file
         path, envelope = self.archive()
         new_private_file(self.directory / "volume.provenance.json", canonical(envelope))
         anchor = self.directory / "archive.pub"
@@ -97,7 +97,7 @@ class ResourceArchiveTests(unittest.TestCase):
 
     def test_checks_anchor_and_compatibility_before_using_the_identity(self):
         path, envelope = self.archive()
-        with patch("hostorbit.runtime.resource_archive.decrypt", side_effect=AssertionError("must reject before decrypt")):
+        with patch("vpn_orbit.runtime.resource_archive.decrypt", side_effect=AssertionError("must reject before decrypt")):
             with self.assertRaisesRegex(Denied, "RESOURCE_PROVENANCE_INVALID"):
                 self.verify(path, envelope, key=bytes(SigningKey.generate().verify_key))
             forged = {**envelope, "signature": base64.b64encode(bytes(64)).decode()}
@@ -144,11 +144,11 @@ class ResourceArchiveTests(unittest.TestCase):
         output = io.StringIO()
         # The console still requests a root-owned binary. Exercise the same
         # pinned digest and permissions with the test runner's fixture owner.
-        with (patch("hostorbit.runtime.rescue_cli.harden"),
-              patch("hostorbit.runtime.rescue_cli.console"),
-              patch("hostorbit.runtime.rescue_cli.offline_profile"),
-              patch("hostorbit.runtime.rescue_cli.getpass.getpass", return_value=secret),
-              patch("hostorbit.runtime.rescue.trusted_age",
+        with (patch("vpn_orbit.runtime.rescue_cli.harden"),
+              patch("vpn_orbit.runtime.rescue_cli.console"),
+              patch("vpn_orbit.runtime.rescue_cli.offline_profile"),
+              patch("vpn_orbit.runtime.rescue_cli.getpass.getpass", return_value=secret),
+              patch("vpn_orbit.runtime.rescue.trusted_age",
                     side_effect=lambda path, *, owner: trusted_age(path, owner=os.geteuid())) as verify_tool,
               redirect_stdout(output)):
             self.assertEqual(main([

@@ -7,13 +7,13 @@ from unittest.mock import patch
 
 from nacl.signing import SigningKey
 
-from hostorbit.database import identifier
-from hostorbit.errors import Denied
-from hostorbit.runtime.authority import Authority, verify_host_time
-from hostorbit.runtime.clock import chrony_sample, timesyncd_sample
-from hostorbit.runtime.ipc import Peer
-from hostorbit.runtime.policy import CAPABILITIES, Capability
-from hostorbit.runtime.timehealth import TimeHealth
+from vpn_orbit.database import identifier
+from vpn_orbit.errors import Denied
+from vpn_orbit.runtime.authority import Authority, verify_host_time
+from vpn_orbit.runtime.clock import chrony_sample, timesyncd_sample
+from vpn_orbit.runtime.ipc import Peer
+from vpn_orbit.runtime.policy import CAPABILITIES, Capability
+from vpn_orbit.runtime.timehealth import TimeHealth
 from fixtures import ACTOR, WORKER_UID, TestWatch, binding, policy
 
 

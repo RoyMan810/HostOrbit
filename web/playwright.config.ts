@@ -1,7 +1,7 @@
 import { defineConfig } from '@playwright/test'
 
 const origin = 'https://127.0.0.1:4173'
-const browser = process.env.HOSTORBIT_CHROMIUM
+const browser = process.env.VPN_ORBIT_CHROMIUM
 
 export default defineConfig({
   testDir: './tests',

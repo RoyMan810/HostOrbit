@@ -7,7 +7,7 @@ import unittest
 from tools.prune_merged_branches import candidates, delete_branches
 
 
-REPOSITORY = "RoyMan810/HostOrbit"
+REPOSITORY = "RoyMan810/VPN-Orbit"
 
 
 def fixture():

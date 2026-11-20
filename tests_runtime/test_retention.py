@@ -10,12 +10,12 @@ from unittest.mock import patch
 
 from nacl.signing import SigningKey
 
-from hostorbit.errors import Denied
-from hostorbit.runtime import backup_cli
-from hostorbit.runtime.controller_backup import sign_provenance
-from hostorbit.runtime.protocol import canonical, checksum
-from hostorbit.runtime.retention import Retention
-from hostorbit.runtime.storage import new_private_file
+from vpn_orbit.errors import Denied
+from vpn_orbit.runtime import backup_cli
+from vpn_orbit.runtime.controller_backup import sign_provenance
+from vpn_orbit.runtime.protocol import canonical, checksum
+from vpn_orbit.runtime.retention import Retention
+from vpn_orbit.runtime.storage import new_private_file
 from test_migration_backup import PublicationFixture
 
 
@@ -55,8 +55,8 @@ class RetentionTests(PublicationFixture, TestCase):
 
     def cli(self, command, *args, success=True):
         output, errors = io.StringIO(), io.StringIO()
-        with (patch("hostorbit.runtime.cli.configuration", return_value=self.config),
-              patch("hostorbit.runtime.retention.Retention", return_value=self.retention),
+        with (patch("vpn_orbit.runtime.cli.configuration", return_value=self.config),
+              patch("vpn_orbit.runtime.retention.Retention", return_value=self.retention),
               patch("os.geteuid", side_effect=itertools.chain([0], itertools.repeat(os.geteuid()))), redirect_stdout(output), redirect_stderr(errors)):
             code = backup_cli.main([command, *map(str, args)])
         self.assertEqual(code, 0 if success else 1, errors.getvalue())
@@ -127,20 +127,20 @@ class RetentionTests(PublicationFixture, TestCase):
         self.assertTrue((self.old / "controller.age").exists())
 
     def test_broker_readback_uses_only_bound_header(self):
-        from hostorbit.runtime.publication import _feed, receive_and_publish
-        from hostorbit.runtime.backup_target import BackupTarget
+        from vpn_orbit.runtime.publication import _feed, receive_and_publish
+        from vpn_orbit.runtime.backup_target import BackupTarget
         self.publish_keep()
         target = BackupTarget.load(self.target, owner=os.geteuid())
         envelope = json.loads((self.capture / "provenance.json").read_bytes())
         wire = io.BytesIO()
         _feed(self.capture, self.keep, target, envelope, wire, os.geteuid(), verify_only=True)
         # Root owns the public key on installed systems. Map the verifier to the fixture owner.
-        from hostorbit.runtime.storage import protected_bytes
+        from vpn_orbit.runtime.storage import protected_bytes
         def protected(path, *, owner, maximum):
             return protected_bytes(path, owner=os.geteuid(), maximum=maximum)
         with (patch.object(BackupTarget, "load", return_value=target),
-              patch("hostorbit.runtime.publication.protected_bytes", side_effect=protected),
-              patch("hostorbit.runtime.publication._transfer") as transfer):
+              patch("vpn_orbit.runtime.publication.protected_bytes", side_effect=protected),
+              patch("vpn_orbit.runtime.publication._transfer") as transfer):
             wire.seek(0)
             receive_and_publish(self.config, self.keep, wire, verify_only=True)
             transfer.assert_called_once_with(self.config, target, self.keep, None, envelope["claims"], envelope,

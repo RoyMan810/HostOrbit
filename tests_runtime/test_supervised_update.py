@@ -11,10 +11,10 @@ from nacl.signing import SigningKey
 from deploy.build_update_release import build_release
 from deploy.rehearse_update import select_slot
 from deploy.supervised_update import select_update, slot_name
-from hostorbit.database import identifier
-from hostorbit.errors import Denied
-from hostorbit.runtime.authority import Authority
-from hostorbit.runtime.ipc import Peer
+from vpn_orbit.database import identifier
+from vpn_orbit.errors import Denied
+from vpn_orbit.runtime.authority import Authority
+from vpn_orbit.runtime.ipc import Peer
 from fixtures import policy, trusted_time
 
 

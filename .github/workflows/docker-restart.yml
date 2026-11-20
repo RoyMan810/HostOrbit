@@ -1,4 +1,4 @@
-name: HostOrbit typed Docker restart
+name: VPN-Orbit typed Docker restart
 
 on:
   pull_request:
@@ -17,7 +17,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 6
     env:
-      HOSTORBIT_LAB_PYTHON_IMAGE: docker.io/library/python@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928
+      VPN_ORBIT_LAB_PYTHON_IMAGE: docker.io/library/python@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -29,4 +29,4 @@ jobs:
       - name: Verify the effect and replay on the same pinned Docker daemon
         run: |
           sudo -n /usr/bin/env "DOCKER_HOST=$DOCKER_HOST" GITHUB_ACTIONS=true \
-            "RUNNER_ENVIRONMENT=$RUNNER_ENVIRONMENT" python3 tests_runtime/lab/docker_restart.py "$HOSTORBIT_LAB_PYTHON_IMAGE"
+            "RUNNER_ENVIRONMENT=$RUNNER_ENVIRONMENT" python3 tests_runtime/lab/docker_restart.py "$VPN_ORBIT_LAB_PYTHON_IMAGE"

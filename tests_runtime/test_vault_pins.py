@@ -9,14 +9,14 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from hostorbit.admission import Admission
-from hostorbit.database import identifier
-from hostorbit.errors import Denied
-from hostorbit.runtime.broker import Broker
-from hostorbit.runtime.pins import capture_with_systemd, pin_vault
-from hostorbit.runtime.protocol import canonical
-from hostorbit.runtime.storage import new_private_file
-from hostorbit.runtime.vault import Vault
+from vpn_orbit.admission import Admission
+from vpn_orbit.database import identifier
+from vpn_orbit.errors import Denied
+from vpn_orbit.runtime.broker import Broker
+from vpn_orbit.runtime.pins import capture_with_systemd, pin_vault
+from vpn_orbit.runtime.protocol import canonical
+from vpn_orbit.runtime.storage import new_private_file
+from vpn_orbit.runtime.vault import Vault
 from fixtures import ACTOR, SECRET, TARGET, WORKER_UID, policy, private_key
 
 
@@ -146,7 +146,7 @@ class VaultPinTests(unittest.TestCase):
             if Path(path).parent.name == "objects":
                 raise OSError(errno.ENOSPC, "fixture full disk")
             return original(path, data)
-        with patch("hostorbit.runtime.pins.new_private_file", side_effect=fail_object):
+        with patch("vpn_orbit.runtime.pins.new_private_file", side_effect=fail_object):
             with self.assertRaises(OSError):
                 self.capture()
         self.assertFalse((self.directory / "pin.json").exists())
@@ -156,19 +156,19 @@ class VaultPinTests(unittest.TestCase):
             if Path(path).name == "receipts.sqlite3":
                 self.admission.publish("OPEN")
             return result
-        with patch("hostorbit.runtime.pins.new_private_file", side_effect=lose_barrier):
+        with patch("vpn_orbit.runtime.pins.new_private_file", side_effect=lose_barrier):
             with self.assertRaisesRegex(Denied, "SNAPSHOT_BINDING_INVALID"):
                 self.capture()
         self.assertFalse((self.directory / "pin.json").exists())
 
     def test_space_preflight_fails_before_creating_pin_namespace(self):
-        with patch("hostorbit.runtime.pins.shutil.disk_usage", return_value=type("Space", (), {"free": 1})()):
+        with patch("vpn_orbit.runtime.pins.shutil.disk_usage", return_value=type("Space", (), {"free": 1})()):
             with self.assertRaisesRegex(Denied, "VAULT_PIN_SPACE_INSUFFICIENT"):
                 self.capture()
         self.assertFalse((self.broker / "snapshot-pins").exists())
 
     def test_unprivileged_caller_cannot_start_the_native_credential_helper(self):
-        with patch("hostorbit.runtime.pins.os.geteuid", return_value=12345), patch("hostorbit.runtime.pins.subprocess.run") as run:
+        with patch("vpn_orbit.runtime.pins.os.geteuid", return_value=12345), patch("vpn_orbit.runtime.pins.subprocess.run") as run:
             with self.assertRaisesRegex(Denied, "LOCAL_ROOT_REQUIRED"):
                 capture_with_systemd(self.snapshot_id)
         run.assert_not_called()

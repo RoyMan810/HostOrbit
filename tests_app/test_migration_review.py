@@ -6,11 +6,11 @@ import sqlite3
 import tempfile
 import unittest
 
-from hostorbit.database import Store
-from hostorbit.errors import Denied
-from hostorbit.migrations import historical_schema, rehearse
-from hostorbit.runtime.migration_review import main, verify_rehearsal
-from hostorbit.runtime.protocol import canonical
+from vpn_orbit.database import Store
+from vpn_orbit.errors import Denied
+from vpn_orbit.migrations import historical_schema, rehearse
+from vpn_orbit.runtime.migration_review import main, verify_rehearsal
+from vpn_orbit.runtime.protocol import canonical
 
 
 class MigrationReviewTests(unittest.TestCase):

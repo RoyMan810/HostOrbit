@@ -1,0 +1,14 @@
+[Unit]
+Description=VPN-Orbit host admission socket
+After=systemd-tmpfiles-setup.service
+
+[Socket]
+ListenStream=/run/vpn-orbit/supervisor/gate.sock
+SocketUser=root
+SocketGroup=vpn-orbit-gate-rpc
+SocketMode=0660
+DirectoryMode=0710
+RemoveOnStop=true
+
+[Install]
+WantedBy=sockets.target

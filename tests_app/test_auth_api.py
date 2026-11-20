@@ -7,15 +7,15 @@ from unittest.mock import patch
 from argon2 import PasswordHasher, Type
 from fastapi.testclient import TestClient
 
-from hostorbit.api import create_app
-from hostorbit.auth import ABSOLUTE_SECONDS, COOKIE, IDLE_SECONDS, AuthService
-from hostorbit.cli import main
-from hostorbit.config import Settings
-from hostorbit.database import SCHEMA_VERSION, Store
-from hostorbit.errors import Denied
+from vpn_orbit.api import create_app
+from vpn_orbit.auth import ABSOLUTE_SECONDS, COOKIE, IDLE_SECONDS, AuthService
+from vpn_orbit.cli import main
+from vpn_orbit.config import Settings
+from vpn_orbit.database import SCHEMA_VERSION, Store
+from vpn_orbit.errors import Denied
 
 
-ORIGIN = "https://hostorbit.test"
+ORIGIN = "https://vpn-orbit.test"
 PASSWORD = "Canary-password-for-tests-117!"
 SCOPE = "01JCYQZ4T9V8MNVYEH3D2M7Q1A"
 OTHER = "01JCYQZ4T9V8MNVYEH3D2M7Q1B"
@@ -101,7 +101,7 @@ class BootstrapTests(unittest.TestCase):
         import io
         from contextlib import redirect_stdout
         output = io.StringIO()
-        with patch("hostorbit.cli.getpass.getpass", side_effect=[token, PASSWORD, PASSWORD]), redirect_stdout(output):
+        with patch("vpn_orbit.cli.getpass.getpass", side_effect=[token, PASSWORD, PASSWORD]), redirect_stdout(output):
             self.assertEqual(main(["--database", str(self.store.path), "create-owner", "--username", "roman"]), 0)
         self.assertNotIn(token, output.getvalue())
         self.assertNotIn(PASSWORD, output.getvalue())

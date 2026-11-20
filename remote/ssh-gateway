@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -I
-"""Forced command for the fixed HostOrbit observation capability."""
+"""Forced command for the fixed VPN-Orbit observation capability."""
 import os
 import signal
 import subprocess
@@ -8,14 +8,14 @@ import sys
 
 def main():
     request = {
-        "hostorbit.v1.probe": b'{"operation":"probe","version":1}\n',
-        "hostorbit.v2.probe": b'{"operation":"probe","version":2}\n',
-        "hostorbit.v3.probe": b'{"operation":"probe","version":3}\n',
-        "hostorbit.v4.probe": b'{"operation":"probe","version":4}\n',
-        "hostorbit.v5.probe": b'{"operation":"probe","version":5}\n',
-        "hostorbit.v6.probe": b'{"operation":"probe","version":6}\n',
-        "hostorbit.v7.probe": b'{"operation":"probe","version":7}\n',
-        "hostorbit.v8.probe": b'{"operation":"probe","version":8}\n',
+        "vpn-orbit.v1.probe": b'{"operation":"probe","version":1}\n',
+        "vpn-orbit.v2.probe": b'{"operation":"probe","version":2}\n',
+        "vpn-orbit.v3.probe": b'{"operation":"probe","version":3}\n',
+        "vpn-orbit.v4.probe": b'{"operation":"probe","version":4}\n',
+        "vpn-orbit.v5.probe": b'{"operation":"probe","version":5}\n',
+        "vpn-orbit.v6.probe": b'{"operation":"probe","version":6}\n',
+        "vpn-orbit.v7.probe": b'{"operation":"probe","version":7}\n',
+        "vpn-orbit.v8.probe": b'{"operation":"probe","version":8}\n',
     }.get(os.environ.get("SSH_ORIGINAL_COMMAND"))
     if len(sys.argv) != 1 or request is None:
         return 65
@@ -25,7 +25,7 @@ def main():
     if payload != request:
         return 65
     try:
-        return subprocess.run(["/usr/bin/sudo", "-n", "--", "/usr/local/libexec/hostorbit/typed-helper"],
+        return subprocess.run(["/usr/bin/sudo", "-n", "--", "/usr/local/libexec/vpn-orbit/typed-helper"],
                               input=request, timeout=5, env={"PATH": "/usr/bin:/bin", "LC_ALL": "C"}).returncode
     except (OSError, subprocess.SubprocessError):
         return 70

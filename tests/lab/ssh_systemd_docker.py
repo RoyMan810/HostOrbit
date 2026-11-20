@@ -63,13 +63,13 @@ def experiment(lab, port, helper_dir, authorized_keys, image, daemon):
     state_dir.mkdir(mode=0o700)
     probe_gateway = helper_dir / "probe-gateway"
     fixture = Path(__file__).with_name("ssh_restart_fixture.py")
-    unit = f"hostorbit-stage0-restart-{secrets.token_hex(8)}.service"
+    unit = f"vpn-orbit-stage0-restart-{secrets.token_hex(8)}.service"
     ssh = [
         "/usr/bin/ssh", "-F", "/dev/null", "-p", str(port), "-i", str(lab / "client"),
         "-o", "BatchMode=yes", "-o", "IdentitiesOnly=yes", "-o", "ConnectTimeout=2",
         "-o", "StrictHostKeyChecking=yes", "-o", "GlobalKnownHostsFile=/dev/null",
         "-o", f"UserKnownHostsFile={lab / 'known_hosts'}",
-        "-T", "hostorbit-svc@127.0.0.1", COMMAND,
+        "-T", "vpn-orbit-svc@127.0.0.1", COMMAND,
     ]
 
     def launch(container):
@@ -125,12 +125,12 @@ def main():
     parser.add_argument("helper_dir", type=Path)
     parser.add_argument("authorized_keys", type=Path)
     args = parser.parse_args()
-    daemon = os.environ.get("HOSTORBIT_LAB_DOCKER_HOST", DOCKER_HOST)
+    daemon = os.environ.get("VPN_ORBIT_LAB_DOCKER_HOST", DOCKER_HOST)
     if not local_docker_socket(daemon):
         parser.error("The fixture requires a local Docker Unix socket")
     os.environ["DOCKER_HOST"] = daemon
     os.environ.pop("DOCKER_CONTEXT", None)
-    image = os.environ["HOSTORBIT_LAB_PYTHON_IMAGE"]
+    image = os.environ["VPN_ORBIT_LAB_PYTHON_IMAGE"]
     print(docker("version", "--format", "Docker Engine {{.Server.Version}}"))
     docker("pull", "--platform", "linux/amd64", image, timeout=90)
     experiment(args.lab, args.port, args.helper_dir, args.authorized_keys, image, daemon)

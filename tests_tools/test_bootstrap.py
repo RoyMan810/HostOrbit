@@ -25,7 +25,7 @@ class BootstrapTests(unittest.TestCase):
         for endpoint in (local, public):
             with self.subTest(domain=endpoint.domain), tempfile.TemporaryDirectory() as location:
                 root = Path(location)
-                unit = root / "hostorbit-web.service"
+                unit = root / "vpn-orbit-web.service"
                 with patch.object(bootstrap, "WEB_UNIT", unit), patch.object(bootstrap, "run") as run:
                     bootstrap.start_web(endpoint)
                     service = unit.read_text()
