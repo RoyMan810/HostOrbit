@@ -3,7 +3,7 @@
   "scope": "LOCAL_VERIFICATION",
   "release_acceptance": false,
   "recorded_at_utc": "2026-11-20T14:10:42.205878+00:00",
-  "source_commit": "ce467d2d5cf0a5d9b285356ab07a80efb4e2eab3",
+  "source_commit": "788db11dedc8d70e61e5f41661a9c8d94ff1721c",
   "reviewer_status": "PENDING",
   "acceptance": {
     "AC-01": {
@@ -262,5 +262,5 @@
       "limitations": "Каждый сценарий запущен отдельно с локальной сборкой Chromium через HOSTORBIT_CHROMIUM."
     }
   },
-  "evidence_digest": "04644154bf3b8c40686c2b85d83a4d025c269d4b1f2d528a0b0fcba0ecf4e58e"
+  "evidence_digest": "97a10e4e0555e9ca805e7fa6c47af9094c2deabc0667fdee3d8a74c9e0e11a7e"
 }
