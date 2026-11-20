@@ -31,6 +31,10 @@ class RuntimeCliTests(unittest.TestCase):
             with patch("hostorbit.runtime.cli.os.geteuid", return_value=1), redirect_stderr(io.StringIO()):
                 self.assertEqual(main(args), 1)
             self.assertEqual(load.call_count, 1)
+            output.truncate(0)
+            output.seek(0)
+            self.assertEqual(main([*args, "--ssh-endpoints"]), 0)
+            self.assertEqual(json.loads(output.getvalue()), approved.enrollment_catalog(ssh_endpoints=True))
 
     def test_broker_commands_load_broker_when_needed(self):
         config = {"app_uid": 1, "app_gid": 2, "worker_uid": 3, "worker_gid": 4, "broker_uid": 5,

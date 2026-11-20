@@ -1,7 +1,7 @@
 {
   "scope": "Tracked Foundation application, deploy, remote and test paths plus historical report paths and CI/build inputs; each file matches the checked commit.",
-  "source_commit": "092c7b5757a6556bd676a49270c692fb70f46507",
-  "source_tree": "634333c97d424de70ee993ebb3f6ed96ea4a059c",
+  "source_commit": "bb55ce7f2affa77c856896e7ffb18908f2979245",
+  "source_tree": "05030b2d9b8035c141a1db24f354607e03cae7db",
   "files": [
     {
       "path": ".github/workflows/checks.yml",
@@ -21,7 +21,7 @@
     },
     {
       "path": "deploy/installer.py",
-      "sha256": "13d85c8324a734a9298bc6c0e399df62633a00c0b79be7f8ded44cef987965a3"
+      "sha256": "eea66ee42b1a3f98056056359c66d0abc1ca3ec8bebabdd11dfdd1d51e2bdfc0"
     },
     {
       "path": "deploy/requirements-build.lock",
@@ -81,7 +81,7 @@
     },
     {
       "path": "hostorbit/api.py",
-      "sha256": "efc382ab009b4d08af3d36185c365b617a59cf29477a1698d9cf73b5f716eaf6"
+      "sha256": "674633d54084b33be7f61d40157ec1b72ce1d9f3454cc9fb3e4fa09f965531a9"
     },
     {
       "path": "hostorbit/audit_plan.py",
@@ -117,7 +117,7 @@
     },
     {
       "path": "hostorbit/queue.py",
-      "sha256": "65af0ba808fd16532e2718ba186ba4c41269c679737c0ad712723f47d2ce9b77"
+      "sha256": "ea61c4f810b6bc337476a709c37369cb30704976821502a6f1ddfbfee49aed8b"
     },
     {
       "path": "hostorbit/release-manifest.json",
@@ -165,7 +165,7 @@
     },
     {
       "path": "hostorbit/runtime/cli.py",
-      "sha256": "faa23bf1fb7f1e2366b5142de75e7bb38a55e41439eadf7f9c93d00a7ef91846"
+      "sha256": "397e3257ed8bd9dca740930335008fddddd3fb9fbebea646eccd7a7f9cbe4a65"
     },
     {
       "path": "hostorbit/runtime/clock.py",
@@ -193,7 +193,7 @@
     },
     {
       "path": "hostorbit/runtime/policy.py",
-      "sha256": "45ed9868a0238cef59fd795a57e8e165b3f7c71c69c821f8f1cea762577e61af"
+      "sha256": "de68cf82726eda2d7e504f0120db32e76f1c8e9ec3aa43c58272812679d9ebfb"
     },
     {
       "path": "hostorbit/runtime/protocol.py",
@@ -433,7 +433,7 @@
     },
     {
       "path": "tests_runtime/test_runtime_cli.py",
-      "sha256": "2de62989e21b94ea8c75acabc177cd3aafe022cbec3d79ff3b8af0d07956046e"
+      "sha256": "6d23313aad50f6fb1b47fcb59fe24d15b51128c871e726015679de605362a5d0"
     },
     {
       "path": "tests_runtime/test_sftp_publication.py",

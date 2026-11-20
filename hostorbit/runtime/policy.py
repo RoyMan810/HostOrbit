@@ -93,7 +93,7 @@ class Policy:
             raise Denied("TARGET_POLICY_INVALID")
         return cls(value["targets"])
 
-    def enrollment_catalog(self):
+    def enrollment_catalog(self, *, ssh_endpoints=False):
         catalog = {}
         for target in self.targets.values():
             if "host.probe" in target.value["capabilities"]:
@@ -101,6 +101,8 @@ class Policy:
                 digest = base64.b64encode(hashlib.sha256(key).digest()).decode().rstrip("=")
                 catalog[target.id] = {"fingerprint": "SHA256:" + digest, "scope_digest": target.scope_digest,
                                       "policy_revision": target.revision}
+                if ssh_endpoints:
+                    catalog[target.id].update(ip=target.value["ip"], port=target.value["port"])
         return catalog
 
     @property

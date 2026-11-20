@@ -824,6 +824,7 @@ test('owner enrolls a prepared VPS with its independent pin and selects it for a
   const id = '01JCYQZ4T9V8MNVYEH3D2M7Q1D'
   await signIn(page)
   await page.getByText('Connect a VPS', { exact: true }).click()
+  await page.getByRole('button', { name: 'Use a prepared VPS ID' }).click()
   await expect(page.locator('select[name=id]')).toHaveValue(id)
   const pin = page.getByLabel('SSH fingerprint from the VPS console')
   await pin.fill('SHA256:' + 'B'.repeat(43))
@@ -835,6 +836,38 @@ test('owner enrolls a prepared VPS with its independent pin and selects it for a
   await expect(page.getByText('VPS connected. See the SSH check below.')).toBeVisible()
   await expect(page.locator('.detail-id').getByText(id, { exact: true })).toBeVisible()
   expect((await (await probe).json()).resource_id).toBe(id)
+})
+
+test('owner can retry SSH enrollment with a different credential', async ({ page }) => {
+  const fingerprint = 'SHA256:' + 'A'.repeat(43)
+  const ip = '192.0.2.10'
+  await signIn(page)
+  await page.getByText('Connect a VPS', { exact: true }).click()
+  await page.getByLabel('VPS IP address').fill(ip)
+  await page.getByLabel('SSH username').fill('ubuntu')
+  await page.getByLabel('SSH fingerprint from the VPS console').fill(fingerprint)
+  const secret = page.getByLabel('SSH password', { exact: true })
+  const submit = page.getByRole('button', { name: 'Connect and check SSH' })
+
+  await page.route('**/api/v1/enrollment/ssh', route => {
+    expect(route.request().postDataJSON()).toEqual({ ip, port: 22, username: 'ubuntu', fingerprint, password: 'disposable' })
+    return route.fulfill({ status: 424, json: {} })
+  }, { times: 1 })
+  await secret.fill('disposable')
+  await submit.click()
+  await expect(page.getByText('SSH login failed. Check the username and credentials.')).toBeVisible()
+  await expect(secret).toHaveValue('')
+
+  await page.getByLabel('SSH authentication').selectOption('private_key')
+  const key = page.getByRole('textbox', { name: 'Unencrypted SSH private key' })
+  await key.fill('disposable-key')
+  await page.route('**/api/v1/enrollment/ssh', route => {
+    expect(route.request().postDataJSON()).toEqual({ ip, port: 22, username: 'ubuntu', fingerprint, private_key: 'disposable-key' })
+    return route.fulfill({ status: 409, json: {} })
+  }, { times: 1 })
+  await submit.click()
+  await expect(page.getByText('This VPS is already registered or matches multiple approved entries.')).toBeVisible()
+  await expect(key).toHaveValue('')
 })
 
 test('first-run help and device time settings are keyboard accessible', async ({ page }) => {
