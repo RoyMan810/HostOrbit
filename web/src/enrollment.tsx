@@ -2,8 +2,8 @@ import { useState, type FormEvent } from 'react'
 import { hasApiStatus, request, type Session } from './api'
 import type { Copy } from './copy'
 
-export function Enrollment({ t, session, expired, onEnroll }: {
-  t: Copy; session: Session; expired: () => void; onEnroll: (id: string) => void
+export function Enrollment({ t, session, expired, onEnroll, firstVps }: {
+  t: Copy; session: Session; firstVps: boolean; expired: () => void; onEnroll: (id: string) => void
 }) {
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState<'enrollmentSuccess' | 'enrollmentMismatch' | 'enrollmentMissing' | 'enrollmentConflict' | 'requestError' | null>(null)
@@ -35,9 +35,10 @@ export function Enrollment({ t, session, expired, onEnroll }: {
     }
   }
 
-  return <details className="panel enrollment">
+  return <details className="panel enrollment" open={firstVps || undefined}>
     <summary>{t.enroll}</summary>
     <form onSubmit={submit}>
+      <p>{t.enrollmentHelp} <a href="https://github.com/RoyMan810/HostOrbit/blob/main/docs/stage1-installation.md#подготовка-vps-по-паролю-или-ssh-ключу">{t.enrollmentGuide}</a></p>
       <label>{t.enrollmentId}<input name="id" required maxLength={26} pattern="[0-7][0-9A-HJKMNP-TV-Z]{25}"/></label>
       <label>{t.enrollmentPin}<input name="fingerprint" required maxLength={50} placeholder="SHA256:…"/></label>
       <button disabled={busy}>{t.enrollmentSubmit}</button>

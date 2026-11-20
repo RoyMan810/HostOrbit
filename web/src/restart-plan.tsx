@@ -82,36 +82,60 @@ export function RestartPlan({ resource, container, sample, csrf, t, expired }: {
         baseline.policy_revision !== resource.policy_revision) {
       throw new ApiError(409)
     }
-    if (!signal.aborted) setDraft({ id: value.id, revision: value.revision, hash: value.plan_hash, tag, key: crypto.randomUUID(), savedAt: performance.now() })
+    return { id: value.id, revision: value.revision, hash: value.plan_hash, tag, key: crypto.randomUUID(), savedAt: performance.now() }
+  }
+
+  async function prepare(signal: AbortSignal) {
+    const saved = draft ?? await save(signal)
+    if (signal.aborted) return
+    setDraft(saved)
+    const path = '/change-plans/' + saved.id
+    const headers = { csrf, ifMatch: saved.tag, idempotencyKey: saved.key, signal }
+    // The server records drafts and observations in whole seconds.
+    const delay = Math.max(0, 1000 - (performance.now() - saved.savedAt))
+    if (delay) await new Promise(resolve => window.setTimeout(resolve, delay))
+    if (signal.aborted) return
+    const id = probe ?? (await request<{ id: string }>(path + '/preflight', { ...headers, body: {} })).id
+    if (!isUlid(id)) throw new Error()
+    if (signal.aborted) return
+    setProbe(id)
+    for (let read = 0; read < 30 && !signal.aborted; read++) {
+      const job = await request<{ status: string }>('/jobs/' + id, { signal })
+      if (signal.aborted) return
+      if (['FAILED', 'UNKNOWN_OUTCOME', 'CANCELLED_SAFE'].includes(job.status)) return setDecision('failed')
+      if (job.status === 'SUCCEEDED') {
+        const result = await request<{ backup_gate: string }>(path + '/backup-decision', {
+          ...headers, body: { probe_id: id, request_key: saved.key },
+        })
+        if (!signal.aborted) setDecision(result.backup_gate === 'BACKUP_NOT_REQUIRED' ? 'passed' : 'denied')
+        return
+      }
+      await new Promise(resolve => window.setTimeout(resolve, 2000))
+    }
+    if (!signal.aborted) setError(t.restartWaitLonger)
+  }
+
+  async function enqueue(approved: string, signal: AbortSignal) {
+    if (!draft || !evidence) return
+    const result = await request<{ id: string }>(plan + '/execution-requests', {
+      ...options, signal, body: { ...evidence, approval_id: approved },
+    })
+    if (!isUlid(result.id)) throw new Error()
+    if (signal.aborted) return
+    setOperation(result.id)
+    window.location.hash = restartHash({ planId: draft.id, revision: draft.revision, operationId: result.id })
   }
 
   return <div className="restart-plan">
-    {!draft && <>
-      <label><input type="checkbox" checked={confirmed} disabled={busy}
-        onChange={event => confirm(event.target.checked)}/> {t.restartStateless}</label>
-      <button type="button" disabled={!confirmed || busy} onClick={() => void run(save)}>{t.restartDraft}</button>
-    </>}
+    {!draft && <label><input type="checkbox" checked={confirmed} disabled={busy}
+      onChange={event => confirm(event.target.checked)}/> {t.restartStateless}</label>}
     {draft && <p>{t.restartRevision} {draft.revision} · {t.restartDiff}</p>}
-    {draft && !probe && <button type="button" disabled={busy} onClick={() => void run(async signal => {
-      // The server timestamps drafts and observations to whole seconds.
-      const delay = Math.max(0, 1000 - (performance.now() - draft.savedAt))
-      if (delay) await new Promise(resolve => window.setTimeout(resolve, delay))
-      if (signal.aborted) return
-      const job = await request<{ id: string }>(plan + '/preflight', { ...options, signal, body: {} })
-      if (!isUlid(job.id)) throw new Error()
-      if (!signal.aborted) setProbe(job.id)
-    })}>{t.restartPreflight}</button>}
-    {evidence && decision === 'waiting' && <>
-      <p role="status">{t.restartChecking}</p>
-      <button type="button" disabled={busy} onClick={() => void run(async signal => {
-        const job = await request<{ status: string }>('/jobs/' + probe, { signal })
-        if (signal.aborted) return
-        if (['FAILED', 'UNKNOWN_OUTCOME', 'CANCELLED_SAFE'].includes(job.status)) return setDecision('failed')
-        if (job.status !== 'SUCCEEDED') return
-        const value = await request<{ backup_gate: string }>(plan + '/backup-decision', { ...options, signal, body: evidence })
-        if (!signal.aborted) setDecision(value.backup_gate === 'BACKUP_NOT_REQUIRED' ? 'passed' : 'denied')
-      })}>{t.restartCheckResult}</button>
-    </>}
+    {decision === 'waiting' && (
+      busy ? <p role="status">{t.restartChecking}</p> :
+      <button type="button" disabled={!confirmed} onClick={() => void run(prepare)}>
+        {probe ? t.restartCheckResult : t.restartDraft}
+      </button>
+    )}
     {decision === 'failed' && <p role="alert" className="error">{t.probeFailed}</p>}
     {decision === 'denied' && <p role="alert" className="error">{t.restartBackupDenied}</p>}
     {decision === 'passed' && <p>{t.restartBackupPassed}</p>}
@@ -128,22 +152,18 @@ export function RestartPlan({ resource, container, sample, csrf, t, expired }: {
           ...options, signal, body: { ...evidence, reauth_id: grant.id },
         })
         if (!isUlid(result.approval_id)) throw new Error()
-        if (!signal.aborted) setApproval(result.approval_id)
+        if (signal.aborted) return
+        setApproval(result.approval_id)
+        await enqueue(result.approval_id, signal)
       })
     }}>
       <label>{t.restartPassword}<input type="password" autoComplete="current-password" required value={password}
         disabled={busy} onChange={event => setPassword(event.target.value)}/></label>
       <button disabled={!password || busy}>{t.restartApprove}</button>
     </form>}
-    {draft && evidence && approval && !operation && <button type="button" disabled={busy} onClick={() => void run(async signal => {
-      const result = await request<{ id: string }>(plan + '/execution-requests', {
-        ...options, signal, body: { ...evidence, approval_id: approval },
-      })
-      if (!isUlid(result.id)) throw new Error()
-      if (signal.aborted) return
-      setOperation(result.id)
-      window.location.hash = restartHash({ planId: draft.id, revision: draft.revision, operationId: result.id })
-    })}>{t.restartExecute}</button>}
+    {approval && !operation && <button type="button" disabled={busy} onClick={() => void run(signal => enqueue(approval, signal))}>
+      {t.restartExecute}
+    </button>}
     {operation && draft && <a href={restartHash({ planId: draft.id, revision: draft.revision, operationId: operation })}>
       {t.restartTimeline}
     </a>}

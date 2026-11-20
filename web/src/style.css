@@ -166,3 +166,10 @@ dd { margin: 5px 0 0; font-size: 14px; font-weight: 650; }
   gap: 8px;
   min-width: 0;
 }
+
+.restart-result { display: grid; gap: 6px; margin: 16px 0; }
+.restart-result h2 { font-size: 20px; }
+.restart-result p, .restart-events p { color: var(--muted); }
+.restart-events { margin-top: 16px; }
+.restart-events summary { cursor: pointer; }
+.restart-events p { margin-top: 8px; overflow-wrap: anywhere; }
